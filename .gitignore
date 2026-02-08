@@ -80,4 +80,19 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+apps/web/.pnp.js
+apps/web/.pnp
 apps/webnext-env.d.ts
+apps/web/.next
+apps/web/dist
+apps/web/.turbo
+apps/web/out
+apps/web/next-env.d.ts
+apps/api/.next
+apps/api/dist
+apps/api/.turbo
+apps/api/out
+apps/api/next-env.d.ts
+apps/api/node_modules/
+apps/web/node_modules/
+next-env.d.ts
