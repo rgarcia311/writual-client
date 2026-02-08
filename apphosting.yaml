@@ -2,7 +2,16 @@
 # See https://firebase.google.com/docs/app-hosting/configure#cloud-run
 runConfig:
   minInstances: 0
+  memoryMiB: 1024
+scripts:
+  buildCommand: pnpm install --force && pnpm --filter @writual/api build
+  runCommand: node apps/api/dist/index.js
 env:
+ - variable: NODE_ENV
+    value: "production"
+    availability:
+      - RUNTIME
+      - BUILD
   - variable: MONGODB_CONNECTION_URI
     secret: MONGODB_CONNECTION_URI
     availability:

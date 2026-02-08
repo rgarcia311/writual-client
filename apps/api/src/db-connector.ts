@@ -5,7 +5,10 @@ import { projectSchema, sceneContent, sceneSchema, outlineFrameworkStandaloneSch
 const env = process.env.NODE_ENV || "development";
 
 const connect = async () => {
-    await mongoose.connect(process.env.NODE_ENV === "production" ? process.env.MONGODB_CONNECTION_URI : environment[env].dbString);
+    console.log(process.env.MONGODB_CONNECTION_URI, process.env.NODE_ENV);
+    await mongoose.connect(process.env.NODE_ENV === "production" 
+        ? process.env.MONGODB_CONNECTION_URI 
+        : environment[env].dbString);
 }
 
 connect()
