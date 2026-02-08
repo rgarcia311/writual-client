@@ -1,0 +1,14 @@
+{
+  "/(project-details)/project/[id]/characters/page": "app/(project-details)/project/[id]/characters/page.js",
+  "/(project-details)/project/[id]/chat/page": "app/(project-details)/project/[id]/chat/page.js",
+  "/(project-details)/project/[id]/outline/page": "app/(project-details)/project/[id]/outline/page.js",
+  "/(project-details)/project/[id]/page": "app/(project-details)/project/[id]/page.js",
+  "/(project-details)/project/[id]/screenplay/page": "app/(project-details)/project/[id]/screenplay/page.js",
+  "/(project-details)/project/[id]/treatment/page": "app/(project-details)/project/[id]/treatment/page.js",
+  "/_global-error/page": "app/_global-error/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/dev/theme-editor/page": "app/dev/theme-editor/page.js",
+  "/outlines/page": "app/outlines/page.js",
+  "/page": "app/page.js",
+  "/projects/page": "app/projects/page.js"
+}

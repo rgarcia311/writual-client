@@ -1,0 +1,18 @@
+{
+  "app": {
+    "[project]/apps/web/src/app/(project-details)/project/[id]/characters/page": [],
+    "[project]/apps/web/src/app/(project-details)/project/[id]/chat/page": [],
+    "[project]/apps/web/src/app/(project-details)/project/[id]/outline/page": [],
+    "[project]/apps/web/src/app/(project-details)/project/[id]/page": [],
+    "[project]/apps/web/src/app/(project-details)/project/[id]/screenplay/page": [],
+    "[project]/apps/web/src/app/(project-details)/project/[id]/treatment/page": [],
+    "[project]/apps/web/src/app/_not-found/page": [],
+    "[project]/apps/web/src/app/dev/theme-editor/page": [],
+    "[project]/apps/web/src/app/outlines/page": [],
+    "[project]/apps/web/src/app/page": [],
+    "[project]/apps/web/src/app/projects/page": []
+  },
+  "appUsingSizeAdjust": false,
+  "pages": {},
+  "pagesUsingSizeAdjust": false
+}
