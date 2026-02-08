@@ -4,8 +4,10 @@ import { projectSchema, sceneContent, sceneSchema, outlineFrameworkStandaloneSch
 
 const env = process.env.NODE_ENV || "development";
 
+const uri = process.env.MONGODB_CONNECTION_URI;
+if (!uri) throw new Error("MONGODB_CONNECTION_URI is not defined");
+
 const connect = async () => {
-    console.log(process.env.MONGODB_CONNECTION_URI, process.env.NODE_ENV);
     await mongoose.connect(process.env.NODE_ENV === "production" 
         ? process.env.MONGODB_CONNECTION_URI 
         : environment[env].dbString);
@@ -13,12 +15,13 @@ const connect = async () => {
 
 connect()
 
-let db = mongoose.connection;
-db.on('error', () => {
+const db = mongoose.connection;
+(db as unknown as NodeJS.EventEmitter).on('error', () => {
     console.error("Error while connecting to DB");
 });
 
-const AutoIncrement = require('mongoose-sequence')(db);
+type MongooseSequence = (connection: mongoose.Connection) => (schema: mongoose.Schema, options?: { inc_field: string }) => void;
+const AutoIncrement = (require('mongoose-sequence') as MongooseSequence)(db);
 
 const Projects = mongoose.model("Projects", projectSchema);
 const Scenes = mongoose.model("Scenes", sceneSchema);

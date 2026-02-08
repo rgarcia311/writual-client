@@ -3,32 +3,12 @@
     {
       "backendId": "writual",
       "rootDir": "./apps/web",
-      "ignore": [
-        "node_modules",
-        ".git",
-        "firebase-debug.log",
-        "firebase-debug.*.log",
-        "functions",
-        ".next",
-        "dist", 
-        ".turbo",
-        "out"
-      ]
+      "ignore": ["node_modules", ".git", "firebase-debug.log", "firebase-debug.*.log", "functions", ".next", "dist", ".turbo", "out"]
     },
     {
       "backendId": "writual-api",
-      "rootDir": "./apps/api",
-      "ignore": [
-        "node_modules",
-        ".git",
-        "firebase-debug.log",
-        "firebase-debug.*.log",
-        "functions",
-        ".next",
-        "dist", 
-        ".turbo",
-        "out"
-      ]
+      "rootDir": "./",
+      "ignore": ["node_modules", ".git", "firebase-debug.log", "firebase-debug.*.log", "functions", ".next", "dist", ".turbo", "out", "pnpm-lock.yaml", "pnpm-workspace.yaml"]
     }
   ]
 }

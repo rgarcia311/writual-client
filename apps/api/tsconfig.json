@@ -1,28 +1,23 @@
 {
-    "compilerOptions":{
-        "target":"ESNext",
-        "module":"CommonJS",
-        "strict":true,
-        "noImplicitAny":false,
-        "esModuleInterop":true,
-        "moduleResolution":"node",
-        "rootDir":"src",
-        "outDir":"./dist",
-        "baseUrl":"src/",
-        "lib":["ESNext", "ESNext.AsyncIterable"],
-        "paths":{"@interfaces/*":["interfaces/*"]}},
-        "ts-node":{"require":["tsconfig-paths/register"],
-        "skipLibCheck": true,
-        "types": ["node"],
-        "typeRoots": [
-            "./node_modules/@types",
-            "./src/types"
-        ],
-        "emitDecoratorMetadata": true,
-        "experimentalDecorators": true,
-        "noImplicitAny": false, 
-        "suppressImplicitAnyIndexErrors": true
-    },
-    "exclude":["node_modules"],
-
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "CommonJS",
+    "strict": true,
+    "noImplicitAny": false,
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "rootDir": "src",
+    "outDir": "./dist",
+    "baseUrl": "src/",
+    "lib": ["ESNext", "ESNext.AsyncIterable"],
+    "paths": { "@interfaces/*": ["interfaces/*"] },
+    "skipLibCheck": true,
+    "typeRoots": ["./src/types"],
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true
+  },
+  "ts-node": {
+    "require": ["tsconfig-paths/register"]
+  },
+  "exclude": ["node_modules"]
 }

@@ -29,11 +29,11 @@ const startServer = async () => {
         // 50mb is the limit that `startStandaloneServer` uses, but you may configure this to suit your needs
         bodyParser.json({ limit: '50mb' }),
         expressMiddleware(server, {
-            context: async ({ req }) => ({ token: req.headers.token }),
+            context: async ({ req }) => ({ token: (req as { headers?: { token?: string } }).headers?.token }),
         }),
     );
 
-    await new Promise<void>((resolve) => httpServer.listen({ PORT, host }, resolve));
+    await new Promise<void>((resolve) => httpServer.listen({ port: Number(PORT), host }, resolve));
 }
 
 console.log(`🚀 ...Starting aerver on http://${host}:${PORT}`);
