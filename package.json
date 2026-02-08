@@ -1,49 +1,15 @@
 {
   "name": "writual",
-  "packageManager": "pnpm@10.28.2+sha512.41872f037ad22f7348e3b1debbaf7e867cfd448f2726d9cf74c08f19507c31d2c8e7a11525b983febc2df640b5438dee6023ebb1f84ed43cc2d654d2bc326264",
-  "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "NODE_OPTIONS='--max-old-space-size=8192' next dev -p 8000",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "dev:web": "turbo run dev --filter=@writual/web",
+    "dev:api": "turbo run dev --filter=@writual/api"
   },
   "devDependencies": {
-    "@types/node": "18.15.11",
-    "@types/react": "^19.2.10",
-    "@types/react-dom": "^19.2.3",
-    "sass": "^1.97.3"
+    "turbo": "^2.3.0"
   },
-  "dependencies": {
-    "@emotion/react": "latest",
-    "@emotion/styled": "latest",
-    "@fontsource/lato": "^5.2.7",
-    "@fontsource/varela-round": "^5.2.8",
-    "@fortawesome/fontawesome-free": "^6.7.2",
-    "@mui/icons-material": "^7.3.7",
-    "@mui/material": "^7.3.7",
-    "@mui/system": "^7.3.7",
-    "@mui/utils": "^7.3.7",
-    "@mui/x-data-grid": "^8.26.0",
-    "@tanstack/react-query": "^5.90.20",
-    "debounce": "^2.2.0",
-    "eslint": "^9.39.2",
-    "eslint-config-next": "^16.1.6",
-    "firebase": "^12.9.0",
-    "firebase-admin": "^13.6.1",
-    "graphql": "^16.12.0",
-    "graphql-request": "^6.1.0",
-    "localstorage-slim": "^2.7.1",
-    "next": "^16.1.6",
-    "re-resizable": "^6.11.2",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "react-google-fonts": "^1.2.1",
-    "react-router-dom": "^6.30.3",
-    "styled-jsx": "^5.1.7",
-    "typescript": "^5.9.3",
-    "use-debounce": "^10.1.0",
-    "zustand": "^4.5.7"
-  }
+  "packageManager": "pnpm@10.28.2+sha512.41872f037ad22f7348e3b1debbaf7e867cfd448f2726d9cf74c08f19507c31d2c8e7a11525b983febc2df640b5438dee6023ebb1f84ed43cc2d654d2bc326264"
 }
