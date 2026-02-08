@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 1, "column": 0}, "map": {"version":3,"sources":["turbopack:///turbopack:///[project]/apps/web/src/app/styles/global.scss"],"sourcesContent":["html {\n    -webkit-box-sizing: border-box;\n    -moz-box-sizing: border-box;\n    box-sizing: border-box;\n}\n\n*, *:before, *:after {\n    -webkit-box-sizing: inherit;\n    -moz-box-sizing: inherit;\n    box-sizing: inherit;\n}\n\nbody {\n    font-family: \"Lato\";\n    margin: 0;\n    height: 100vh;\n    padding: 8px;\n    background-color: #FBFBFF;\n}\n\n#__next {\n    height: 100%;\n    width: 100%;\n}\n\ninput:-webkit-autofill,\ninput:-webkit-autofill:hover, \ninput:-webkit-autofill:focus, \ninput:-webkit-autofill:active{\n   -webkit-box-shadow: 0 0 0 30px #7c1e4b inset !important;\n}\n\n.MuiOutlinedInput-root  {\n    background: #EFF1F3;\n}\n\n.MuiTableCell-root  {\n    padding: 0 14px !important;\n    height: 50px;\n  }\n\n"],"names":[],"mappings":"AAAA;;;;AAMA;;;;;;AAMA;;;;;;;;AAQA;;;;;AAKA;;;;AAAA;;;;AAAA;;;;AAAA;;;;AAOA;;;;AAIA"}}]
-}

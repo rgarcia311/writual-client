@@ -15,6 +15,11 @@
 /.pnp
 .pnp.js
 
+/apps/web/.next
+/apps/web/dist
+/apps/web/.turbo
+/apps/web/out
+
 # misc
 .DS_Store
 .idea

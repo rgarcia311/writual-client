@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 40, "column": 0}, "map": {"version":3,"sources":["file:///Users/dane/Development/writual_client/apps/web/src/proxy.ts"],"sourcesContent":["import { NextResponse } from \"next/server\";\n\nexport default function proxy(request) {\nconsole.log(\"middleware hit\");\n  const session = request.cookies.get(\"firebase-token\");\n\n  // Define which routes you want to protect\n  const protectedRoutes = [\"/projects\", \"/project/:id\",];\n  const isProtectedRoute = protectedRoutes.some((route) =>\n    request.nextUrl.pathname.startsWith(route)\n  );\n\n  if (isProtectedRoute && !session) {\n    // Redirect unauthenticated users to the login page\n    return NextResponse.redirect(new URL(\"/\", request.url));\n  }\n\n  return NextResponse.next();\n}\n\nexport const config = {\n  matcher: [\"/projects\", \"/project/:id/:path*\"],\n};"],"names":[],"mappings":";;;;;;AAAA;;AAEe,SAAS,MAAM,OAAO;IACrC,QAAQ,GAAG,CAAC;IACV,MAAM,UAAU,QAAQ,OAAO,CAAC,GAAG,CAAC;IAEpC,0CAA0C;IAC1C,MAAM,kBAAkB;QAAC;QAAa;KAAgB;IACtD,MAAM,mBAAmB,gBAAgB,IAAI,CAAC,CAAC,QAC7C,QAAQ,OAAO,CAAC,QAAQ,CAAC,UAAU,CAAC;IAGtC,IAAI,oBAAoB,CAAC,SAAS;QAChC,mDAAmD;QACnD,OAAO,4WAAY,CAAC,QAAQ,CAAC,IAAI,IAAI,KAAK,QAAQ,GAAG;IACvD;IAEA,OAAO,4WAAY,CAAC,IAAI;AAC1B;AAEO,MAAM,SAAS;IACpB,SAAS;QAAC;QAAa;KAAsB;AAC/C"}}]
-}

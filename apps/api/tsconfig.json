@@ -1,1 +1,28 @@
-{"compilerOptions":{"target":"es2018","module":"CommonJS","jsx":"preserve","strict":true,"noImplicitAny":false,"esModuleInterop":true,"moduleResolution":"node","rootDir":"src","outDir":"dist","baseUrl":"src/","lib":["es2022","esnext.asynciterable"],"paths":{"@interfaces/*":["interfaces/*"]}},"exclude":["node_modules"],"ts-node":{"require":["tsconfig-paths/register"]}}
+{
+    "compilerOptions":{
+        "target":"ESNext",
+        "module":"CommonJS",
+        "strict":true,
+        "noImplicitAny":false,
+        "esModuleInterop":true,
+        "moduleResolution":"node",
+        "rootDir":"src",
+        "outDir":"dist",
+        "baseUrl":"src/",
+        "lib":["ESNext", "ESNext.AsyncIterable"],
+        "paths":{"@interfaces/*":["interfaces/*"]}},
+        "ts-node":{"require":["tsconfig-paths/register"],
+        "skipLibCheck": true,
+        "types": ["node"],
+        "typeRoots": [
+            "./node_modules/@types",
+            "./src/types"
+        ],
+        "emitDecoratorMetadata": true,
+        "experimentalDecorators": true,
+        "noImplicitAny": false, 
+        "suppressImplicitAnyIndexErrors": true
+    },
+    "exclude":["node_modules"],
+
+}
