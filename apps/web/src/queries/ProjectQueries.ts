@@ -1,8 +1,8 @@
 import { gql } from "graphql-request";
 
 export const PROJECTS_QUERY = gql`
-{
-  getProjectData(input: {user: "rory.garcia1@gmail.com"}) {
+query GetProjectData($input: ProjectFilters) {
+  getProjectData(input: $input) {
     _id
     title
     genre

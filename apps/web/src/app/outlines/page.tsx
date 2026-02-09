@@ -13,9 +13,9 @@ import { SettingsPopover } from '@/components/SettingsPopover';
 import { AppLogo } from '@/components/AppLogo';
 
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
+import { useUserProfileStore } from '@/state/user';
 
 const ENDPOINT = GRAPHQL_ENDPOINT;
-const DEFAULT_USER = 'rory.garcia1@gmail.com';
 
 interface OutlineFrameworksResponse {
   getOutlineFrameworks?: any[];
@@ -32,10 +32,11 @@ export default function OutlinesPage() {
       steps?: Array<{ step_id?: string; name?: string; number?: number; act?: string; instructions?: string }>;
     };
   } | null>(null);
+  const user = useUserProfileStore((s) => s.user)
 
-  const variables = React.useMemo(() => ({ user: DEFAULT_USER }), []);
+  const variables = React.useMemo(() => ({ userId: user?.uid }), [user]);
   const { data } = useQuery<OutlineFrameworksResponse>({
-    queryKey: ['outline-frameworks', DEFAULT_USER],
+    queryKey: ['outline-frameworks', user?.uid],
     queryFn: () => request(ENDPOINT, OUTLINE_FRAMEWORKS_QUERY, variables) as Promise<OutlineFrameworksResponse>,
   });
 
@@ -44,7 +45,7 @@ export default function OutlinesPage() {
       request(ENDPOINT, UPDATE_OUTLINE_FRAMEWORK, { id, input }),
     onSuccess: () => {
       setEditFramework(null);
-      queryClient.invalidateQueries({ queryKey: ['outline-frameworks', DEFAULT_USER] });
+      queryClient.invalidateQueries({ queryKey: ['outline-frameworks', user?.uid] });
     },
   });
 
@@ -53,7 +54,7 @@ export default function OutlinesPage() {
   const handleUpdateSubmit = (values: OutlineFrameworkFormValues) => {
     if (!editFramework) return;
     const input = {
-      user: DEFAULT_USER,
+      user: user?.uid,
       name: values.formatName.trim(),
       imageUrl: values.imageUrl.trim() || undefined,
       format: {

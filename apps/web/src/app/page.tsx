@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import { auth } from "@/lib/firebase";
 import { GoogleAuthProvider, signInWithPopup, signOut, User } from "firebase/auth";
 import { verifyAndLogin } from './actions/auth';
-import { useUserStore } from '@/state/user';
+import { useUserProfileStore } from '@/state/user';
 import GoogleIcon from '@mui/icons-material/Google';
 import '@fontsource/varela-round';
 
@@ -19,7 +19,7 @@ export default function LandingPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
 
-  const setUserStore = useUserStore((s) => s.setUser);
+  const setUserStore = useUserProfileStore((s) => s.setUser);
 
   useEffect(() => {
     // Listen for auth state changes
@@ -29,15 +29,24 @@ export default function LandingPage() {
     return () => unsubscribe();
   }, [setUserStore]);
 
-  const handleSignIn = async () => {
+  const handleSignIn = () => {
     const provider = new GoogleAuthProvider();
     try {
-      const result = await signInWithPopup(auth, provider);
-      const idToken = await result.user.getIdToken();
-      const verifyResult = await verifyAndLogin(idToken);
-      if (verifyResult && verifyResult.success) {
-        router.push('/projects');
-      }
+      signInWithPopup(auth, provider).then((result) => {
+        result.user.getIdToken().then((idToken) => {
+          verifyAndLogin(idToken).then((verifyResult) => {
+            if (verifyResult?.status === "success") {
+              router.push('/projects');
+            }
+            if (verifyResult?.error) {
+              console.error("Sign-in verification failed:", verifyResult.error);
+            }
+          });
+        });
+      
+        
+      });
+     
     } catch (error) {
       console.error("Error signing in:", error);
     }

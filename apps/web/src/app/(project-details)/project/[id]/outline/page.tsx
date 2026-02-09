@@ -12,6 +12,7 @@ import { PROJECT_SCENES_QUERY } from '@/queries/SceneQueries';
 import { useProjectSceneMutations, PROJECT_SCENES_QUERY_KEY } from 'hooks';
 
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
+import { useUserProfileStore } from '@/state/user';
 
 const endpoint = GRAPHQL_ENDPOINT;
 
@@ -29,10 +30,11 @@ export default function OutlinePage() {
   const params = useParams();
   const id = params?.id as string;
   const { createSceneMutation } = useProjectSceneMutations();
+  const user = useUserProfileStore((s) => s.user)
 
   const variables = React.useMemo(
-    () => ({ input: { user: 'rory.garcia1@gmail.com', _id: id } }),
-    [id]
+    () => ({ input: { userid: user?.uid, _id: id } }),
+    [id, user]
   );
 
   const { data }: any = useQuery({

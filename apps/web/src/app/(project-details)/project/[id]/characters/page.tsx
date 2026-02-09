@@ -13,6 +13,7 @@ import { NewCharacterForm, type NewCharacterValues } from '@/components/NewChara
 import { AppAlert } from '@/components/AppAlert';
 import { CREATE_CHARACTER } from 'mutations/ProjectMutations';
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
+import { useUserProfileStore } from '@/state/user';
 
 export default function CharactersPage() {
   const params = useParams();
@@ -21,10 +22,11 @@ export default function CharactersPage() {
   const [createOpen, setCreateOpen] = React.useState(false);
   const [errorOpen, setErrorOpen] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState('Failed to create character.');
+  const user = useUserProfileStore((s) => s.user);
 
   const endpoint = GRAPHQL_ENDPOINT;
 
-  const variables = React.useMemo(() => ({ input: { user: 'rory.garcia1@gmail.com', _id: id } }), [id]);
+  const variables = React.useMemo(() => ({ input: { user, _id: id } }), [id]);
 
   const { data }: any = useQuery({
     queryKey: ['project-characters', id],

@@ -22,12 +22,10 @@ import { request } from 'graphql-request';
 import { OutlineFrameworkForm, type OutlineFrameworkFormValues } from '@/components/OutlineFrameworkForm';
 import { CREATE_OUTLINE_FRAMEWORK } from 'mutations/OutlineMutations';
 import { useThemeToggleOptional } from '@/themes/ThemeToggleContext';
-
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
+import { useUserProfileStore } from '@/state/user';
 
 const ENDPOINT = GRAPHQL_ENDPOINT;
-const DEFAULT_USER = 'rory.garcia1@gmail.com';
-
 export interface SettingsPopoverProps {
   /** When true, render only the icon (e.g. on projects page without SideNav). */
   standalone?: boolean;
@@ -40,6 +38,7 @@ export function SettingsPopover({ standalone = false }: SettingsPopoverProps) {
   const queryClient = useQueryClient();
   const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
   const [outlineFormOpen, setOutlineFormOpen] = React.useState(false);
+  const user = useUserProfileStore((s) => s.user)
 
   const open = Boolean(anchorEl);
 
@@ -68,7 +67,7 @@ export function SettingsPopover({ standalone = false }: SettingsPopoverProps) {
 
   const handleOutlineFormSubmit = (values: OutlineFrameworkFormValues) => {
     const input = {
-      user: DEFAULT_USER,
+      user: user?.uid,
       name: values.formatName.trim(),
       imageUrl: values.imageUrl.trim() || undefined,
       format: {

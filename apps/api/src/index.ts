@@ -4,7 +4,6 @@ import { ApolloServerPluginDrainHttpServer } from '@apollo/server/plugin/drainHt
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
-import bodyParser from 'body-parser';
 //import { resolvers } from '../resolvers';
 import { ProjectType } from './typeDefs';
 import { PORT, host } from './app-config';
@@ -25,10 +24,10 @@ const server = new ApolloServer(
 const startServer = async () => {
     await server.start()
 
+    // JSON body parser must run before Apollo so req.body is set for GraphQL requests
+    app.use(express.json({ limit: '50mb' }));
     app.use(
         cors(),
-        // 50mb is the limit that `startStandaloneServer` uses, but you may configure this to suit your needs
-        bodyParser.json({ limit: '50mb' }),
         expressMiddleware(server, {
             context: async ({ req }) => ({ token: (req as { headers?: { token?: string } }).headers?.token }),
         }),

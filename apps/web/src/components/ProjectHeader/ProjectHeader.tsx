@@ -19,6 +19,7 @@ import { useEffect } from 'react';
 import { ProjectType } from '@/enums/ProjectEnums';
 
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
+import { useUserProfileStore } from '@/state/user';
 
 const endpoint = GRAPHQL_ENDPOINT;
 
@@ -64,21 +65,20 @@ export function ProjectHeader() {
   const id = params?.id as string | undefined;
   const [expanded, setExpanded] = React.useState(true);
   const [projectData, setProjectData] = React.useState<Project>(defaultProjectData);
+  const user = useUserProfileStore((s) => s.user)
 
   const variables = React.useMemo(
-    () => ({ input: { user: 'rory.garcia1@gmail.com', _id: id } }),
+    () => ({ input: { user: user?.uid, _id: id } }),
     [id]
   );
 
-
-
-  const fetchProjects = async (): Promise<{ getProjectData: Project[] }> => {
+  const fetchProject = async (): Promise<{ getProjectData: Project[] }> => {
     return await request(endpoint, PROJECT_QUERY, variables)
   };
 
   const { data } = useQuery({
     queryKey: ['project', id],
-    queryFn: () => fetchProjects(),
+    queryFn: () => fetchProject(),
     enabled: Boolean(id),
   });
 

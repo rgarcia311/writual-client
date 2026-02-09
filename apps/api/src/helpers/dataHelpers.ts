@@ -14,28 +14,35 @@ function projectQueryFromInput(input: any): any {
 }
 
 export const getData = (model: any, params: any = {}) => {
-    return new Promise((resolve, reject) => {
+    console.log({ params })
+    return new Promise( async (resolve, reject) => {
         if (Object.keys(params).length && params.input) {
             const query = projectQueryFromInput(params.input)
-            model.find(query, (err: any, data: any) => {
-                if (err) reject(err)
-                else {
-                    resolve(data)
-                }
-            })
+            console.log({ query })
+            
+            try {
+                const data = await model.find(query)
+                console.log({ data })
+                if (data.length > 0) resolve(data)
+                else resolve([])
+            } catch (e) {
+                reject(e)
+            }
         }
     })
 }
 
 export const getScenes = (model: any, params: any = {}) => {
-    return new Promise((resolve, reject) => {
+    return new Promise( async (resolve, reject) => {
         if (Object.keys(params).length && params.input) {
             const query = projectQueryFromInput(params.input)
-            model.find(query, (err: any, data: any) => {
-                if (err) reject(err)
-                else if (data.length > 0) resolve(data[0].scenes)
-                else resolve([])
-            })
+            try {
+               const data = await model.find(query)
+               if (data.length > 0) resolve(data[0].scenes)
+               else resolve([])
+            } catch (e) {
+                reject(e)
+            }
         }
     })
 }
@@ -71,10 +78,13 @@ export const updateData = (model: any, input: any, id: string, property: string 
 
 export const insertData = (data: any) => {
     return new Promise((resolve, reject) => {
-        data.save((err) => {
-            if(err) reject(err)
-            else resolve(data)
-        })
+        try {
+            data.save()
+            resolve(data)
+        } catch (e) {
+            reject(e)
+        }
+      
     })
 }
 
