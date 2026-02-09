@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Card from '@mui/material/Card';
 import CardMedia from '@mui/material/CardMedia';
 import CardContent from '@mui/material/CardContent';
+import CardActions from '@mui/material/CardActions';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import Button from '@mui/material/Button';
@@ -176,8 +177,10 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
       elevation={enableCardShadow ? 1 : 0}
       sx={{
         display: 'flex',
-        maxWidth: maxWidth || 500,
-        maxHeight: maxHeight || 250,
+        justifyContent: 'center',
+        alignItems: 'center',
+        maxWidth: maxWidth || 550,
+        maxHeight: maxHeight || 'max-content',
         borderRadius: 2,
         boxShadow: enableCardShadow ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
         overflow: 'hidden',
@@ -186,103 +189,12 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
     >
       <CardMedia
         component="img"
-        sx={{ p:1, width: 150, height: 'max-content', objectFit: 'cover', borderRadius: 4  }}
+        sx={{ p:1, width: 185, height: 'max-content', objectFit: 'cover', borderRadius: 4  }}
         image={imageSrc}
         alt={`${title} cover`}
       />
-      <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, position: 'relative' }}>
-        <Box sx={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 0.5, alignItems: 'center' }}>
-          {projectId ? (
-            <>
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<PersonAddIcon />}
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShareAnchorEl(e.currentTarget); }}
-                sx={{ minWidth: 'auto', py: 0.25, px: 1 }}
-                data-no-navigate
-              >
-                Share Project
-              </Button>
-              <Popover
-                open={Boolean(shareAnchorEl)}
-                anchorEl={shareAnchorEl}
-                onClose={() => { setShareAnchorEl(null); setEmailError(''); setNewEmail(''); }}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Box sx={{ p: 2, minWidth: 320, maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                    Shared with
-                  </Typography>
-                  {sharedWith.length === 0 ? (
-                    <Typography variant="body2" color="text.secondary">
-                      Not shared with anyone yet.
-                    </Typography>
-                  ) : (
-                    <List dense sx={{ py: 0, maxHeight: 200, overflow: 'auto' }}>
-                      {sharedWith.map((email) => (
-                        <ListItem
-                          key={email}
-                          secondaryAction={
-                            <IconButton
-                              edge="end"
-                              size="small"
-                              aria-label={`Remove ${email}`}
-                              onClick={(ev) => handleRemoveShareEmail(ev, email)}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          }
-                        >
-                          <ListItemText primary={email} primaryTypographyProps={{ variant: 'body2' }} />
-                        </ListItem>
-                      ))}
-                    </List>
-                  )}
-                  <Box sx={{ display: 'flex', gap: 1, mt: 2, alignItems: 'flex-start' }}>
-                    <TextField
-                      size="small"
-                      placeholder="Add email"
-                      value={newEmail}
-                      onChange={(e) => { setNewEmail(e.target.value); setEmailError(''); }}
-                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), doAddShareEmail())}
-                      error={Boolean(emailError)}
-                      helperText={emailError}
-                      fullWidth
-                    />
-                    <Button variant="contained" size="small" onClick={handleAddShareEmail}>
-                      Add
-                    </Button>
-                  </Box>
-                </Box>
-              </Popover>
-            </>
-          ) : null}
-          {onDelete && (
-            <IconButton
-              aria-label="Delete project"
-              size="small"
-              data-no-navigate
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onDelete();
-              }}
-              sx={{
-                backgroundColor: theme.palette.error.light,
-                color: theme.palette.error.contrastText ?? theme.palette.common.white,
-                '&:hover': {
-                  backgroundColor: theme.palette.error.main,
-                },
-              }}
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          )}
-        </Box>
-        <CardContent sx={{ flex: '1 0 auto', pt: 2, p: 1}}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+        <CardContent sx={{ flex: '1 0 auto', pt: 2, p: 1 }}>
           <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
             {title}
           </Typography>
@@ -313,6 +225,99 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
             ))}
           </Box>
         </CardContent>
+        <CardActions sx={{ width: "100%", display: 'flex', justifyContent: 'space-between', px: 1.5, pb: 1, pt: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            {projectId ? (
+              <>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<PersonAddIcon />}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShareAnchorEl(e.currentTarget); }}
+                  sx={{ minWidth: 'auto', py: 0.25, px: 1 }}
+                  data-no-navigate
+                >
+                  Share Project
+                </Button>
+                <Popover
+                  open={Boolean(shareAnchorEl)}
+                  anchorEl={shareAnchorEl}
+                  onClose={() => { setShareAnchorEl(null); setEmailError(''); setNewEmail(''); }}
+                  anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                  transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Box sx={{ p: 2, minWidth: 320, maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      Shared with
+                    </Typography>
+                    {sharedWith.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary">
+                        Not shared with anyone yet.
+                      </Typography>
+                    ) : (
+                      <List dense sx={{ py: 0, maxHeight: 200, overflow: 'auto' }}>
+                        {sharedWith.map((email) => (
+                          <ListItem
+                            key={email}
+                            secondaryAction={
+                              <IconButton
+                                edge="end"
+                                size="small"
+                                aria-label={`Remove ${email}`}
+                                onClick={(ev) => handleRemoveShareEmail(ev, email)}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            }
+                          >
+                            <ListItemText primary={email} primaryTypographyProps={{ variant: 'body2' }} />
+                          </ListItem>
+                        ))}
+                      </List>
+                    )}
+                    <Box sx={{ display: 'flex', gap: 1, mt: 2, alignItems: 'flex-start' }}>
+                      <TextField
+                        size="small"
+                        placeholder="Add email"
+                        value={newEmail}
+                        onChange={(e) => { setNewEmail(e.target.value); setEmailError(''); }}
+                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), doAddShareEmail())}
+                        error={Boolean(emailError)}
+                        helperText={emailError}
+                        fullWidth
+                      />
+                      <Button variant="contained" size="small" onClick={handleAddShareEmail}>
+                        Add
+                      </Button>
+                    </Box>
+                  </Box>
+                </Popover>
+              </>
+            ) : null}
+          </Box>
+          {onDelete ? (
+            <IconButton
+              aria-label="Delete project"
+              size="small"
+              data-no-navigate
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onDelete();
+              }}
+              sx={{
+                backgroundColor: theme.palette.error.light,
+                color: theme.palette.error.contrastText ?? theme.palette.common.white,
+                '&:hover': {
+                  backgroundColor: theme.palette.error.main,
+                },
+              }}
+            >
+              <DeleteIcon fontSize="small" />
+            </IconButton>
+          ) : null}
+        </CardActions>
       </Box>
     </Card>
   );
