@@ -12,7 +12,7 @@
     "lib": ["ESNext", "ESNext.AsyncIterable"],
     "paths": { "@interfaces/*": ["interfaces/*"] },
     "skipLibCheck": true,
-    "typeRoots": ["./src/types"],
+    "typeRoots": ["./node_modules/@types","./src/types"],
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true
   },

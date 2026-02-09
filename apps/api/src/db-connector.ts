@@ -4,7 +4,7 @@ import { projectSchema, sceneContent, sceneSchema, outlineFrameworkStandaloneSch
 
 const env = process.env.NODE_ENV || "development";
 
-const uri = process.env.MONGODB_CONNECTION_URI;
+const uri = process.env.MONGODB_CONNECTION_URI || 'localhost:4000';
 if (!uri) throw new Error("MONGODB_CONNECTION_URI is not defined");
 
 const connect = async () => {

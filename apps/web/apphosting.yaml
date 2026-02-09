@@ -3,6 +3,11 @@
 runConfig:
   minInstances: 0
 env:
+  - variable: NEXT_PUBLIC_GRAPHQL_ENDPOINT
+    value: "https://writual-api--writual-9ea2b.us-central1.hosted.app"
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: MONGODB_CONNECTION_URI
     secret: MONGODB_CONNECTION_URI
     availability:
