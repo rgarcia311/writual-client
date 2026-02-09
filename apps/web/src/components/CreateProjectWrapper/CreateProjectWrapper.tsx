@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { request } from 'graphql-request';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { useCreateProjectModalStore } from '@/state/createProjectModal';
@@ -29,17 +29,21 @@ export function CreateProjectWrapper() {
   const open = useCreateProjectModalStore((s) => s.open);
   const setFrameworks = useOutlineFrameworksStore((s) => s.setFrameworks);
   const user = useUserProfileStore((s) => s.user);
+  const displayName = useUserProfileStore((s) => s.displayName);
+  const email = useUserProfileStore((s) => s.email);
 
   const { data: outlineData } = useQuery<OutlineFrameworksResponse>({
     queryKey: ['outline-frameworks', user?.uid],
     queryFn: () => request(endpoint, OUTLINE_FRAMEWORKS_QUERY, { user: user?.uid}) as Promise<OutlineFrameworksResponse>,
+    enabled: !!user?.uid,
   });
 
   useEffect(() => {
     if (outlineData?.getOutlineFrameworks) {
       setFrameworks(outlineData.getOutlineFrameworks);
     }
-  }, [outlineData, setFrameworks]);
+  }, [outlineData, setFrameworks, user]);
+
   const setOpen = useCreateProjectModalStore((s) => s.setOpen);
   const createStatement = useProjectTableState((s) => s.createStatement);
   const setCreateStatement = useProjectTableState((s) => s.setCreateStatement);
@@ -58,12 +62,18 @@ export function CreateProjectWrapper() {
   const mutation = createMutation(mutationArgs);
   useCreateMutation(createStatement, createVariables, mutation, GqlStatements.CREATE_PROJECT);
 
-  const handleAddProject = (formValues: Record<string, unknown>) => {
-    const userId = user?.uid;
-    const withUser = { ...formValues, user: userId };
+  const handleAddProject = useCallback( async (formValues: Record<string, unknown>) => {
+    const { user, displayName, email } = await useUserProfileStore.getState();
+    const withUser = {
+      ...formValues,
+      user: user?.uid,
+      displayName,
+      email
+    };
+    console.log('withUser: ', withUser);
     setCreateVariables(withUser);
     setCreateStatement(CREATE_PROJECT);
-  };
+  }, []);
 
   if (!open) return null;
 

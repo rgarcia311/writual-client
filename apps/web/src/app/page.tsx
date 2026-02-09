@@ -21,18 +21,11 @@ export default function LandingPage() {
 
   const setUserStore = useUserProfileStore((s) => s.setUser);
 
-  useEffect(() => {
-    // Listen for auth state changes
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      setUserStore(user);
-    });
-    return () => unsubscribe();
-  }, [setUserStore]);
-
   const handleSignIn = () => {
     const provider = new GoogleAuthProvider();
     try {
       signInWithPopup(auth, provider).then((result) => {
+        setUserStore(result.user);
         result.user.getIdToken().then((idToken) => {
           verifyAndLogin(idToken).then((verifyResult) => {
             if (verifyResult?.status === "success") {

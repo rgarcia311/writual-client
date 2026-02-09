@@ -9,6 +9,8 @@ query GetProjectData($input: ProjectFilters) {
     type
     logline
     user
+    displayName
+    email
     poster
     sharedWith
     
@@ -30,6 +32,8 @@ query GetProjectData($input: ProjectFilters) {
         type
         logline
         user
+        displayName
+        email
         poster
         sharedWith
         characters {

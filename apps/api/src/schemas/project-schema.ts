@@ -12,6 +12,8 @@ export const projectSchema = new mongoose.Schema({
     modified_date: { type: String },
     revision:  { type: Number },
     user: { type: String },
+    displayName: { type: String },
+    email: { type: String },
     sharedWith: { type: [String] },
     type: { type: String, enum: ProjectType },
     genre: { type: String },

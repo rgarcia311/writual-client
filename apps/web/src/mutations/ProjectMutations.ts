@@ -5,6 +5,8 @@ export const CREATE_PROJECT = gql`
     $title: String!
     $type: ProjectType
     $user: String!
+    $displayName: String
+    $email: String
     $logline: String
     $genre: String
     $poster: String
@@ -18,6 +20,8 @@ export const CREATE_PROJECT = gql`
         title: $title
         type: $type
         user: $user
+        displayName: $displayName
+        email: $email
         logline: $logline
         genre: $genre
         poster: $poster

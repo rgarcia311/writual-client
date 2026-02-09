@@ -23,6 +23,7 @@ import { request } from 'graphql-request';
 import { UPDATE_PROJECT_SHARED_WITH } from 'mutations/ProjectMutations';
 
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
+import { toTitleCase } from 'utils/stringFormatting';
 
 const endpoint = GRAPHQL_ENDPOINT;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -199,7 +200,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
             {title}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            by {author}
+            by {toTitleCase(author)}
           </Typography>
           <Typography variant="body2" sx={{ mt: 1, overflow: 'hidden',
         textOverflow: 'ellipsis',

@@ -21,6 +21,8 @@ export const createProject = (root, { input }) => {
     //loop  through input keys to make project
     const newProject = new Projects({
         user: input.user,
+        displayName: input.displayName,
+        email: input.email,
         type: input.type,
         title: input.title,
         logline: input.logline,

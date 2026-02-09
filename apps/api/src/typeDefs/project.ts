@@ -30,6 +30,8 @@ export const ProjectType = `#graphql
         modified_date: String
         revision: Int
         user: String!
+        displayName: String
+        email: String
         sharedWith: [String]
         type: ProjectType
         timePeriod: String
@@ -55,6 +57,8 @@ export const ProjectType = `#graphql
         modified_date: String
         revision: Int
         user: String!
+        displayName: String
+        email: String
         sharedWith: [String]
         type: ProjectType
         timePeriod: String
@@ -80,6 +84,8 @@ export const ProjectType = `#graphql
 
     input ProjectInput {
         user: String!
+        displayName: String
+        email: String
         projectId: String
         sharedWith: [String]
         type: ProjectType

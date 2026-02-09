@@ -62,7 +62,7 @@ export const Projects = () => {
                     >
                         <ProjectCard
                         title={project.title}
-                        author={project.user}
+                        author={project.displayName ?? project.email ?? project.user ?? 'TBD'}
                         genre={project.genre}
                         logline={project.logline}
                         coverImage={project.coverImage ?? project.poster}

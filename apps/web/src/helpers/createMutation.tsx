@@ -16,7 +16,7 @@ export const createMutation = (updateMutationArgs: Mutation) => {
     return useMutation({
         mutationFn: async () => {
           await request(endpoint, createStatement, createVariables)
-        
+          console.log('createVariables: ', createVariables)
         },
         onSuccess: () =>  {
             queryClient.invalidateQueries({ queryKey: invalidateQueriesArray })
