@@ -3,6 +3,7 @@
 import * as React from 'react';
 import {
   Box,
+  Container,
   IconButton,
   ListItemIcon,
   ListItemText,
@@ -89,7 +90,7 @@ export function SettingsPopover({ standalone = false }: SettingsPopoverProps) {
   };
 
   return (
-    <>
+    <Container disableGutters sx={{ width: "max-content"}}>
       <IconButton
         onClick={handleClick}
         color="inherit"
@@ -153,6 +154,6 @@ export function SettingsPopover({ standalone = false }: SettingsPopoverProps) {
         submitLabel="Create framework"
         submitting={createOutlineMutation.isPending}
       />
-    </>
+    </Container>
   );
 }

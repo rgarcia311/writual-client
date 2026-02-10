@@ -52,6 +52,7 @@ export const StyledSideNav = styled(Paper, {
   justifyContent: "space-between",
   backgroundColor: theme.palette.background.default,
   transition: 'width 225ms ease-in-out',
+  zIndex: 5000,
 }));
 
 interface SideNavComponentProps {
@@ -74,7 +75,7 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
     projectId ? `/project/${projectId}/${segment}` : '/projects';
 
   return (
-    <StyledSideNav elevation={0} collapsed={collapsed}>
+    <StyledSideNav elevation={2} collapsed={collapsed}>
       <Box sx={{  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', px: 1, mt: '10px' }}>
           <MuiLink
@@ -82,8 +83,8 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
             href="/projects"
             sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 1, textAlign: 'center', height: '70px', textDecoration: 'none', color: 'inherit' }}
           >
-            <Image src="/logo_symbol.png" alt="Writual" width={collapsed ? 40 : 50} height={collapsed ? 40 : 50} loading="lazy" />
-            {!collapsed && <Typography letterSpacing={5} variant="h6" color="primary">ritual</Typography>}
+            {!collapsed && <Typography fontFamily={'Merriweather'} fontWeight={700} fontSize={20} letterSpacing={4} variant="h5" color="primary">Details</Typography>
+            }
           </MuiLink>
           <Tooltip title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} placement="right">
             <IconButton
@@ -179,18 +180,6 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
           gap: 0.5,
         }}
       >
-        <SettingsPopover />
-        {!collapsed && (
-          <Button
-            variant="contained"
-            color="secondary"
-            size="small"
-            sx={{ borderRadius: '50px' }}
-            onClick={openCreateProjectModal}
-          >
-            New Project
-          </Button>
-        )}
       </Box>
     </StyledSideNav>
   );

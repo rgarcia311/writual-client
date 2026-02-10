@@ -65,14 +65,11 @@ export function ProjectHeader() {
   const id = params?.id as string | undefined;
   const [expanded, setExpanded] = React.useState(true);
   const [projectData, setProjectData] = React.useState<Project>(defaultProjectData);
-  const user = useUserProfileStore((s) => s.user)
-
-  const variables = React.useMemo(
-    () => ({ input: { user: user?.uid, _id: id } }),
-    [id]
-  );
-
+  
   const fetchProject = async (): Promise<{ getProjectData: Project[] }> => {
+    const { userProfile } = await useUserProfileStore.getState()
+    console.log({ userProfile })
+    const variables = { input: { user: userProfile?.user, _id: id } }
     return await request(endpoint, PROJECT_QUERY, variables)
   };
 
@@ -136,6 +133,7 @@ export function ProjectHeader() {
       </AccordionSummary>
       <AccordionDetails sx={{ pt: 0 }}>
         <ProjectCard
+          padding={0}
           enableCardShadow={false}
           maxWidth="100%"
           title={projectData.title}

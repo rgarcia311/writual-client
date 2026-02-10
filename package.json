@@ -2,12 +2,19 @@
   "name": "writual",
   "private": true,
   "version": "1.0.0",
-  "workspaces": ["apps/*"],
+  "workspaces": [
+    "apps/*"
+  ],
   "description": "Writual Client",
   "author": "Writual",
   "license": "ISC",
-  "repository": {"type": "git", "url": "https://github.com/writual/writual.git"},
-  "bugs": {"url": "https://github.com/writual/writual/issues"},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/writual/writual.git"
+  },
+  "bugs": {
+    "url": "https://github.com/writual/writual/issues"
+  },
   "scripts": {
     "deploy": "firebase deploy --only apphosting",
     "deploy:web": "firebase deploy --only apphosting:writual",
@@ -22,7 +29,13 @@
     "firebase-tools": "^15.5.1",
     "turbo": "^2.3.0",
     "typescript": "^5.9.3"
-  }, 
-  "packageManager": "npm@10.9.2"
-
+  },
+  "packageManager": "npm@10.9.2",
+  "dependencies": {
+    "@fontsource/arvo": "^5.2.7",
+    "@fontsource/lora": "^5.2.8",
+    "@fontsource/manrope": "^5.2.8",
+    "@fontsource/merriweather": "^5.2.11",
+    "@fontsource/rubik": "^5.2.8"
+  }
 }

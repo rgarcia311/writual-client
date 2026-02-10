@@ -6,7 +6,6 @@ import { PROJECTS_QUERY } from '@/queries/ProjectQueries';
 import { Box, Container, Typography } from '@mui/material';
 import Image from 'next/image';
 import Link from 'next/link';
-import { SettingsPopover } from '@/components/SettingsPopover';
 import { Projects } from '@/components/Projects';
 
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
@@ -32,31 +31,16 @@ export default async function DataTable() {
             const dehydratedState = dehydrate(queryClient);
 
             return (
-        
                 <HydrationBoundary state={dehydratedState}>
-                
-                    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-    
-                        <Container sx={{ 
-                            minWidth: "100%", 
-                            display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 1, marginTop: "10px", textAlign: "center", height: "70px", textDecoration: "none", color: "inherit" }}>
-                            <Link href="/projects" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", color: "inherit" }}>
-                            <Image src="/logo_symbol.png" alt="Writual" width={65} height={65} loading="lazy" />
-                            <Typography letterSpacing={3} variant="h6" color="primary" fontSize={32}>ritual</Typography>
-                            </Link>
-                        </Container>
-                        <Box sx={{ position: 'fixed', bottom: 16, left: 16, zIndex: 1200 }}>
-                            <SettingsPopover standalone />
-                        </Box>
-    
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+                        <Typography fontFamily={'Merriweather'} letterSpacing={5} fontSize={28} fontWeight={700} color="primary">Projects</Typography>
+                        {/*<Typography sx={{textDecoration: 'underline'}} fontFamily={'Varela Round'} letterSpacing={2} variant="h4" fontWeight={400} color="primary">Projects</Typography>
+                        <Typography sx={{textDecoration: 'underline'}} fontFamily={'Lora'} letterSpacing={2} variant="h4" fontWeight={400} color="primary">Projects</Typography>
+                        <Typography sx={{textDecoration: 'underline'}} fontFamily={'Manrope'} letterSpacing={2} variant="h4" fontWeight={400} color="primary">Projects</Typography>*/}
                         <Projects />
-                
-    
                     </Box>
-                
                 </HydrationBoundary>
-            
-        );
+            );
 
         } catch (e) {
             console.log('error validating session: ', e);

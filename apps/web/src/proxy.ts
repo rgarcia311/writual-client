@@ -5,10 +5,12 @@ console.log("middleware hit");
   const session = request.cookies.get("firebase-token");
 
   // Define which routes you want to protect
-  const protectedRoutes = ["/projects", "/project/:id",];
+  const protectedRoutes = ["/projects", "/project",];
   const isProtectedRoute = protectedRoutes.some((route) =>
     request.nextUrl.pathname.startsWith(route)
   );
+
+  console.log({ isProtectedRoute });
 
   if (isProtectedRoute && !session) {
     // Redirect unauthenticated users to the login page
@@ -19,5 +21,5 @@ console.log("middleware hit");
 }
 
 export const config = {
-  matcher: ["/projects", "/project/:id/:path*"],
+  matcher: ["/projects", "/project/:id*"],
 };

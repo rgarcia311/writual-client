@@ -38,9 +38,10 @@ interface ProgressItem {
 
 interface ProjectCardProps {
   title: string;
-  author: string;
-  genre: string;
+  author: string; 
+  genre: string; 
   logline: string;
+  padding?: number;
   coverImage?: string;
   progress?: ProgressItem[];
   maxWidth?: string | number;
@@ -83,6 +84,7 @@ const ProgressDot = ({ status }: { status: 'complete' | 'partial' | 'empty' }) =
 );
 
 export const ProjectCard: React.FC<ProjectCardProps> = ({
+  padding = '8px',
   title,
   author,
   genre,
@@ -180,8 +182,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        maxWidth: maxWidth || 550,
-        maxHeight: maxHeight || 'max-content',
+        flex: 1,
         borderRadius: 2,
         boxShadow: enableCardShadow ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
         overflow: 'hidden',
@@ -190,7 +191,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
     >
       <CardMedia
         component="img"
-        sx={{ p:1, width: 185, height: 'max-content', objectFit: 'cover', borderRadius: 4  }}
+        sx={{ border: '1px solid red', p: {padding}, marginRight: enableCardShadow ? 0 : '8px', width: 185, height: 'max-content', objectFit: 'cover', borderRadius: 4  }}
         image={imageSrc}
         alt={`${title} cover`}
       />

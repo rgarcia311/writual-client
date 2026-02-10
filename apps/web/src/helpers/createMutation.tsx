@@ -16,21 +16,17 @@ export const createMutation = (updateMutationArgs: Mutation) => {
     return useMutation({
         mutationFn: async () => {
           await request(endpoint, createStatement, createVariables)
-          console.log('createVariables: ', createVariables)
         },
-        onSuccess: () =>  {
+        onSuccess: async () => {
             queryClient.invalidateQueries({ queryKey: invalidateQueriesArray })
-            queryClient.refetchQueries({ queryKey: invalidateQueriesArray })
-            
-            if(stateResetters) {
+            await queryClient.refetchQueries({ queryKey: invalidateQueriesArray })
+
+            if (stateResetters) {
                 stateResetters.setCreateStatement("")
                 stateResetters.setCreateVariables({})
                 stateResetters.setVersionOptions?.([])
                 stateResetters.setNewVersion?.(false)
-
             }
-            
-
         },
         onError: (_error: any) => {},
         onMutate: () => {}

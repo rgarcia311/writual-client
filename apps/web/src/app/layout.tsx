@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from 'react';
-import { AppBarComponent } from '../components';
+import { usePathname } from 'next/navigation';
 import { Box, Container, CssBaseline } from '@mui/material';
 import { ThemeProvider } from "@mui/material/styles";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -11,9 +11,15 @@ import '@fontsource/lato/300.css'
 import '@fontsource/lato'
 import '@fontsource/lato/700.css'
 import '@fontsource/lato/900.css'
+import '@fontsource/rubik'
+import '@fontsource/manrope'
+import '@fontsource/varela-round'
+import '@fontsource/lora'
+import '@fontsource/merriweather'
 import { getTheme } from '../themes/themes';
 import { ThemeToggleProvider } from '../themes/ThemeToggleContext';
 import { CreateProjectWrapper } from '../components/CreateProjectWrapper';
+import { AppTopBar } from '../components/AppTopBar';
 
 const client = new QueryClient();
 
@@ -22,7 +28,10 @@ export default function RootLayout({
   }: {
     children: React.ReactNode
   }) {
+    const pathname = usePathname();
     const { theme: isLightMode, setTheme, appliedTheme } = getTheme();
+    const showTopBar = pathname !== '/';
+
     return (
       <html lang="en">
         <body>
@@ -33,10 +42,11 @@ export default function RootLayout({
                 <Box sx={{ gap: 3, display: "flex", flexDirection: "row", width: "100%", height: "100%"}}>
                   <Box sx={{ display: "flex", flexDirection: "column", flex: 1, height: "100%" }}>
                     <Container maxWidth={false} disableGutters sx={{ display: "flex", height: "100%", flexDirection: "column", resize:"vertical", margin:"0px", width: "100%"}}>
-                    {children}
-                  </Container>
+                      {showTopBar && <AppTopBar />}
+                      {children}
+                    </Container>
+                  </Box>
                 </Box>
-              </Box>
               <CreateProjectWrapper />
             </ThemeToggleProvider>
             </ThemeProvider>

@@ -19,13 +19,18 @@ export default function LandingPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
 
-  const setUserStore = useUserProfileStore((s) => s.setUser);
+  const setUserProfile = useUserProfileStore((s) => s.setUserProfile);
 
   const handleSignIn = () => {
     const provider = new GoogleAuthProvider();
     try {
       signInWithPopup(auth, provider).then((result) => {
-        setUserStore(result.user);
+        const userProfile = {
+          user: result.user.uid,
+          displayName: result.user.displayName,
+          email: result.user.email,
+        }
+        setUserProfile(userProfile);
         result.user.getIdToken().then((idToken) => {
           verifyAndLogin(idToken).then((verifyResult) => {
             if (verifyResult?.status === "success") {

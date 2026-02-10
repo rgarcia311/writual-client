@@ -30,9 +30,9 @@ export default function ProjectLayout({
 
         <Paper elevation={1} sx={{
           display: "flex",
-          marginTop: "25px",
+          //marginTop: "25px",
           flex: 1,
-          height: "95%", 
+          height: "100%", 
           borderRadius: 2, 
         }}>
           {children}

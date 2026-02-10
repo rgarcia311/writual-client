@@ -64,6 +64,7 @@ export function CreateProjectWrapper() {
 
   const handleAddProject = useCallback( async (formValues: Record<string, unknown>) => {
     const { user, displayName, email } = await useUserProfileStore.getState();
+    console.log('user: ', user);
     const withUser = {
       ...formValues,
       user: user?.uid,

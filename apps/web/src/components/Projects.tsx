@@ -1,11 +1,8 @@
 'use client';
 
-import { Button } from "@mui/material";
 import { Box } from "@mui/system";
 import { ProjectCard } from "./ProjectCard";
-import AddIcon from '@mui/icons-material/Add';
-import React, { useEffect } from "react";
-import { useCreateProjectModalStore } from '@/state/createProjectModal';
+import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { request } from "graphql-request";
 import { PROJECTS_QUERY } from "../queries";
@@ -14,13 +11,10 @@ import { GRAPHQL_ENDPOINT } from '@/lib/config';
 
 const endpoint = GRAPHQL_ENDPOINT;
 
-
 export const Projects = () => {
     const queryClient = useQueryClient();
 
-    const openCreateProjectModal = useCreateProjectModalStore((s) => s.openModal)
-
-    const { data }: any = useQuery({ queryKey: ['projects'], queryFn: async () => request(endpoint, PROJECTS_QUERY) })
+    const { data }: any = useQuery({ queryKey: ['projects'], queryFn: async () => request(endpoint, PROJECTS_QUERY) });
 
     const deleteProjectMutation = useMutation({
         mutationFn: (deleteProjectId: string) =>
@@ -29,38 +23,26 @@ export const Projects = () => {
           queryClient.invalidateQueries({ queryKey: ['projects'] });
         },
       });
-    
 
     return (
-        <>
-        <Box sx={{ display: 'flex', justifyContent: 'center', paddingTop: 2, paddingBottom: 2 }}>
-                    <Button
-                    variant="contained"
-                    color="primary"
-                    startIcon={<AddIcon />}
-                    onClick={openCreateProjectModal}
-                    >
-                    Create Project
-                    </Button>
-                </Box>
-
                 <Box
                     sx={{
+                    width: '100%',
                     height: '100%',
                     paddingTop: 5,
                     overflowY: 'scroll',
                     display: 'flex',
-                    justifyContent: 'space-evenly',
+                    //justifyContent: 'space-evenly',
                     flexWrap: 'wrap',
                     gap: 2,
+                    padding: 2
                     }}
                 >
                     {data?.getProjectData?.map((project: any, index: number) => (
-                    <Box
-                        key={project._id ?? index}
-                        sx={{  marginTop: '20px', flexShrink: 0 }}
-                    >
-                        <ProjectCard
+                  
+                      <ProjectCard
+                       
+                        key={project._id}
                         title={project.title}
                         author={project.displayName ?? project.email ?? project.user ?? 'TBD'}
                         genre={project.genre}
@@ -71,9 +53,7 @@ export const Projects = () => {
                         sharedWith={project.sharedWith ?? []}
                         to={project._id ? `/project/${project._id}` : undefined}
                         />
-                    </Box>
                     ))}
                 </Box>
-        </>
     )
 }

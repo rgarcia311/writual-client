@@ -32,11 +32,11 @@ export default function OutlinesPage() {
       steps?: Array<{ step_id?: string; name?: string; number?: number; act?: string; instructions?: string }>;
     };
   } | null>(null);
-  const user = useUserProfileStore((s) => s.user)
+  const userProfile = useUserProfileStore(s => s.userProfile)
 
-  const variables = React.useMemo(() => ({ userId: user?.uid }), [user]);
+  const variables = React.useMemo(() => ({ user: userProfile?.user }), [userProfile]);
   const { data } = useQuery<OutlineFrameworksResponse>({
-    queryKey: ['outline-frameworks', user?.uid],
+    queryKey: ['outline-frameworks', userProfile?.user],
     queryFn: () => request(ENDPOINT, OUTLINE_FRAMEWORKS_QUERY, variables) as Promise<OutlineFrameworksResponse>,
   });
 
@@ -45,7 +45,7 @@ export default function OutlinesPage() {
       request(ENDPOINT, UPDATE_OUTLINE_FRAMEWORK, { id, input }),
     onSuccess: () => {
       setEditFramework(null);
-      queryClient.invalidateQueries({ queryKey: ['outline-frameworks', user?.uid] });
+      queryClient.invalidateQueries({ queryKey: ['outline-frameworks', userProfile?.user] });
     },
   });
 
@@ -54,7 +54,7 @@ export default function OutlinesPage() {
   const handleUpdateSubmit = (values: OutlineFrameworkFormValues) => {
     if (!editFramework) return;
     const input = {
-      user: user?.uid,
+      user: userProfile?.user,
       name: values.formatName.trim(),
       imageUrl: values.imageUrl.trim() || undefined,
       format: {
