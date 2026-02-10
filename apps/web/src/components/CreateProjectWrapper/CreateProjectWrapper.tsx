@@ -25,17 +25,31 @@ interface OutlineFrameworksResponse {
 }
 
 export function CreateProjectWrapper() {
-  const queryClient = useQueryClient();
   const open = useCreateProjectModalStore((s) => s.open);
   const setFrameworks = useOutlineFrameworksStore((s) => s.setFrameworks);
-  const user = useUserProfileStore((s) => s.user);
-  const displayName = useUserProfileStore((s) => s.displayName);
-  const email = useUserProfileStore((s) => s.email);
+  const [user, setUser] = useState<string | undefined>();
+  const [displayName, setDisplayName] = useState<string | undefined>();
+  const [email, setEmail] = useState<string>('');
+  const setOpen = useCreateProjectModalStore((s) => s.setOpen);
+  const createStatement = useProjectTableState((s) => s.createStatement);
+  const setCreateStatement = useProjectTableState((s) => s.setCreateStatement);
+  const [createVariables, setCreateVariables] = useState<Record<string, unknown> | undefined>();
+
+  useEffect(() => {
+    const userProfileState = useUserProfileStore.getState();
+    const user = userProfileState.userProfile?.user
+    const displayName = userProfileState.userProfile?.displayName
+    const email = userProfileState.userProfile?.email || ''
+    setUser(user)
+    setDisplayName(displayName || '')
+    setEmail(email)
+  }, []);
+
 
   const { data: outlineData } = useQuery<OutlineFrameworksResponse>({
-    queryKey: ['outline-frameworks', user?.uid],
-    queryFn: () => request(endpoint, OUTLINE_FRAMEWORKS_QUERY, { user: user?.uid}) as Promise<OutlineFrameworksResponse>,
-    enabled: !!user?.uid,
+    queryKey: ['outline-frameworks', user],
+    queryFn: () => request(endpoint, OUTLINE_FRAMEWORKS_QUERY, { user }) as Promise<OutlineFrameworksResponse>,
+    enabled: user !== undefined,
   });
 
   useEffect(() => {
@@ -44,10 +58,7 @@ export function CreateProjectWrapper() {
     }
   }, [outlineData, setFrameworks, user]);
 
-  const setOpen = useCreateProjectModalStore((s) => s.setOpen);
-  const createStatement = useProjectTableState((s) => s.createStatement);
-  const setCreateStatement = useProjectTableState((s) => s.setCreateStatement);
-  const [createVariables, setCreateVariables] = useState<Record<string, unknown> | undefined>();
+  
  
   const mutationArgs = useMemo((): Mutation => ({
     createStatement,
@@ -63,18 +74,20 @@ export function CreateProjectWrapper() {
   useCreateMutation(createStatement, createVariables, mutation, GqlStatements.CREATE_PROJECT);
 
   const handleAddProject = useCallback( async (formValues: Record<string, unknown>) => {
-    const { user, displayName, email } = await useUserProfileStore.getState();
-    console.log('user: ', user);
+    const userProfileState = await useUserProfileStore.getState();
+    const user = userProfileState.userProfile?.user
+    const displayName = userProfileState.userProfile?.displayName
+    const email = userProfileState.userProfile?.email || ''
     const withUser = {
       ...formValues,
-      user: user?.uid,
+      user: user,
       displayName,
       email
     };
     console.log('withUser: ', withUser);
     setCreateVariables(withUser);
     setCreateStatement(CREATE_PROJECT);
-  }, []);
+  }, [user, displayName, email]);
 
   if (!open) return null;
 

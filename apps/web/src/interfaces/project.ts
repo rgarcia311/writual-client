@@ -1,8 +1,20 @@
 import { ProjectType } from "../enums";
 import { Scene } from "./scene";
 
+type Inspiration = {
+    _id: string;
+    projectId: string;
+    title: string;
+    image: string;
+    video: string;
+    note: string;
+    links: string[];
+}
+
 export interface Project {
     id: string;
+    displayName: string;
+    email: string;
     created_date: string;
     modified_date: string;
     revision: number;
@@ -15,6 +27,7 @@ export interface Project {
     budget: number;
     timePeriod: string;
     similarProjects: string[];
+    inspiration: Inspiration[];
     outlineName?: string;
     poster?: string;
     scenes: Scene[];

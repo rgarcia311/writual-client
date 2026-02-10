@@ -48,6 +48,8 @@ const defaultProjectData: Project = {
   genre: '',
   logline: '',
   id: '',
+  displayName: '',
+  email: '',
   created_date: '',
   modified_date: '',
   revision: 0,
@@ -56,7 +58,8 @@ const defaultProjectData: Project = {
   budget: 0,
   timePeriod: '',
   similarProjects: [], 
-  scenes: []
+  scenes: [],
+  inspiration: []
 };
 
 export function ProjectHeader() {
@@ -111,16 +114,16 @@ export function ProjectHeader() {
         expandIcon={<ExpandMoreIcon />}
         aria-controls="project-header-content"
         id="project-header-header"
-        sx={{ minHeight: 56, '& .MuiAccordionSummary-content': { my: 1.5 } }}
+        sx={{ p: 0, minHeight: 56, '& .MuiAccordionSummary-content': { my: 1.5 } }}
       >
-        <Breadcrumbs aria-label="breadcrumb" sx={projectStyles.tableTopButtons}>
+        <Breadcrumbs aria-label="breadcrumb" sx={{...projectStyles.tableTopButtons }}>
           <Link underline="hover" color="inherit" href="/projects">
             <Typography sx={{ width: '100%' }} variant="h6">
               Projects
             </Typography>
           </Link>
           {currentPageLabel ? (
-            <Link underline="hover" color="inherit" href={projectHref}>
+            <Link underline="hover" color="inherit"  href={projectHref}>
               <Typography sx={{ width: '100%' }} variant="h6">
                 {projectTitle}
               </Typography>
@@ -131,20 +134,20 @@ export function ProjectHeader() {
           </Typography>
         </Breadcrumbs>
       </AccordionSummary>
-      <AccordionDetails sx={{ pt: 0 }}>
+      <AccordionDetails sx={{ pt: 0, p: 0, pb: 2 }}>
         <ProjectCard
           padding={0}
           enableCardShadow={false}
           maxWidth="100%"
           title={projectData.title}
-          author={projectData.user}
+          author={projectData.displayName ?? projectData.email ?? projectData.user ?? 'TBD'}
           genre={projectData.genre}
           logline={projectData.logline}
           coverImage={
             projectData.poster?.trim()
               ? projectData.poster
               : process.env.NODE_ENV === 'development'
-                ? '/dev_image.png'
+                ? '/demo-poster.png'
                 : undefined
           }
           projectId={id}

@@ -180,9 +180,9 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
       elevation={enableCardShadow ? 1 : 0}
       sx={{
         display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        flex: 1,
+        //flex: 1,
+        maxWidth: maxWidth || 590,
+        minHeight: 280,
         borderRadius: 2,
         boxShadow: enableCardShadow ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
         overflow: 'hidden',
@@ -191,12 +191,12 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
     >
       <CardMedia
         component="img"
-        sx={{ border: '1px solid red', p: {padding}, marginRight: enableCardShadow ? 0 : '8px', width: 185, height: 'max-content', objectFit: 'cover', borderRadius: 4  }}
+        sx={{ p: enableCardShadow ? 1 : 0, marginRight: enableCardShadow ? 0 : '8px', width: 185, height: 280, maxHeight: '100%', objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
         image={imageSrc}
         alt={`${title} cover`}
       />
-      <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
-        <CardContent sx={{ flex: '1 0 auto', pt: 2, p: 1 }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, minHeight: 0 }}>
+        <CardContent sx={{ flex: 1, minHeight: 0, pt: 2, p: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
             {title}
           </Typography>
@@ -227,7 +227,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
             ))}
           </Box>
         </CardContent>
-        <CardActions sx={{ width: "100%", display: 'flex', justifyContent: 'space-between', px: 1.5, pb: 1, pt: 0 }}>
+        <CardActions sx={{ flexShrink: 0, width: "100%", display: 'flex', justifyContent: 'space-between', px: 1.5, pb: 1, pt: 0 }}>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             {projectId ? (
               <>

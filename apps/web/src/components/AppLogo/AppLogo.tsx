@@ -19,12 +19,12 @@ export function AppLogo({
   gap = 8,
   loading = 'lazy',
   color = 'primary',
-  logoPath = '/logo_symbol.png',
+  logoPath = '/logo_symbol_transparent.png',
 }: AppLogoProps) {
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', }}>
       <Image src={logoPath} alt="Writual" width={size} height={size} loading={loading} />
-      <Typography fontFamily='Varela Round' sx={{ marginLeft: 2}} letterSpacing={11} variant="h6" color={color} fontSize={fontSize}>
+      <Typography fontFamily='Merriweather' sx={{ marginLeft: '2px'}} letterSpacing={5} fontSize={25} color={color}>
         ritual
       </Typography>
     </Box>

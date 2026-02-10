@@ -140,7 +140,7 @@ export function OutlineFrameworkForm({
           fullWidth
           required
           InputLabelProps={{ shrink: true }}
-          sx={{ mt: 0.5 }}
+          sx={{ mt: 1 }}
         />
         <TextField
           label="Image URL"

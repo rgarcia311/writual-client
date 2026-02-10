@@ -1,6 +1,6 @@
 import { GraphQLJSON } from "graphql-scalars";
 import { getProjectData, getAllProjectsSharedWithUser, getProjectScenes, getOutlineFrameworks } from "../resolvers";
-import { setProjectOutline, createOutlineFramework, updateOutlineFramework, createProject, deleteProject, shareProject, updateProject, updateProjectSharedWith, createScene, createCharacter, deleteScene } from "../mutations";
+import { setProjectOutline, createOutlineFramework, updateOutlineFramework, deleteOutlineFramework, createProject, deleteProject, shareProject, updateProject, updateProjectSharedWith, createScene, createCharacter, deleteScene, createinspiration, deleteinspiration } from "../mutations";
 export const ProjectType = `#graphql
 
     scalar JSON
@@ -14,6 +14,7 @@ export const ProjectType = `#graphql
         setProjectOutline(input: OutlineInput): Outline
         createOutlineFramework(input: OutlineFrameworkInput!): OutlineFramework
         updateOutlineFramework(id: String!, input: OutlineFrameworkInput!): OutlineFramework
+        deleteOutlineFramework(id: String!): String
         createProject(input: ProjectInput): Project
         deleteProject(id: String): String
         shareProject(id: String, user: String): Project
@@ -22,6 +23,8 @@ export const ProjectType = `#graphql
         updateProjectSharedWith(projectId: String!, sharedWith: [String]): Project
         createCharacter(character: CharacterInput): Character
         deleteScene(projectId: String!, sceneNumber: Int!): Project
+        createinspiration(input: inspirationInput!): Project
+        deleteinspiration(projectId: String!, inspirationId: String!): Project
     }
 
     type Project {
@@ -45,7 +48,7 @@ export const ProjectType = `#graphql
         scenes: [Scene]
         characters: [Character]
         outline: Outline
-        insporation: Insporation
+        inspiration: [inspiration]
         treatment: Treatment 
         screenplay: Screenplay
         feedback: Feedback
@@ -72,7 +75,7 @@ export const ProjectType = `#graphql
         scenes: [SceneInput]
         characters: [CharacterInput]
         outline: OutlineInput
-        insporation: InsporationInput
+        inspiration: [inspirationInput]
         treatment: TreatmentInput
         screenplay: ScreenplayInput
         feedback: FeedbackInput
@@ -100,7 +103,7 @@ export const ProjectType = `#graphql
         scenes: [SceneInput]
         characters: [CharacterInput]
         outline: OutlineInput
-        insporation: InsporationInput
+        inspiration: [inspirationInput]
         treatment: TreatmentInput
         screenplay: ScreenplayInput
         feedback: FeedbackInput
@@ -244,17 +247,23 @@ export const ProjectType = `#graphql
         text: String
     }
 
-    type Insporation  {
-        projectId: String
-        scratch: String
-        images: [String]
-        videos: [String]
+    type inspiration  {
+        _id: String!
+        projectId: String!
+        title: String!
+        image: String
+        video: String
+        note: String
+        links: [String]
     }
 
-    input InsporationInput  {
-        scratch: String
-        images: [String]
-        videos: [String]
+    input inspirationInput  {
+        projectId: String!
+        title: String!
+        image: String
+        video: String
+        note: String
+        links: [String]
     }
 
     type Outline {
@@ -264,6 +273,7 @@ export const ProjectType = `#graphql
     }
 
     type OutlineFramework {
+        _id: String!
         id: String!
         user: String!
         name: String!
@@ -321,6 +331,7 @@ export const resolvers = {
     setProjectOutline,
     createOutlineFramework,
     updateOutlineFramework,
+    deleteOutlineFramework,
     createProject,
     deleteProject,
     shareProject,
@@ -329,6 +340,12 @@ export const resolvers = {
     createScene,
     createCharacter,
     deleteScene,
+    createinspiration,
+    deleteinspiration,
+  },
+  OutlineFramework: {
+    _id: (doc: any) => (doc?._id != null ? String(doc._id) : String(doc?.id ?? "")),
+    id: (doc: any) => (doc?.id != null && String(doc.id).length ? String(doc.id) : String(doc?._id ?? "")),
   },
   JSON: GraphQLJSON,
 };

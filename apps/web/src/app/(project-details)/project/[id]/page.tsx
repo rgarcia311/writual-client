@@ -1,9 +1,10 @@
 'use client';
 
-import { Accordion, AccordionDetails, AccordionSummary, Box, Button, Checkbox, Container, Divider, IconButton, Menu, MenuItem, MenuList, Paper, Tab, Table, TableBody, TableCell, TableContainer, TableFooter, TableHead, TablePagination, TableRow, TableSortLabel, Tabs, TextField, Typography } from '@mui/material'
+import { Accordion, AccordionDetails, AccordionSummary, Box, Button, Checkbox, Container, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, Menu, MenuItem, MenuList, Paper, Tab, Table, TableBody, TableCell, TableContainer, TableFooter, TableHead, TablePagination, TableRow, TableSortLabel, Tabs, TextField, Typography } from '@mui/material'
 import React, { useEffect, useState } from 'react'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import AddIcon from '@mui/icons-material/Add';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import  { CharacterCard } from '@/components/CharacterCard'
 import { StepTabs } from '@/components/StepTabs';
 import { CustomTabPanel } from '@/shared/CustomTabPanel';
@@ -15,36 +16,23 @@ import { useCreateMutation } from 'hooks';
 import { createMutation } from '@/helpers/createMutation';
 import { GqlStatements } from '@/enums/GqlStatements';
 import { useParams } from 'next/navigation'
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { request } from 'graphql-request';
 import { ProjectHeader } from '@/components/ProjectHeader';
 import { ScratchPadCard } from '@/components/ScratchPadCard';
 import type { ScratchPadCardData, ScratchPadCardType, MoveToDestination } from '@/components/ScratchPadCard/types';
+import { addInspiration, deleteInspiration } from '../../../actions/inspirations';
+import { PROJECT_QUERY } from '@/queries/ProjectQueries';
+import { GRAPHQL_ENDPOINT } from '@/lib/config';
+import { useUserProfileStore } from '@/state/user';
+import type { Project } from '@/interfaces/project';
+// Use dynamic import to avoid SSR issues with react-player's use of window.
+import dynamic from 'next/dynamic';
+const ReactPlayer = dynamic(() => import('react-player').then((mod) => mod.default as unknown as React.ComponentType<any>), {
+  ssr: false,
+});
 
-
-const DUMMY_SCRATCH_PAD_CARDS: ScratchPadCardData[] = [
-  { id: '1', type: 'note', text: 'A retired detective must find a missing android who holds the key to his own past.' },
-  { id: '2', type: 'note', text: 'A lone pilot discovers a signal from a colony thought lost decades ago.' },
-  { id: '3', type: 'link', url: 'https://example.com/reference-material', label: 'Reference: world-building doc' },
-  { id: '4', type: 'link', url: 'https://example.com/visual-mood', label: 'Visual mood board' },
-  { id: '5', type: 'image', src: '/logo_symbol.png', caption: 'Mood: neon city' },
-  { id: '6', type: 'image', src: '/logo_4.png', caption: 'Character concept' },
-  { id: '7', type: 'video', src: '/logo_symbol.png', caption: 'Pitch reel placeholder' },
-];
-
-function createNewScratchPadCard(type: ScratchPadCardType): ScratchPadCardData {
-  const id = `new-${Date.now()}`;
-  switch (type) {
-    case 'note':
-      return { id, type: 'note', text: 'New note…' };
-    case 'link':
-      return { id, type: 'link', url: '', label: 'New link' };
-    case 'image':
-      return { id, type: 'image', caption: 'New image' };
-    case 'video':
-      return { id, type: 'video', caption: 'New video' };
-    default:
-      return { id, type: 'note', text: 'New note…' };
-  }
-}
+const endpoint = GRAPHQL_ENDPOINT;
 
 export default function Project() {
     const setEditMode = sceneStore((state) => state.setEditMode)
@@ -73,12 +61,39 @@ export default function Project() {
     const [bottomValue, setBottomValue] = useState(0);
     const [title, setTitle] = useState("")
     const [act, setAct] = useState<number>(0)
-    const [scratchPadCards, setScratchPadCards] = useState<ScratchPadCardData[]>(DUMMY_SCRATCH_PAD_CARDS)
+    const [scratchPadCards, setScratchPadCards] = useState<ScratchPadCardData[]>([])
     const [addCardAnchor, setAddCardAnchor] = useState<null | HTMLElement>(null)
+    const [inspirationFormOpen, setInspirationFormOpen] = useState(false);
+    const [inspirationTitle, setInspirationTitle] = useState('');
+    const [inspirationImage, setInspirationImage] = useState('');
+    const [inspirationVideo, setInspirationVideo] = useState('');
+    const [inspirationNote, setInspirationNote] = useState('');
+    const [inspirationLinks, setInspirationLinks] = useState('');
     const params = useParams()
+    const id = params.id as string | undefined
+    const queryClient = useQueryClient();
 
+    const [projectData, setProjectData] = useState<Project | null>(null);
 
-    const id = params.id
+    const fetchProject = async (): Promise<{ getProjectData: Project[] }> => {
+        const { userProfile } = await useUserProfileStore.getState();
+        const variables = { input: { user: userProfile?.user, _id: id } };
+        return request(endpoint, PROJECT_QUERY, variables);
+    };
+
+    const { data } = useQuery({
+        queryKey: ['project', id],
+        queryFn: () => fetchProject(),
+        enabled: Boolean(id),
+    });
+
+    useEffect(() => {
+        if (data?.getProjectData?.length) {
+            setProjectData(data.getProjectData[0] as Project);
+        } else {
+            setProjectData(null);
+        }
+    }, [data]);
 
     const updateMutationArgs: Mutation = {
         createStatement: UPDATE_SCENE,
@@ -219,7 +234,11 @@ export default function Project() {
     }
 
     const handleAddScratchPadCard = (type: ScratchPadCardType) => {
-        setScratchPadCards((prev) => [...prev, createNewScratchPadCard(type)])
+        setScratchPadCards((prev) => [...prev, {
+            id: `local-${Date.now()}`,
+            type,
+            text: type === 'note' ? '' : undefined,
+        }])
         setAddCardAnchor(null)
     }
 
@@ -274,6 +293,8 @@ export default function Project() {
         
     }
 
+    console.log({ projectData });
+
     return (
         <Container maxWidth={false} disableGutters sx={{ display: "flex",  flexDirection: "column", flex: 1, padding: 2, height: "100%", width: "100%"}}>
 
@@ -281,44 +302,157 @@ export default function Project() {
 
             <Container maxWidth={false} disableGutters sx={{ flex: 1, width: "100%", paddingTop: 2 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-                    <Typography variant="h6" fontWeight={600}>Scratch Pad Ideas</Typography>
+                    <Typography variant="h6" fontWeight={600}>Inspiration</Typography>
                     <Button
                         variant="contained"
                         color="primary"
                         size="small"
                         startIcon={<AddIcon />}
-                        onClick={(e) => setAddCardAnchor(e.currentTarget)}
-                        aria-controls={addCardAnchor ? 'add-scratch-card-menu' : undefined}
-                        aria-haspopup="true"
-                        aria-expanded={addCardAnchor ? 'true' : undefined}
+                        onClick={() => setInspirationFormOpen(true)}
                     >
-                        Add card
+                        Add inspiration
                     </Button>
                 </Box>
-                <Menu
-                    id="add-scratch-card-menu"
-                    anchorEl={addCardAnchor}
-                    open={Boolean(addCardAnchor)}
-                    onClose={() => setAddCardAnchor(null)}
-                    anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                    transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-                >
-                    <MenuItem onClick={() => handleAddScratchPadCard('note')}>Note</MenuItem>
-                    <MenuItem onClick={() => handleAddScratchPadCard('link')}>Link</MenuItem>
-                    <MenuItem onClick={() => handleAddScratchPadCard('image')}>Image</MenuItem>
-                    <MenuItem onClick={() => handleAddScratchPadCard('video')}>Video</MenuItem>
-                </Menu>
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' }, gap: 2 }}>
-                    {scratchPadCards.map((card) => (
-                        <ScratchPadCard
-                            key={card.id}
-                            data={card}
-                            onMoveTo={handleMoveScratchPadTo}
-                        />
-                    ))}
+                    {Array.isArray((projectData as any)?.inspiration) &&
+                        (projectData as any).inspiration.map((item: any) => (
+                            <Paper 
+                                elevation={2}
+                                key={item._id}
+                                sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1, position: 'relative' }}
+                            >
+                                <Typography variant="subtitle1" fontWeight={600}>
+                                    {item.title}
+                                </Typography>
+                                {item.image && (
+                                    <Box sx={{ mt: 1 }}>
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                            src={item.image}
+                                            alt={item.title}
+                                            style={{ width: '100%', borderRadius: 4, objectFit: 'cover' }}
+                                        />
+                                    </Box>
+                                )}
+                                {item.video && !item.image && (
+                                    <Box sx={{ mt: 1, position: 'relative'}}>
+                                        <iframe width="100%" height="100%" src={item.video} title="YouTube video player" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" ></iframe>
+                                    </Box>
+                                )}
+                                {item.note && (
+                                    <Typography variant="body2" sx={{ mt: 1 }}>
+                                        {item.note}
+                                    </Typography>
+                                )}
+                                {item.links && item.links.length > 0 && (
+                                    <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                        {item.links.map((link: string, idx: number) => (
+                                            <Typography
+                                                key={idx}
+                                                variant="body2"
+                                                component="a"
+                                                href={link}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                sx={{ color: 'primary.main', textDecoration: 'underline', wordBreak: 'break-all' }}
+                                            >
+                                                {link}
+                                            </Typography>
+                                        ))}
+                                    </Box>
+                                )}
+                                <IconButton
+                                    size="small"
+                                    aria-label="Delete inspiration"
+                                    onClick={async () => {
+                                        if (!id || !item._id) return;
+                                        const ok = window.confirm('Delete this inspiration item?');
+                                        if (!ok) return;
+                                        await deleteInspiration(id as string, item._id as string);
+                                        await queryClient.invalidateQueries({ queryKey: ['project', id] });
+                                    }}
+                                    sx={{
+                                        position: 'absolute',
+                                        right: 8,
+                                        bottom: 8,
+                                    }}
+                                >
+                                    <DeleteOutlineIcon fontSize="small" />
+                                </IconButton>
+                            </Paper>
+                        ))}
                 </Box>
             </Container>
-            
+            <Dialog open={inspirationFormOpen} onClose={() => setInspirationFormOpen(false)} fullWidth maxWidth="sm">
+                <DialogTitle>Add inspiration</DialogTitle>
+                <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+                    <TextField
+                        label="Title"
+                        value={inspirationTitle}
+                        onChange={(e) => setInspirationTitle(e.target.value)}
+                        fullWidth
+                        required
+                    />
+                    <TextField
+                        label="Image URL"
+                        value={inspirationImage}
+                        onChange={(e) => setInspirationImage(e.target.value)}
+                        fullWidth
+                    />
+                    <TextField
+                        label="Video URL"
+                        value={inspirationVideo}
+                        onChange={(e) => setInspirationVideo(e.target.value)}
+                        fullWidth
+                    />
+                    <TextField
+                        label="Note"
+                        value={inspirationNote}
+                        onChange={(e) => setInspirationNote(e.target.value)}
+                        fullWidth
+                        multiline
+                        minRows={2}
+                    />
+                    <TextField
+                        label="Links (comma separated)"
+                        value={inspirationLinks}
+                        onChange={(e) => setInspirationLinks(e.target.value)}
+                        fullWidth
+                    />
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button onClick={() => setInspirationFormOpen(false)}>Cancel</Button>
+                    <Button
+                        variant="contained"
+                        onClick={async () => {
+                            if (!id || !inspirationTitle.trim()) return;
+                            const links =
+                                inspirationLinks
+                                    .split(',')
+                                    .map((s) => s.trim())
+                                    .filter(Boolean) ?? [];
+                            await addInspiration({
+                                projectId: id as string,
+                                title: inspirationTitle.trim(),
+                                image: inspirationImage.trim() || undefined,
+                                video: inspirationVideo.trim() || undefined,
+                                note: inspirationNote.trim() || undefined,
+                                links,
+                            });
+                            await queryClient.invalidateQueries({ queryKey: ['project', id] });
+                            setInspirationFormOpen(false);
+                            setInspirationTitle('');
+                            setInspirationImage('');
+                            setInspirationVideo('');
+                            setInspirationNote('');
+                            setInspirationLinks('');
+                        }}
+                        disabled={!inspirationTitle.trim()}
+                    >
+                        Save
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Container>
        
     )

@@ -1,32 +1,15 @@
 'use client';
 
 import * as React from 'react';
-import {
-  Box,
-  Container,
-  IconButton,
-  ListItemIcon,
-  ListItemText,
-  MenuItem,
-  Popover,
-  Switch,
-} from '@mui/material';
+import { Box, Container, IconButton, ListItemIcon, ListItemText, MenuItem, Popover, Switch } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import LogoutIcon from '@mui/icons-material/Logout';
-import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import ManageSearchIcon from '@mui/icons-material/ManageSearch';
 import Link from 'next/link';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { request } from 'graphql-request';
-import { OutlineFrameworkForm, type OutlineFrameworkFormValues } from '@/components/OutlineFrameworkForm';
-import { CREATE_OUTLINE_FRAMEWORK } from 'mutations/OutlineMutations';
 import { useThemeToggleOptional } from '@/themes/ThemeToggleContext';
-import { GRAPHQL_ENDPOINT } from '@/lib/config';
-import { useUserProfileStore } from '@/state/user';
 
-const ENDPOINT = GRAPHQL_ENDPOINT;
 export interface SettingsPopoverProps {
   /** When true, render only the icon (e.g. on projects page without SideNav). */
   standalone?: boolean;
@@ -36,11 +19,7 @@ export function SettingsPopover({ standalone = false }: SettingsPopoverProps) {
   const themeContext = useThemeToggleOptional();
   const isLightMode = themeContext?.isLightMode ?? true;
   const onThemeToggle = themeContext ? () => themeContext.setTheme((p) => !p) : () => {};
-  const queryClient = useQueryClient();
   const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
-  const [outlineFormOpen, setOutlineFormOpen] = React.useState(false);
-  const user = useUserProfileStore((s) => s.user)
-
   const open = Boolean(anchorEl);
 
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
@@ -49,39 +28,6 @@ export function SettingsPopover({ standalone = false }: SettingsPopoverProps) {
 
   const handleClose = () => {
     setAnchorEl(null);
-  };
-
-  const createOutlineMutation = useMutation({
-    mutationFn: async (variables: { input: any }) =>
-      request(ENDPOINT, CREATE_OUTLINE_FRAMEWORK, variables),
-    onSuccess: () => {
-      setOutlineFormOpen(false);
-      handleClose();
-      queryClient.invalidateQueries({ queryKey: ['outline-frameworks'] });
-    },
-  });
-
-  const handleCreateOutlineClick = () => {
-    handleClose();
-    setOutlineFormOpen(true);
-  };
-
-  const handleOutlineFormSubmit = (values: OutlineFrameworkFormValues) => {
-    const input = {
-      user: user?.uid,
-      name: values.formatName.trim(),
-      imageUrl: values.imageUrl.trim() || undefined,
-      format: {
-        name: values.formatName.trim(),
-        steps: values.steps.map((s) => ({
-          name: s.name,
-          number: s.number,
-          act: s.act,
-          instructions: s.instructions,
-        })),
-      },
-    };
-    createOutlineMutation.mutate({ input });
   };
 
   const handleSignOut = () => {
@@ -133,12 +79,6 @@ export function SettingsPopover({ standalone = false }: SettingsPopoverProps) {
             </ListItemIcon>
             <ListItemText primary="Manage outlines" />
           </MenuItem>
-          <MenuItem onClick={handleCreateOutlineClick}>
-            <ListItemIcon>
-              <AccountTreeIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText primary="Create outline framework" />
-          </MenuItem>
           <MenuItem onClick={handleSignOut}>
             <ListItemIcon>
               <LogoutIcon fontSize="small" />
@@ -147,13 +87,6 @@ export function SettingsPopover({ standalone = false }: SettingsPopoverProps) {
           </MenuItem>
         </Box>
       </Popover>
-      <OutlineFrameworkForm
-        open={outlineFormOpen}
-        onClose={() => setOutlineFormOpen(false)}
-        onSubmit={handleOutlineFormSubmit}
-        submitLabel="Create framework"
-        submitting={createOutlineMutation.isPending}
-      />
     </Container>
   );
 }

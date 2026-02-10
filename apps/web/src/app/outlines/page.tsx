@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { Box, Card, CardMedia, CardContent, Container, IconButton, Typography } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { request } from 'graphql-request';
 import { OUTLINE_FRAMEWORKS_QUERY } from '@/queries/OutlineQueries';
@@ -14,6 +15,7 @@ import { AppLogo } from '@/components/AppLogo';
 
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { useUserProfileStore } from '@/state/user';
+import { deleteOutlineFrameworkById } from '../actions/outlineFrameworks';
 
 const ENDPOINT = GRAPHQL_ENDPOINT;
 
@@ -51,6 +53,21 @@ export default function OutlinesPage() {
 
   const frameworks = data?.getOutlineFrameworks ?? [];
 
+  const handleDeleteFramework = async (fw: any) => {
+    const id = fw?._id ?? fw?.id;
+    if (!id) return;
+    const ok = window.confirm(`Delete "${fw?.name ?? 'this'}" outline framework?`);
+    if (!ok) return;
+    try {
+      await deleteOutlineFrameworkById(String(id));
+      if (editFramework?.id === fw?.id) setEditFramework(null);
+      queryClient.invalidateQueries({ queryKey: ['outline-frameworks', userProfile?.user] });
+    } catch (e) {
+      console.error('Failed to delete outline framework:', e);
+      window.alert('Failed to delete outline framework. Please try again.');
+    }
+  };
+
   const handleUpdateSubmit = (values: OutlineFrameworkFormValues) => {
     if (!editFramework) return;
     const input = {
@@ -84,20 +101,11 @@ export default function OutlinesPage() {
           textAlign: 'center',
         }}
       >
-        <Link
-          href="/projects"
-          style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }}
-        >
-          <AppLogo />
-        </Link>
-      </Container>
-      <Box sx={{ position: 'fixed', bottom: 16, left: 16, zIndex: 1200 }}>
-        <SettingsPopover standalone />
-      </Box>
+      <Typography fontFamily={'Merriweather'} letterSpacing={5} fontSize={28} fontWeight={700} color="primary">Outlines</Typography>
 
-      <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
-        Manage outlines
-      </Typography>
+      </Container>
+    
+
 
       <Box
         sx={{
@@ -114,11 +122,28 @@ export default function OutlinesPage() {
               flexDirection: 'column',
               overflow: 'hidden',
               maxWidth: 280,
+              position: 'relative',
             }}
           >
+            <IconButton
+              size="small"
+              onClick={() => handleDeleteFramework(fw)}
+              aria-label="Delete framework"
+              sx={{
+                position: 'absolute',
+                top: 6,
+                right: 6,
+                zIndex: 2,
+                bgcolor: 'rgba(0,0,0,0.35)',
+                color: 'common.white',
+                '&:hover': { bgcolor: 'rgba(0,0,0,0.55)' },
+              }}
+            >
+              <DeleteOutlineIcon fontSize="small" />
+            </IconButton>
             <CardMedia
               component="img"
-              height="140"
+              height="max-content"
               image={fw.imageUrl || '/logo_symbol.png'}
               alt={fw.name}
               sx={{ objectFit: 'cover' }}

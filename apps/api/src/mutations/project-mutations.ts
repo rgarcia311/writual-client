@@ -161,9 +161,7 @@ export const setProjectOutline = (root, { input }) => {
 
 /** Creates a standalone outline framework (user's saved template). */
 export const createOutlineFramework = (root, { input }) => {
-  const id = input.id || randomUUID();
   const doc = new OutlineFrameworks({
-    id,
     user: input.user,
     name: input.name,
     imageUrl: input.imageUrl || undefined,
@@ -174,8 +172,11 @@ export const createOutlineFramework = (root, { input }) => {
 
 /** Updates a standalone outline framework by id. */
 export const updateOutlineFramework = (root, { id, input }) => {
+  const filter = mongoose.Types.ObjectId.isValid(id)
+    ? { _id: new mongoose.Types.ObjectId(id) }
+    : { id };
   return OutlineFrameworks.findOneAndUpdate(
-    { id },
+    filter,
     {
       name: input.name,
       imageUrl: input.imageUrl,
@@ -185,18 +186,33 @@ export const updateOutlineFramework = (root, { id, input }) => {
   ).exec();
 };
 
-export const createInsporation = (root, { input })  =>  {
-    const newInspo = new Projects({
-        projectId: input.projectId,
-        scratch: input.scratch,
-    })
+/** Deletes a standalone outline framework by MongoDB _id (ObjectId string). */
+export const deleteOutlineFramework = async (root, { id }: { id: string }) => {
+  return deleteData(OutlineFrameworks, id);
+};
 
-    newInspo.id = input._id
+export const createinspiration = async (root, { input }) => {
+  const filter = mongoose.Types.ObjectId.isValid(input.projectId)
+    ? { _id: new mongoose.Types.ObjectId(input.projectId) }
+    : { _id: input.projectId };
 
-    console.log('creating project: ', newInspo)
-    return updateData(Projects, {newInspo}, input.projectId)
-    
-}
+  const payload = {
+    projectId: String(input.projectId),
+    title: input.title,
+    image: input.image ?? null,
+    video: input.video ?? null,
+    note: input.note ?? null,
+    links: input.links ?? [],
+  };
+
+  const updated = await Projects.findOneAndUpdate(
+    filter,
+    { $push: { inspiration: payload } },
+    { new: true }
+  ).exec();
+
+  return updated;
+};
 
 export const createTreatment = (root, { input })  =>  {
     const newTreatment  = new  Projects({
@@ -215,3 +231,21 @@ export const createScreenplay = (root, { input })  =>  {
 export const createFeedback = (root, { input })  =>  {
     
 }
+
+export const deleteinspiration = async (root, { projectId, inspirationId }: { projectId: string; inspirationId: string }) => {
+  const filter = mongoose.Types.ObjectId.isValid(projectId)
+    ? { _id: new mongoose.Types.ObjectId(projectId) }
+    : { _id: projectId };
+
+  const inspoFilter = mongoose.Types.ObjectId.isValid(inspirationId)
+    ? { _id: new mongoose.Types.ObjectId(inspirationId) }
+    : { _id: inspirationId };
+
+  const updated = await Projects.findOneAndUpdate(
+    filter,
+    { $pull: { inspiration: inspoFilter } },
+    { new: true }
+  ).exec();
+
+  return updated;
+};

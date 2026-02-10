@@ -52,7 +52,7 @@ export const StyledSideNav = styled(Paper, {
   justifyContent: "space-between",
   backgroundColor: theme.palette.background.default,
   transition: 'width 225ms ease-in-out',
-  zIndex: 5000,
+  zIndex: 4,
 }));
 
 interface SideNavComponentProps {

@@ -36,6 +36,8 @@ query GetProjectData($input: ProjectFilters) {
         email
         poster
         sharedWith
+        budget
+        timePeriod
         characters {
           details {
             age
@@ -68,6 +70,15 @@ query GetProjectData($input: ProjectFilters) {
         format {
             name
         }
+        }
+        inspiration {
+          _id
+          projectId
+          title
+          image
+          video
+          note
+          links
         }
     }
 }

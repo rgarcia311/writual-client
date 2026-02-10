@@ -71,6 +71,10 @@ export const CreateProject: React.FC<CreateProjectProps> = ({ setAddProject, han
     }
   };
 
+  console.log('formValues: ', formValues);
+  console.log('sharedWithEmails: ', sharedWithEmails);
+  console.log('frameworks: ', frameworks);
+
   return (
     <Dialog
       fullWidth
@@ -78,7 +82,7 @@ export const CreateProject: React.FC<CreateProjectProps> = ({ setAddProject, han
       onClose={() => setAddProject(false)}
       PaperProps={{ style: { backgroundColor: theme.palette.background.default } }}
     >
-      <DialogTitle sx={{ paddingLeft: 4, paddingTop: 3 }}>CREATE PROJECT</DialogTitle>
+      <DialogTitle sx={{ paddingLeft: 4, paddingTop: 3}}>CREATE PROJECT</DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, padding: 4 }}>
         <TextField
           required
@@ -86,6 +90,7 @@ export const CreateProject: React.FC<CreateProjectProps> = ({ setAddProject, han
           value={formValues.title ?? ''}
           onChange={(e) => updateForm(e, 'title')}
           placeholder="Title"
+          sx={{ marginTop: '10px' }}
           fullWidth
         />
         <Container disableGutters sx={{ display: 'flex', gap: 2 }}>
