@@ -30,16 +30,17 @@ export default function OutlinePage() {
   const params = useParams();
   const id = params?.id as string;
   const { createSceneMutation } = useProjectSceneMutations();
-  const user = useUserProfileStore((s) => s.user)
 
-  const variables = React.useMemo(
-    () => ({ input: { userid: user?.uid, _id: id } }),
-    [id, user]
-  );
+  const getOutlines= async () => {
+    const userProfileState = await useUserProfileStore.getState();
+    const user = userProfileState.userProfile?.user;
+    const variables = { input: {user, _id: id}}
+    return request(endpoint, PROJECT_SCENES_QUERY, variables)
+  } 
 
   const { data }: any = useQuery({
     queryKey: [PROJECT_SCENES_QUERY_KEY, id],
-    queryFn: () => request(endpoint, PROJECT_SCENES_QUERY, variables),
+    queryFn: () => getOutlines,
     enabled: Boolean(id),
   });
 
