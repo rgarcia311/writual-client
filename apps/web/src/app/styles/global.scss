@@ -2,6 +2,7 @@ html {
     -webkit-box-sizing: border-box;
     -moz-box-sizing: border-box;
     box-sizing: border-box;
+    overflow-x: hidden;
 }
 
 *, *:before, *:after {
@@ -16,6 +17,7 @@ body {
     height: 100vh;
     padding: 8px;
     background-color: #FBFBFF;
+    overflow-x: hidden;
 }
 
 #__next {

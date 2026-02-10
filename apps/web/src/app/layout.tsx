@@ -39,9 +39,19 @@ export default function RootLayout({
               <ThemeProvider theme={appliedTheme}>
               <ThemeToggleProvider value={{ isLightMode, setTheme }}>
                 <CssBaseline />
-                <Box sx={{ gap: 3, display: "flex", flexDirection: "row", width: "100%", height: "100%"}}>
-                  <Box sx={{ display: "flex", flexDirection: "column", flex: 1, height: "100%" }}>
-                    <Container maxWidth={false} disableGutters sx={{ display: "flex", height: "100%", flexDirection: "column", resize:"vertical", margin:"0px", width: "100%"}}>
+                <Box
+                  sx={{
+                    gap: 3,
+                    display: "flex",
+                    flexDirection: "row",
+                    width: "100%",
+                    height: "100%",
+                    overflow: pathname === '/' ? 'hidden' : undefined,
+                    minHeight: 0,
+                  }}
+                >
+                  <Box sx={{ display: "flex", flexDirection: "column", flex: 1, height: "100%", minHeight: 0 }}>
+                    <Container maxWidth={false} disableGutters sx={{ display: "flex", height: "100%", flexDirection: "column", resize: "vertical", margin: "0px", width: "100%", minHeight: 0, overflow: pathname === '/' ? 'hidden' : undefined }}>
                       {showTopBar && <AppTopBar />}
                       {children}
                     </Container>
