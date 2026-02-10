@@ -22,15 +22,21 @@ export default function CharactersPage() {
   const [createOpen, setCreateOpen] = React.useState(false);
   const [errorOpen, setErrorOpen] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState('Failed to create character.');
-  const user = useUserProfileStore((s) => s.user);
+
 
   const endpoint = GRAPHQL_ENDPOINT;
 
-  const variables = React.useMemo(() => ({ input: { user, _id: id } }), [id]);
+
+  const getCharacters = async () => {
+    const userProfileState = await useUserProfileStore.getState();
+    const user = userProfileState.userProfile?.user;
+    const variables = { input: {user, _id: id}}
+    return request(endpoint, PROJECT_CHARACTERS_QUERY, variables)
+  } 
 
   const { data }: any = useQuery({
     queryKey: ['project-characters', id],
-    queryFn: () => request(endpoint, PROJECT_CHARACTERS_QUERY, variables),
+    queryFn: () => getCharacters(),
     enabled: Boolean(id),
   });
 
