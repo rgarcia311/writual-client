@@ -1,6 +1,6 @@
 # Writual ✍️
 
-**Writual** (formerly developed under the name **StoryFlow**) is a centralized web application designed for screenwriters to bridge the gap between a "lightbulb moment" and a finished script. It provides a dedicated space to manage ideation, story development, and structural planning for feature films, shorts, and television projects.
+**Writual** is a centralized web application designed for screenwriters to bridge the gap between a "lightbulb moment" and a finished script. It provides a dedicated space to manage ideation, story development, and structural planning for feature films, shorts, and television projects.
 
 Stop losing your best ideas to scattered notebooks and random digital files. Keep your world-building and structure in one place.
 

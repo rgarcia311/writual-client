@@ -22,10 +22,11 @@ export const createMutation = (updateMutationArgs: Mutation) => {
             await queryClient.refetchQueries({ queryKey: invalidateQueriesArray })
 
             if (stateResetters) {
-                stateResetters.setCreateStatement("")
-                stateResetters.setCreateVariables({})
+                stateResetters.setCreateStatement?.("")
+                stateResetters.setCreateVariables?.({})
                 stateResetters.setVersionOptions?.([])
                 stateResetters.setNewVersion?.(false)
+                stateResetters.setOpen?.()
             }
         },
         onError: (_error: any) => {},

@@ -8,21 +8,28 @@ import { request } from "graphql-request";
 import { PROJECTS_QUERY } from "../queries";
 import { DELETE_PROJECT } from 'mutations/ProjectMutations';
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
+import { useUserProfileStore } from '@/state/user';
 
 const endpoint = GRAPHQL_ENDPOINT;
 
 export const Projects = () => {
     const queryClient = useQueryClient();
+    const userId = useUserProfileStore((s) => s.userProfile?.user);
 
-    const { data }: any = useQuery({ queryKey: ['projects'], queryFn: async () => request(endpoint, PROJECTS_QUERY) });
+    const { data }: any = useQuery({
+        queryKey: ['projects', userId],
+        queryFn: async () => request(endpoint, PROJECTS_QUERY, userId ? { input: { user: userId } } : undefined),
+        enabled: userId != null,
+    });
 
     const deleteProjectMutation = useMutation({
         mutationFn: (deleteProjectId: string) =>
           request(endpoint, DELETE_PROJECT, { deleteProjectId }),
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ['projects'] });
+        onSuccess: async () => {
+          await queryClient.invalidateQueries({ queryKey: ['projects'] });
+          await queryClient.refetchQueries({ queryKey: ['projects'] });
         },
-      });
+    });
 
     return (
                 <Box

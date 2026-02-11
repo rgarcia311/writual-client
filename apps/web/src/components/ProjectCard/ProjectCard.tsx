@@ -181,7 +181,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
       sx={{
         display: 'flex',
         //flex: 1,
-        maxWidth: maxWidth || 590,
+        width: maxWidth || 570,
         minHeight: 280,
         borderRadius: 2,
         boxShadow: enableCardShadow ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',

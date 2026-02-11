@@ -25,7 +25,7 @@ export default async function DataTable() {
             const queryClient = new QueryClient();
             await queryClient.prefetchQuery(
                 { 
-                    queryKey: ['projects'], 
+                    queryKey: ['projects', userId], 
                     queryFn: async () => request(endpoint, PROJECTS_QUERY, { input: { user: userId }})
                 })
             const dehydratedState = dehydrate(queryClient);
