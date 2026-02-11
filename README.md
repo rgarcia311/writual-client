@@ -1,35 +1,46 @@
-# Writual Monorepo
+# Writual ✍️
 
-Turborepo containing the Writual web app and GraphQL API.
+**Writual** (formerly developed under the name **StoryFlow**) is a centralized web application designed for screenwriters to bridge the gap between a "lightbulb moment" and a finished script. It provides a dedicated space to manage ideation, story development, and structural planning for feature films, shorts, and television projects.
 
-## Structure
+Stop losing your best ideas to scattered notebooks and random digital files. Keep your world-building and structure in one place.
 
-- `apps/web` – Next.js 16 frontend (Firebase App Hosting)
-- `apps/api` – Express + Apollo GraphQL server (MongoDB)
+---
 
-## Commands
+## 🚀 Key Features
 
-From the monorepo root:
+### 🔐 Seamless Onboarding
+* **Social Sign-In:** Jump straight into writing with **Google Authentication**.
+* **Project Management:** Create and track multiple projects. Choose from **Feature Film**, **Short Film**, or **Television Show**.
+* **Rich Metadata:** Define your project’s identity early with fields for budget, genre, loglines, and similar "comp" films.
+* **Visual Identity:** Associate a custom poster or inspiration image with your project to help visualize the tone.
 
-```bash
-pnpm install
-pnpm dev          # Start both web and api
-pnpm dev:web      # Start only web app (port 8000)
-pnpm dev:api      # Start only API (port 4000)
-pnpm build        # Build all apps
-pnpm lint         # Lint all apps
-```
+### 💡 Inspiration Scratchpad
+Don't let a "what if" get away. The **Inspiration Section** on your project homepage acts as a digital corkboard.
+* **Versatile Cards:** Add text notes, images, or video links.
+* **Future Feature:** The ability to "promote" inspiration items directly into specific scenes, characters, or your treatment.
 
-## Environment
+### 🏗️ Outline Frameworks
+The core engine of Writual allows you to construct custom structural frameworks.
+* **Dynamic Act Structure:** Build out 3, 4, or 5-act structures.
+* **Step-by-Step Goals:** Define specific steps (e.g., *The Inciting Incident*) and assign them a "Story Goal" to ensure every beat serves the narrative.
+* **Template Friendly:** Perfect for implementing the *Hero's Journey* (12-step) or your own proprietary method.
 
-- Copy `.env.example` and configure as needed.
-- For web: copy vars to `apps/web/.env.local`
-- For api: copy vars to `apps/api/.env`
+### 🎭 Character & Scene Management
+* **Character Profiles:** Keep track of your cast of characters and their arcs.
+* **Scene Mapping:** Add scenes and associate them directly with your Outline Framework and specific acts.
 
-## Firebase deploy
+---
 
-Deploy the web app from `apps/web`:
+## 🛠️ Tech Stack
 
-```bash
-cd apps/web && firebase deploy
-```
+Writual is built as a modern, scalable monorepo designed for performance and future complexity.
+
+* **Architecture:** [Turborepo](https://turbo.build/) for high-performance monorepo management.
+* **Frontend:** [Next.js](https://nextjs.org/) (React).
+* **Backend:** [MongoDB](https://www.mongodb.com/) for flexible story data storage.
+* **API Layer:** [GraphQL](https://graphql.org/) to handle complex data relationships between characters, scenes, and frameworks.
+* **Hosting:** Deployed via [Firebase App Hosting](https://firebase.google.com/docs/app-hosting).
+
+---
+
+> "Structure is the skeleton that holds your story together. Writual is the workbench where you build it."
