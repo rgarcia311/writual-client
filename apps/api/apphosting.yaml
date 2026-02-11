@@ -13,7 +13,7 @@ env:
       - BUILD
       - RUNTIME
   - variable: MONGODB_CONNECTION_URI
-    secret: MONGODB_CONNECTION_URI@3
+    secret: MONGODB_CONNECTION_URI@7
     availability:
       - BUILD
       - RUNTIME

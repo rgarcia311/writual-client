@@ -165,11 +165,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
     updateSharedWithMutation.mutate(sharedWith.filter((e) => e !== email));
   };
 
-  const defaultImage =
-    typeof process !== 'undefined' && process.env.NODE_ENV === 'development'
-      ? '/dev_image.png'
-      : 'https://m.media-amazon.com/images/I/513WUcomv-L._AC_UF1000,1000_QL80_.jpg';
-  const imageSrc = coverImage?.trim() ? coverImage : defaultImage;
+  const imageSrc = coverImage?.trim() ? coverImage : undefined;
 
   return (
     <Card
