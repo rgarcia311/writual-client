@@ -77,7 +77,7 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
   return (
     <StyledSideNav elevation={2} collapsed={collapsed}>
       <Box sx={{  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', px: 1, mt: '10px' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between', width: '100%', px: 1, mt: '10px' }}>
           <MuiLink
             component={Link}
             href="/projects"

@@ -117,13 +117,23 @@ export function ProjectHeader() {
         sx={{ p: 0, minHeight: 56, '& .MuiAccordionSummary-content': { my: 1.5 } }}
       >
         <Breadcrumbs aria-label="breadcrumb" sx={{...projectStyles.tableTopButtons }}>
-          <Link underline="hover" color="inherit" href="/projects">
+          <Link 
+            underline="hover" 
+            color="inherit" 
+            href="/projects"
+            onClick={(e) => e.stopPropagation()}
+          >
             <Typography sx={{ width: '100%' }} variant="h6">
               Projects
             </Typography>
           </Link>
           {currentPageLabel ? (
-            <Link underline="hover" color="inherit"  href={projectHref}>
+            <Link 
+              underline="hover" 
+              color="inherit"  
+              href={projectHref}
+              onClick={(e) => e.stopPropagation()}
+            >
               <Typography sx={{ width: '100%' }} variant="h6">
                 {projectTitle}
               </Typography>
