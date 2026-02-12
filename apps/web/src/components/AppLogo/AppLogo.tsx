@@ -22,7 +22,7 @@ export function AppLogo({
   logoPath = '/logo_symbol_transparent.png',
 }: AppLogoProps) {
   return (
-    <Box sx={{ border: "1px solid red", display: 'flex', alignItems: 'center', }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', }}>
       <Image src={logoPath} alt="Writual" width={size} height={size} loading={loading} />
       <Typography fontFamily='Merriweather' sx={{ marginLeft: '2px'}} letterSpacing={5} fontSize={25} color={color}>
         ritual
