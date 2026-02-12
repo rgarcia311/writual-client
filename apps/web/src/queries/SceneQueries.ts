@@ -4,6 +4,8 @@ export const PROJECT_SCENES_QUERY = gql`
   query GetProjectScenes($input: ProjectFilters) {
     getProjectData(input: $input) {
       _id
+      outlineName
+      user
       scenes {
         number
         activeVersion

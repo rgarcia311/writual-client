@@ -31,6 +31,12 @@ const FIELD_CLAMP_SX = {
   WebkitBoxOrient: 'vertical',
 } as const;
 
+interface StepOption {
+  name: string;
+  number: number;
+  act: string;
+}
+
 interface SceneCardProps {
   number: number;
   newScene?: boolean;
@@ -40,6 +46,7 @@ interface SceneCardProps {
   act?: number;
   projectId?: string;
   step?: string;
+  steps?: StepOption[];
   onDelete?: () => void;
 }
 
@@ -52,6 +59,7 @@ export const SceneCard: React.FC<SceneCardProps> = ({
   act,
   projectId,
   step,
+  steps = [],
   onDelete,
 }) => {
   const initialActiveVersion = Math.max(1, Number(activeVersion ?? 1));
@@ -186,6 +194,44 @@ export const SceneCard: React.FC<SceneCardProps> = ({
     scheduleSave();
   };
 
+  const handleStepChange = (event: SelectChangeEvent<string>) => {
+    if (isLocked || !projectId) return;
+    const selectedStepName = event.target.value;
+    
+    // Update local state
+    setSceneContent((prev: any) => ({ ...prev, step: selectedStepName }));
+    
+    // Immediately save the step change
+    const versionToSave = activeVersionLocal || 1;
+    const activeVersionIndex = Math.max(0, versionToSave - 1);
+    const baseVersion = versionsRef.current[activeVersionIndex] ?? {};
+    const currentContent = latestContentRef.current;
+    const updatedVersion = {
+      ...baseVersion,
+      thesis: currentContent.thesis ?? '',
+      antithesis: currentContent.antithesis ?? '',
+      synthesis: currentContent.synthesis ?? '',
+      synopsis: currentContent.synopsis ?? '',
+      sceneHeading: currentContent.sceneHeading ?? '',
+      step: selectedStepName,
+      act: currentContent.act ?? act ?? undefined,
+      version: versionToSave,
+    };
+    
+    startSaving();
+    updateSceneMutation.mutate(
+      {
+        _id: projectId,
+        number,
+        activeVersion: versionToSave,
+        lockedVersion: lockedVersion ?? undefined,
+        newVersion: false,
+        versions: [updatedVersion],
+      },
+      { onSettled: (_, error) => endSaving(!error) }
+    );
+  };
+
   const handleVersionChange = (event: SelectChangeEvent<string>) => {
     if (isLocked) return;
     const next = parseInt(event.target.value, 10);
@@ -283,7 +329,13 @@ export const SceneCard: React.FC<SceneCardProps> = ({
     <Card
       sx={{
         ...sceneCardStyle.card,
-        flex: "1 1 calc(33.33% - 20px)",
+        flex: "1 1 auto",
+        minWidth: "calc((400px - 32px) / 3)",
+        '@container (min-width: 400px)': {
+          flex: "1 1 calc(33.33% - 10.67px)",
+          minWidth: "calc((100% - 32px) / 3)",
+          maxWidth: "calc((100% - 32px) / 3)",
+        },
         backgroundColor: theme.palette.background.paper,
         display: 'flex',
         flexDirection: 'column',
@@ -328,15 +380,30 @@ export const SceneCard: React.FC<SceneCardProps> = ({
               fontWeight: 600,
             }}
           />
-          <Chip
-            label={`v${activeVersionLocal}`}
-            size="small"
-            sx={{
-              backgroundColor: theme.palette.grey[300],
-              color: theme.palette.text.primary,
-              fontWeight: 600,
-            }}
-          />
+          <IconButton
+          size="small"
+          onClick={handleToggleLock}
+          sx={{
+            backgroundColor: isLocked
+              ? theme.palette.primary.main
+              : theme.palette.grey[200],
+            color: isLocked
+              ? theme.palette.primary.contrastText ?? theme.palette.common.white
+              : theme.palette.grey[700],
+            '&:hover': {
+              backgroundColor: isLocked
+                ? theme.palette.primary.dark
+                : theme.palette.grey[300],
+            },
+          }}
+          aria-label={isLocked ? 'Unlock scene' : 'Lock scene'}
+        >
+          {isLocked ? (
+            <LockIcon fontSize="small" />
+          ) : (
+            <LockOpenIcon fontSize="small" />
+          )}
+        </IconButton>
         </Box>
       </Box>
       <Divider />
@@ -438,44 +505,22 @@ export const SceneCard: React.FC<SceneCardProps> = ({
           flexShrink: 0,
         }}
       >
-        <IconButton
-          size="small"
-          onClick={handleToggleLock}
-          sx={{
-            backgroundColor: isLocked
-              ? theme.palette.primary.main
-              : theme.palette.grey[200],
-            color: isLocked
-              ? theme.palette.primary.contrastText ?? theme.palette.common.white
-              : theme.palette.grey[700],
-            '&:hover': {
-              backgroundColor: isLocked
-                ? theme.palette.primary.dark
-                : theme.palette.grey[300],
-            },
-          }}
-          aria-label={isLocked ? 'Unlock scene' : 'Lock scene'}
-        >
-          {isLocked ? (
-            <LockIcon fontSize="small" />
-          ) : (
-            <LockOpenIcon fontSize="small" />
-          )}
-        </IconButton>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, justifyContent: 'center' }}>
-          <FormControl size="small" sx={{ minWidth: 140 }}>
+        
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <FormControl size="small" sx={{ minWidth: 140, display: 'flex', flexDirection: 'row', gap: 1, }}>
             <Select
               value={selectValue}
               onChange={handleVersionChange}
               disabled={isLocked}
               displayEmpty
               sx={{
+                width: 65,
                 backgroundColor: theme.palette.grey[100],
                 borderRadius: 1,
                 fontSize: '0.875rem',
                 '& .MuiSelect-select': { py: 0.75 },
               }}
-              renderValue={(v) => `v${v} (Active)`}
+              renderValue={(v) => `v${v}`}
             >
               {versionOptionsList.map((ver) => (
                 <MenuItem key={ver} value={String(ver)}>
@@ -483,13 +528,14 @@ export const SceneCard: React.FC<SceneCardProps> = ({
                 </MenuItem>
               ))}
             </Select>
-          </FormControl>
-          <IconButton
+
+            <IconButton
             size="small"
             onClick={handleAddVersionClick}
             disabled={isLocked}
             aria-label="Add new version"
             sx={{
+              //ml: '20px',
               backgroundColor: theme.palette.primary.light,
               color: theme.palette.primary.contrastText ?? theme.palette.common.white,
               '&:hover': { backgroundColor: theme.palette.primary.main },
@@ -497,6 +543,36 @@ export const SceneCard: React.FC<SceneCardProps> = ({
           >
             <AddIcon fontSize="small" />
           </IconButton>
+            
+          </FormControl>
+          
+          {steps.length > 0 && (
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <Select
+                value={sceneContent.step ?? ''}
+                onChange={handleStepChange}
+                disabled={isLocked}
+                displayEmpty
+                sx={{
+                  backgroundColor: theme.palette.grey[100],
+                  borderRadius: 1,
+                  fontSize: '0.875rem',
+                  '& .MuiSelect-select': { py: 0.75 },
+                }}
+                renderValue={(v) => v || 'Assign to Step'}
+              >
+                <MenuItem value="">
+                  <em>Assign to Step</em>
+                </MenuItem>
+                {steps.map((stepOption) => (
+                  <MenuItem key={`${stepOption.act}-${stepOption.name}`} value={stepOption.name}>
+                    {stepOption.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+         
         </Box>
         <IconButton
           size="small"
