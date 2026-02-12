@@ -37,6 +37,7 @@ query GetProjectData($input: ProjectFilters) {
         poster
         sharedWith
         budget
+        similarProjects
         timePeriod
         characters {
           details {

@@ -143,6 +143,9 @@ export function ProjectHeader() {
           author={projectData.displayName ?? projectData.email ?? projectData.user ?? 'TBD'}
           genre={projectData.genre}
           logline={projectData.logline}
+          projectTypeLabel={projectData.type}
+          budget={projectData.budget}
+          similarProjects={projectData.similarProjects ?? []}
           coverImage={
             projectData.poster?.trim()
               ? projectData.poster

@@ -335,7 +335,7 @@ export default function OutlinePage() {
                     mb: 1
                   }}
                 >
-                  <Typography fontWeight={600}>Act {act} Scenes: {stepKeyToScenes.get(act)?.length} </Typography>
+                  <Typography fontWeight={600}>Act {act}</Typography>
                 </AccordionSummary>
                 <AccordionDetails sx={{ mb: 1, pt: 0, border: '1px solid', borderColor: theme.palette.divider, borderRadius: '8px' }}>
                   {steps.map((st) => {

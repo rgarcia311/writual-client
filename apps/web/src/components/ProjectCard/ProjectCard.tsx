@@ -41,6 +41,12 @@ interface ProjectCardProps {
   author: string; 
   genre: string; 
   logline: string;
+  /** Project type label, e.g. "Feature" */
+  projectTypeLabel?: string;
+  /** Production budget (raw number, e.g. 1000000) */
+  budget?: number;
+  /** List of similar project titles */
+  similarProjects?: string[];
   padding?: number;
   coverImage?: string;
   progress?: ProgressItem[];
@@ -89,6 +95,9 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   author,
   genre,
   logline,
+  projectTypeLabel,
+  budget,
+  similarProjects,
   coverImage,
   maxWidth,
   maxHeight,
@@ -207,7 +216,26 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
             {logline}
           </Typography>
           <Typography variant="body2" sx={{ mt: 1 }}>
-            Genre: {genre}
+            Genre: {genre || '—'}
+          </Typography>
+          <Typography variant="body2" sx={{ mt: 0.5 }}>
+            Type: {projectTypeLabel || '—'}
+          </Typography>
+          <Typography variant="body2" sx={{ mt: 0.5 }}>
+            Budget:{' '}
+            {typeof budget === 'number' && budget > 0
+              ? new Intl.NumberFormat(undefined, {
+                  style: 'currency',
+                  currency: 'USD',
+                  maximumFractionDigits: 0,
+                }).format(budget)
+              : '—'}
+          </Typography>
+          <Typography variant="body2" sx={{ mt: 0.5 }}>
+            Similar projects:{' '}
+            {Array.isArray(similarProjects) && similarProjects.length > 0
+              ? similarProjects.join(', ')
+              : '—'}
           </Typography>
           <Typography variant="body2" sx={{ mt: 1.5, fontWeight: 500 }}>
             Development Progress:
