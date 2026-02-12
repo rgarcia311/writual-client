@@ -386,13 +386,19 @@ export default function Project() {
             <Dialog open={inspirationFormOpen} onClose={() => setInspirationFormOpen(false)} fullWidth maxWidth="sm">
                 <DialogTitle>Add inspiration</DialogTitle>
                 <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-                    <TextField
-                        label="Title"
-                        value={inspirationTitle}
-                        onChange={(e) => setInspirationTitle(e.target.value)}
-                        fullWidth
-                        required
-                    />
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                            Title
+                        </Typography>
+                        <TextField
+                            placeholder="Add a title"
+                            value={inspirationTitle}
+                            onChange={(e) => setInspirationTitle(e.target.value)}
+                            fullWidth
+                            variant="outlined"
+                            required
+                        />
+                    </Box>
                     <TextField
                         label="Image URL"
                         value={inspirationImage}
