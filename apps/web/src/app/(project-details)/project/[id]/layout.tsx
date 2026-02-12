@@ -24,16 +24,15 @@ export default function ProjectLayout({
     const navWidth = collapsed ? SIDENAV_WIDTH_COLLAPSED : SIDENAV_WIDTH_EXPANDED;
 
     return (
-      <Box gap={2} display="flex" flexDirection="row" height="100%" position="relative">
-        
+      <Box sx={{  p: 1, height: "calc(100% - 50px)", overflow: "hidden", minWidth: 0 }} gap={2} display="flex" flexDirection="row" position="relative">
           <SideNavComponent />
-
         <Paper elevation={1} sx={{
           display: "flex",
-          //marginTop: "25px",
           flex: 1,
-          height: "100%", 
-          borderRadius: 2, 
+          height: "100%",
+          minWidth: 0,
+          overflow: "hidden",
+          borderRadius: 2,
         }}>
           {children}
         </Paper>

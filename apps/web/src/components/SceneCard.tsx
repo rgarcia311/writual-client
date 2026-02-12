@@ -20,6 +20,7 @@ import LockIcon from '@mui/icons-material/Lock';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import { useProjectSceneMutations } from 'hooks';
+import { useOutlineSaveStatusStore } from '@/state/outlineSaveStatus';
 
 const SAVE_DEBOUNCE_MS = 2000;
 const FIELD_CLAMP_SX = {
@@ -64,6 +65,7 @@ export const SceneCard: React.FC<SceneCardProps> = ({
     sceneHeading: '',
   });
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveInProgressRef = useRef(false);
   const latestContentRef = useRef<any>({});
   const saveMetaRef = useRef<{ version: number; newVersion: boolean;}>({
     version: initialActiveVersion,
@@ -71,6 +73,7 @@ export const SceneCard: React.FC<SceneCardProps> = ({
   });
   const versionsRef = useRef<any[]>(versions ?? []);
   const { updateSceneMutation, deleteSceneMutation } = useProjectSceneMutations();
+  const { startSaving, endSaving } = useOutlineSaveStatusStore();
   const theme = useTheme();
   const [isLocked, setIsLocked] = useState(lockedVersion != null);
 
@@ -134,6 +137,10 @@ export const SceneCard: React.FC<SceneCardProps> = ({
       newVersion: creatingNewVersion
     };
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    if (!saveInProgressRef.current) {
+      saveInProgressRef.current = true;
+      startSaving();
+    }
     saveTimeoutRef.current = setTimeout(() => {
       saveTimeoutRef.current = null;
       const content = latestContentRef.current;
@@ -156,12 +163,17 @@ export const SceneCard: React.FC<SceneCardProps> = ({
           _id: projectId!,
           number,
           activeVersion: versionToSaveInner,
+          lockedVersion: lockedVersion ?? undefined,
           newVersion: newVersionInner,
           versions: [updatedVersion],
         },
         {
           onSuccess: () => {
             if (newVersionInner) setCreatingNewVersion(false);
+          },
+          onSettled: (_, error) => {
+            saveInProgressRef.current = false;
+            endSaving(!error);
           },
         }
       );
@@ -183,15 +195,19 @@ export const SceneCard: React.FC<SceneCardProps> = ({
 
     // Persist activeVersion switch (no debounce).
     if (projectId) {
+      startSaving();
       const idx = Math.max(0, next - 1);
       const baseVersion = versionsRef.current[idx] ?? {};
-      updateSceneMutation.mutate({
-        _id: projectId,
-        number,
-        activeVersion: next,
-        newVersion: false,
-        versions: [baseVersion],
-      });
+      updateSceneMutation.mutate(
+        {
+          _id: projectId,
+          number,
+          activeVersion: next,
+          newVersion: false,
+          versions: [baseVersion],
+        },
+        { onSettled: (_, error) => endSaving(!error) }
+      );
     }
   };
 
@@ -223,6 +239,7 @@ export const SceneCard: React.FC<SceneCardProps> = ({
       step: step ?? '',
       act: act ?? undefined,
     };
+    startSaving();
     updateSceneMutation.mutate(
       {
         _id: projectId,
@@ -235,6 +252,7 @@ export const SceneCard: React.FC<SceneCardProps> = ({
         onSuccess: () => {
           setCreatingNewVersion(false);
         },
+        onSettled: (_, error) => endSaving(!error),
       }
     );
   };
@@ -247,20 +265,25 @@ export const SceneCard: React.FC<SceneCardProps> = ({
     setIsLocked(!isLocked);
     const idx = Math.max(0, activeVersionLocal - 1);
     const baseVersion = versionsRef.current[idx] ?? {};
-    updateSceneMutation.mutate({
-      _id: projectId,
-      number,
-      activeVersion: activeVersionLocal,
-      lockedVersion: nextLocked ?? undefined,
-      newVersion: false,
-      versions: [baseVersion],
-    });
+    startSaving();
+    updateSceneMutation.mutate(
+      {
+        _id: projectId,
+        number,
+        activeVersion: activeVersionLocal,
+        lockedVersion: nextLocked ?? undefined,
+        newVersion: false,
+        versions: [baseVersion],
+      },
+      { onSettled: (_, error) => endSaving(!error) }
+    );
   };
 
   return (
     <Card
       sx={{
         ...sceneCardStyle.card,
+        flex: "1 1 calc(33.33% - 20px)",
         backgroundColor: theme.palette.background.paper,
         display: 'flex',
         flexDirection: 'column',

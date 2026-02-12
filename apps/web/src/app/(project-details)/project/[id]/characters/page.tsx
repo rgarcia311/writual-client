@@ -1,24 +1,28 @@
 'use client';
 
 import * as React from 'react';
-import { Box, Button, Container, Typography } from '@mui/material';
+import { Box, Button, Typography } from '@mui/material';
 import { useParams } from 'next/navigation';
-import { ProjectHeader } from '@/components/ProjectHeader';
+import { ProjectDetailsLayout } from '@/components/ProjectDetailsLayout';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { request } from 'graphql-request';
 import { PROJECT_CHARACTERS_QUERY } from '@/queries/CharacterQueries';
 import { CharacterCard } from '@/components/CharacterCard';
+import { CharacterCardSkeleton } from '@/components/CharacterCardSkeleton';
 import AddIcon from '@mui/icons-material/Add';
 import { NewCharacterForm, type NewCharacterValues } from '@/components/NewCharacterForm';
 import { AppAlert } from '@/components/AppAlert';
 import { CREATE_CHARACTER } from 'mutations/ProjectMutations';
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { useUserProfileStore } from '@/state/user';
+import { useCreateCharacterModalStore } from '@/state/createCharacterModal';
 
 export default function CharactersPage() {
   const params = useParams();
   const id = params?.id as string;
   const queryClient = useQueryClient();
+  const setPendingNewCharacter = useCreateCharacterModalStore((s) => s.setPendingNewCharacter);
+  const pendingNewCharacter = useCreateCharacterModalStore((s) => s.pendingNewCharacter);
   const [createOpen, setCreateOpen] = React.useState(false);
   const [errorOpen, setErrorOpen] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState('Failed to create character.');
@@ -45,7 +49,7 @@ export default function CharactersPage() {
   const createCharacterMutation = useMutation({
     mutationFn: async (values: NewCharacterValues) => {
       const character = {
-        projectId: id,
+        _id: id,
         name: values.name,
         imageUrl: values.imageUrl.trim() || undefined,
         details: [
@@ -60,9 +64,16 @@ export default function CharactersPage() {
       };
       return request(endpoint, CREATE_CHARACTER, { character });
     },
+    onMutate: () => {
+      setPendingNewCharacter(true);
+    },
     onSuccess: async () => {
       setCreateOpen(false);
       await queryClient.invalidateQueries({ queryKey: ['project-characters', id] });
+      await queryClient.refetchQueries({ queryKey: ['project-characters', id] });
+    },
+    onSettled: () => {
+      setPendingNewCharacter(false);
     },
     onError: (err: any) => {
       setErrorMessage(err?.message || 'Failed to create character.');
@@ -75,10 +86,8 @@ export default function CharactersPage() {
   };
 
   return (
-    <Container maxWidth={false} disableGutters sx={{ display: 'flex', flexDirection: 'column', flex: 1, padding: 2, height: '100%', width: '100%' }}>
-      <ProjectHeader />
-      <Container maxWidth={false} disableGutters sx={{ flex: 1, width: '100%', paddingTop: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+    <ProjectDetailsLayout contentSx={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflowY: 'auto' }}>
+        <Box sx={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 2 }}>
           <Typography variant="h6" fontWeight={600}>Characters</Typography>
           <Button
             variant="contained"
@@ -91,12 +100,12 @@ export default function CharactersPage() {
           </Button>
         </Box>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' }, gap: 2 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' }, gap: 2, minWidth: 0 }}>
+          {pendingNewCharacter && <CharacterCardSkeleton />}
           {characters.map((character: any, index: number) => (
             <CharacterCard imageUrl={character.imageUrl} key={`${character?.name ?? 'character'}-${index}`} id={index + 1} name={character.name} details={character.details} />
           ))}
         </Box>
-      </Container>
 
       <NewCharacterForm
         open={createOpen}
@@ -105,6 +114,6 @@ export default function CharactersPage() {
         submitting={createCharacterMutation.isPending}
       />
       <AppAlert open={errorOpen} onClose={() => setErrorOpen(false)} message={errorMessage} severity="error" />
-    </Container>
+    </ProjectDetailsLayout>
   );
 }

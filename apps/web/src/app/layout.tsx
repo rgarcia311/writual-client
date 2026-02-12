@@ -45,13 +45,14 @@ export default function RootLayout({
                     display: "flex",
                     flexDirection: "row",
                     width: "100%",
+                    maxWidth: "100vw",
                     height: "100%",
-                    overflow: pathname === '/' ? 'hidden' : undefined,
                     minHeight: 0,
+                    overflow: "hidden",
                   }}
                 >
-                  <Box sx={{ display: "flex", flexDirection: "column", flex: 1, height: "100%", minHeight: 0 }}>
-                    <Container maxWidth={false} disableGutters sx={{ display: "flex", height: "100%", flexDirection: "column", resize: "vertical", margin: "0px", width: "100%", minHeight: 0, overflow: pathname === '/' ? 'hidden' : undefined }}>
+                  <Box sx={{ display: "flex", flexDirection: "column", flex: 1, height: "100%", minHeight: 0, minWidth: 0 }}>
+                    <Container maxWidth={false} disableGutters sx={{ display: "flex", height: "100%", flexDirection: "column", resize: "vertical", margin: "0px", width: "100%", maxWidth: "100%", minHeight: 0, minWidth: 0, overflow: "hidden" }}>
                       {showTopBar && <AppTopBar />}
                       {children}
                     </Container>

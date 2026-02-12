@@ -22,7 +22,7 @@ export const ProjectType = `#graphql
         updateProject(project: ProjectInput): Project
         updateProjectSharedWith(projectId: String!, sharedWith: [String]): Project
         createCharacter(character: CharacterInput): Character
-        deleteScene(projectId: String!, sceneNumber: Int!): Project
+        deleteScene(_id: String!, sceneNumber: Int!): Project
         createinspiration(input: inspirationInput!): Project
         deleteinspiration(projectId: String!, inspirationId: String!): Project
     }
@@ -200,7 +200,7 @@ export const ProjectType = `#graphql
     }
 
     input CharacterInput {
-        projectId: String
+        _id: String
         name: String
         imageUrl: String
         details: [CharacterDetailsInput]

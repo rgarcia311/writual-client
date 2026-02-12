@@ -2,13 +2,9 @@ import { Scene, Version } from "../interfaces";
 import {update} from "lodash";
 
 export const createNewScene = (newScene: Scene, scenes: Array<Scene>) => {
-    console.log('newScene: ',   newScene)
     let numOfScenes: number = scenes.length
-    console.log('numOfScenes: ', numOfScenes)
     newScene.number = numOfScenes + 1
-    console.log(`newScene.number ${newScene.number}`)
-    newScene.versions = []
-    // Ensure base metadata exists for new scenes
+    newScene.versions = Array.isArray(newScene.versions) && newScene.versions.length > 0 ? newScene.versions : []
     if (!newScene.activeVersion) newScene.activeVersion = 1
     //Update scenes with new scene or modified version
     console.log('created scene: ', JSON.stringify(newScene, null, 2))

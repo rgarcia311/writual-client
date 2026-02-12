@@ -85,7 +85,7 @@ export function AppTopBar() {
           alignItems: 'center',
           gap: 1,
           padding: 1.5,
-          maxHeight: 50,
+          height: 50,
           position: 'sticky',
           top: 0,
           zIndex: 3,

@@ -1,20 +1,19 @@
 'use client';
 
-import { Container, Typography } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import { useParams } from 'next/navigation';
-import { ProjectHeader } from '@/components/ProjectHeader';
+import { ProjectDetailsLayout } from '@/components/ProjectDetailsLayout';
 
 export default function ChatPage() {
   const params = useParams();
   const id = params?.id as string;
 
   return (
-    <Container maxWidth={false} disableGutters sx={{ display: 'flex', flexDirection: 'column', flex: 1, padding: 2, height: '100%', width: '100%' }}>
-      <ProjectHeader />
-      <Container disableGutters sx={{ py: 2, flex: 1 }}>
-        <Typography variant="h6" fontWeight={600}>Chat</Typography>
-        <Typography variant="body2" color="text.secondary">Project ID: {id}</Typography>
-      </Container>
-    </Container>
+    <ProjectDetailsLayout>
+      <Typography variant="h6" fontWeight={600}>Chat</Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ fontSize: 40 }}>Coming Soon</Typography>
+      </Box>
+    </ProjectDetailsLayout>
   );
 }

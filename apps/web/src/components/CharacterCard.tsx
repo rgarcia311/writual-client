@@ -4,21 +4,12 @@ import Card from '@mui/material/Card';
 import CardHeader from '@mui/material/CardHeader';
 import CardMedia from '@mui/material/CardMedia';
 import CardContent from '@mui/material/CardContent';
-import CardActions from '@mui/material/CardActions';
 import Collapse from '@mui/material/Collapse';
-import Avatar from '@mui/material/Avatar';
 import IconButton, { IconButtonProps } from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
-import { red } from '@mui/material/colors';
-import FavoriteIcon from '@mui/icons-material/Favorite';
-import ShareIcon from '@mui/icons-material/Share';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
-import PersonIcon from '@mui/icons-material/Person';
-import { Box, Container, Tab, Tabs, useTheme } from '@mui/material';
-import { CustomTabPanel } from './CustomTabPanel';
-import { OnDeviceTrainingOutlined } from '@mui/icons-material';
-import { useCallback, useEffect } from 'react';
+import { Box } from '@mui/material';
+import { useEffect } from 'react';
 
 interface ExpandMoreProps extends IconButtonProps {
   expand: boolean;
@@ -35,6 +26,8 @@ const ExpandMore = styled((props: ExpandMoreProps) => {
   }),
 }));
 
+const DEFAULT_CHARACTER_IMAGE = '/default-character-image.png';
+
 export const CharacterCard: React.FC<any> = ({name, details, id, imageUrl}) => {
   const [expanded, setExpanded] = React.useState(false);
   const [version, setVersion] = React.useState(1)
@@ -50,8 +43,12 @@ export const CharacterCard: React.FC<any> = ({name, details, id, imageUrl}) => {
       setExpanded(!expanded);
   }
 
-  const detail = details.find((detail: any) => detail.version === version)
-  detail.url  = "https://www.broadwayworld.com/ezoimgfmt/cloudimages.broadwayworld.com/headshots/452956sm.jpg?dt=42352886&ezimgfmt=ng%3Awebp%2Fngcb36%2Frs%3Adevice%2Frscb37-2"
+  const detail = details?.find((d: any) => d.version === version)
+  if (detail) {
+    detail.url = "https://www.broadwayworld.com/ezoimgfmt/cloudimages.broadwayworld.com/headshots/452956sm.jpg?dt=42352886&ezimgfmt=ng%3Awebp%2Fngcb36%2Frs%3Adevice%2Frscb37-2"
+  }
+
+  const imageSrc = imageUrl?.trim() ? imageUrl : DEFAULT_CHARACTER_IMAGE;
 
   return (
   
@@ -59,15 +56,10 @@ export const CharacterCard: React.FC<any> = ({name, details, id, imageUrl}) => {
         <CardMedia
           component="img"
           height="300"
-          image={imageUrl}
-          alt="Paella dish"
+          image={imageSrc}
+          alt={name ? `${name} character` : 'Character'}
         />
           <CardHeader
-            avatar={
-              <Avatar sx={{ bgcolor: red[500] }} aria-label="recipe">
-                R
-              </Avatar>
-            }
             action={
               <>
                 <ExpandMore
@@ -81,12 +73,12 @@ export const CharacterCard: React.FC<any> = ({name, details, id, imageUrl}) => {
               </>
               
             }
-            title={name + " " +  detail.age  + " "  + detail.gender }
-            subheader={`Version:  ${detail.version}`}
+            title={detail ? `${name ?? ''} ${detail.age ?? ''} ${detail.gender ?? ''}`.trim() : name}
+            subheader={detail ? `Version: ${detail.version}` : undefined}
           />
 
         {
-          currentId === id && (
+          currentId === id && detail && (
             <CardContent>
               <Collapse in={expanded} timeout="auto" unmountOnExit>
                 <Typography paragraph>Character Details:</Typography>

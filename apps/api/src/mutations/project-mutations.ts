@@ -99,14 +99,21 @@ export const createScene = async (root, { input }) => {
     )
 }
 
-export const deleteScene = async (root, { projectId, sceneNumber }) => {
-    console.log('deleteScene: ', { projectId, sceneNumber })
-    const filter = mongoose.Types.ObjectId.isValid(projectId)
-        ? { _id: new mongoose.Types.ObjectId(projectId) }
-        : { _id: projectId };
+export const deleteScene = async (root, { _id, sceneNumber }) => {
+    const filter = mongoose.Types.ObjectId.isValid(_id)
+        ? { _id: new mongoose.Types.ObjectId(_id) }
+        : { _id };
+    const project = await Projects.findOne(filter).lean().exec();
+    if (!project) return null;
+
+    const scenes = (project.scenes ?? []).filter((s) => s.number !== sceneNumber);
+    const renumberedScenes = scenes
+        .sort((a, b) => (a.number ?? 0) - (b.number ?? 0))
+        .map((s, i) => ({ ...s, number: i + 1 }));
+
     const updatedProject = await Projects.findOneAndUpdate(
         filter,
-        { $pull: { scenes: { number: sceneNumber } } },
+        { $set: { scenes: renumberedScenes } },
         { new: true }
     ).exec();
 
@@ -116,9 +123,10 @@ export const deleteScene = async (root, { projectId, sceneNumber }) => {
 export const createCharacter = async (root, { character } )  =>  {
     console.log('character: ',  JSON.stringify(character, null, 2))
     let characterData = character.details[0]
-    const result: any = await getProjectData({}, { input: {  id: character.projectId }})
+    const projectId = character._id
+    const result: any = await getProjectData({}, { input: {  id: projectId }})
     console.log('results:  ', result)
-    let update = result[0].characters
+    let update = result[0].characters ?? []
     if(update.length > 0) {
         let length = update.length
 
@@ -132,8 +140,8 @@ export const createCharacter = async (root, { character } )  =>  {
             let charVersions = charToUpdate.details.length
             let newVersionNum = charVersions + 1
             characterData.version = newVersionNum
-            charToUpdate.versions.push(characterData)
-            return updateData(Projects, {update}, character.projectId, "characters")
+            charToUpdate.details.push(characterData)
+            return updateData(Projects, {update}, projectId, "characters")
         }
         update.push(character)
     } else {
@@ -142,9 +150,12 @@ export const createCharacter = async (root, { character } )  =>  {
         character.details[0].version = 1
         update.push(character)
     }
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/e25f859c-d7ba-44eb-86e1-bc11ced01386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'project-mutations.ts:createCharacter:pre-updateData',message:'calling updateData',data:{projectId,projectIdType:typeof projectId,updateLength:update?.length},timestamp:Date.now(),hypothesisId:'H2,H3'})}).catch(()=>{});
+    // #endregion
     console.log('Character to add:  ', character)
     console.log('Characters:  ', update)
-    return updateData(Projects, {update}, character.projectId, "characters") //project id 
+    return updateData(Projects, {update}, projectId, "characters") 
 
 }
 

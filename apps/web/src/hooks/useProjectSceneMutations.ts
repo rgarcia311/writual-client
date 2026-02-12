@@ -27,9 +27,10 @@ export function useProjectSceneMutations() {
         newScene: false,
         versions: variables.versions,
       }),
-    onSuccess: (_, variables) => {
+    onSuccess: async (_, variables) => {
       if (variables._id) {
-        queryClient.invalidateQueries({ queryKey: [PROJECT_SCENES_QUERY_KEY, variables._id] });
+        await queryClient.invalidateQueries({ queryKey: [PROJECT_SCENES_QUERY_KEY, variables._id] });
+        await queryClient.refetchQueries({ queryKey: [PROJECT_SCENES_QUERY_KEY, variables._id] });
       }
     },
   });
@@ -37,7 +38,7 @@ export function useProjectSceneMutations() {
   const deleteSceneMutation = useMutation({
     mutationFn: async (variables: { _id: string; number: number }) =>
       request(GRAPHQL_ENDPOINT, DELETE_SCENE, {
-        projectId: variables._id,
+        _id: variables._id,
         sceneNumber: variables.number,
       }),
     onSuccess: (_, variables) => {

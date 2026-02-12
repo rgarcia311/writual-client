@@ -26,6 +26,7 @@ export function CreateProjectWrapper() {
   const [displayName, setDisplayName] = useState<string | undefined>();
   const [email, setEmail] = useState<string>('');
   const setOpen = useCreateProjectModalStore((s) => s.setOpen);
+  const setPendingNewProject = useCreateProjectModalStore((s) => s.setPendingNewProject);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -54,10 +55,16 @@ export function CreateProjectWrapper() {
     mutationFn: async (variables: Record<string, unknown>) => {
       await request(endpoint, CREATE_PROJECT, variables as Record<string, string>);
     },
+    onMutate: () => {
+      setPendingNewProject(true);
+    },
     onSuccess: async () => {
       setOpen(false);
       await queryClient.invalidateQueries({ queryKey: ['projects'] });
       await queryClient.refetchQueries({ queryKey: ['projects'] });
+    },
+    onSettled: () => {
+      setPendingNewProject(false);
     },
   });
 

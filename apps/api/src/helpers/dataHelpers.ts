@@ -55,22 +55,37 @@ export const updateData = (model: any, input: any, id: string, property: string 
         let inputKeys = Object.keys(input)
         let dataObj = {}
         dataObj[property] = input[inputKeys[0]]
-        
-        const projectFilter = mongoose.Types.ObjectId.isValid(id)
+        let projectFilter = {}
+        try {
+            projectFilter = mongoose.Types.ObjectId.isValid(id)
             ? { _id: new mongoose.Types.ObjectId(id) }
             : { _id: id }
 
-        if (property === "scenes") {
-            model.findOneAndUpdate(projectFilter, dataObj, { new: true }, (err: any, data: any) => {
-                if (err) reject(err)
-                else resolve(data)
-            })
-        } else {
-            model.updateOne(projectFilter, dataObj, { new: true }, (err: any, data: any) => {
-                if (err) reject(err)
-                else resolve(data)
-            })
+            console.log('projectFilter: ', projectFilter)
+            console.log('dataObj: ', dataObj)
+
+            if (property === "scenes") {
+                model.findOneAndUpdate(projectFilter, dataObj).then((data: any) => {
+                    resolve(data)
+                }).catch((err: any) => {
+                    reject(err)
+                })
+            } else {
+                // #region agent log
+                fetch('http://127.0.0.1:7243/ingest/e25f859c-d7ba-44eb-86e1-bc11ced01386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'dataHelpers.ts:updateData:pre-updateOne',message:'before updateOne',data:{id,idType:typeof id,idValid:mongoose.Types.ObjectId.isValid(id),projectFilterKeys:Object.keys(projectFilter),dataObjKeys:Object.keys(dataObj),hasNewOption:true},timestamp:Date.now(),hypothesisId:'H1,H2,H3'})}).catch(()=>{});
+                // #endregion
+                console.log('running updateOne: ', { model })
+                model.updateOne(projectFilter, dataObj).then((data: any) => {
+                    resolve(data)
+                }).catch((err: any) => {
+                    reject(err)
+                })
+            }
+        } catch (e) {
+            console.log('error in updateData: ', e)
+            reject(e)
         }
+       
         
        
     })
@@ -104,62 +119,58 @@ export const deleteData = (model: any, id: any) => {
 /**
  * Update only the active version of an existing scene (in-place). Also sets scene.activeVersion and scene.lockedVersion.
  */
-export const updateSceneVersionInProject = (
+export const updateSceneVersionInProject = async (
     model: any,
     _id: string,
     sceneNumber: number,
     activeVersion: number,
-    act: number | undefined,
+    _act: number | undefined,
     versionPayload: any,
     lockedVersion: number | null | undefined
 ) => {
-    return new Promise((resolve, reject) => {
-      try {
-        if (!mongoose.Types.ObjectId.isValid(_id)) {
-          reject(new Error(`Invalid project _id: ${_id}`));
-          return;
-        }
-        const objectId = new mongoose.Types.ObjectId(_id);
-        const sn = Number(sceneNumber);
-        const av = Number(activeVersion);
-        const $set: Record<string, any> = {
-          'scenes.$[elem].activeVersion': av,
-          'scenes.$[elem].versions.$[ver].sceneHeading': versionPayload?.sceneHeading ?? '',
-          'scenes.$[elem].versions.$[ver].thesis': versionPayload?.thesis ?? '',
-          'scenes.$[elem].versions.$[ver].antithesis': versionPayload?.antithesis ?? '',
-          'scenes.$[elem].versions.$[ver].synthesis': versionPayload?.synthesis ?? '',
-          'scenes.$[elem].versions.$[ver].synopsis': versionPayload?.synopsis ?? '',
-          'scenes.$[elem].versions.$[ver].step': versionPayload?.step ?? '',
-        };
-        if (versionPayload?.act !== undefined && versionPayload?.act !== null) {
-          $set['scenes.$[elem].versions.$[ver].act'] = versionPayload.act;
-        }
-        if (lockedVersion !== undefined && lockedVersion !== null) {
-          $set['scenes.$[elem].lockedVersion'] = lockedVersion;
-        }
-        const update: Record<string, any> = { $set };
-        if (lockedVersion === undefined || lockedVersion === null) {
-          update.$unset = { 'scenes.$[elem].lockedVersion': 1 };
-        }
-        model.findOneAndUpdate(
-            { _id: objectId, 'scenes.number': sn, 'scenes.versions.version': av },
-            update,
-            {
-                arrayFilters: [
-                    { 'elem.number': sn },
-                    { 'ver.version': av },
-                ],
-                new: true,
-            },
-            (err: any, data: any) => {
-                if (err) reject(err);
-                else resolve(data);
-            }
-        );
-      } catch (err) {
-        reject(err);
-      }
-    });
+    if (!mongoose.Types.ObjectId.isValid(_id)) {
+      throw new Error(`Invalid project _id: ${_id}`);
+    }
+    const objectId = new mongoose.Types.ObjectId(_id);
+    const sn = Number(sceneNumber);
+    const av = Number(activeVersion);
+
+    const project = await model.findOne({ _id: objectId }).exec();
+    if (!project || !project.scenes) {
+      return null;
+    }
+
+    const sceneIndex = project.scenes.findIndex((s: any) => Number(s.number) === sn);
+    if (sceneIndex < 0) {
+      return null;
+    }
+
+    const scene = project.scenes[sceneIndex];
+    const versions = Array.isArray(scene.versions) ? scene.versions : [];
+    const versionIndex = versions.findIndex((v: any) => Number(v.version) === av);
+    if (versionIndex < 0) {
+      return null;
+    }
+
+    const updatedVersion = {
+      ...versions[versionIndex],
+      sceneHeading: versionPayload?.sceneHeading ?? '',
+      thesis: versionPayload?.thesis ?? '',
+      antithesis: versionPayload?.antithesis ?? '',
+      synthesis: versionPayload?.synthesis ?? '',
+      synopsis: versionPayload?.synopsis ?? '',
+      step: versionPayload?.step ?? '',
+      act: versionPayload?.act !== undefined && versionPayload?.act !== null ? versionPayload.act : versions[versionIndex]?.act,
+      version: av,
+    };
+    project.scenes[sceneIndex].versions[versionIndex] = updatedVersion;
+    project.scenes[sceneIndex].activeVersion = av;
+    if (lockedVersion !== undefined && lockedVersion !== null) {
+      project.scenes[sceneIndex].lockedVersion = lockedVersion;
+    } else {
+      project.scenes[sceneIndex].lockedVersion = undefined;
+    }
+    return model.findByIdAndUpdate(objectId, { $set: { scenes: project.scenes } }, { new: true }).exec();
 };
 
 /**

@@ -165,7 +165,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
     updateSharedWithMutation.mutate(sharedWith.filter((e) => e !== email));
   };
 
-  const imageSrc = coverImage?.trim() ? coverImage : undefined;
+  const imageSrc = coverImage?.trim() ? coverImage : '/default-film-poster.png';
 
   return (
     <Card

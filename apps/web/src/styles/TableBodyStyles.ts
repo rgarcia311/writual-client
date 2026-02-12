@@ -34,8 +34,7 @@ export const tableBodyStyle = {
         display: "flex", 
         flexDirection: "row", 
         alignItems: "center", 
-        margin: 0,
-        border: "1px solid green"
+        margin: 0
     },
     genreChip: {
         borderRadius: 5, 

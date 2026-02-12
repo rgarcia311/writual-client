@@ -2,7 +2,10 @@ html {
     -webkit-box-sizing: border-box;
     -moz-box-sizing: border-box;
     box-sizing: border-box;
-    overflow-x: hidden;
+    overflow: hidden;
+    width: 100%;
+    max-width: 100vw;
+    height: 100%;
 }
 
 *, *:before, *:after {
@@ -15,9 +18,12 @@ body {
     font-family: "Lato";
     margin: 0;
     height: 100vh;
+    max-height: 100vh;
     padding: 8px;
     background-color: #FBFBFF;
-    overflow-x: hidden;
+    overflow: hidden;
+    width: 100%;
+    max-width: 100vw;
 }
 
 #__next {
@@ -40,4 +46,9 @@ input:-webkit-autofill:active{
     padding: 0 14px !important;
     height: 50px;
   }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 
