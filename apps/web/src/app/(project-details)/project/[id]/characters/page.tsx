@@ -100,7 +100,17 @@ export default function CharactersPage() {
           </Button>
         </Box>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' }, gap: 2, minWidth: 0 }}>
+        <Box sx={{ width: '100%',
+                    maxWidth: '100%',
+                    height: "90%",
+                    paddingTop: 5,
+                    overflowY: 'scroll',
+                    overflowX: 'hidden',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 2,
+                    padding: 2,
+                    minWidth: 0, }}>
           {pendingNewCharacter && <CharacterCardSkeleton />}
           {characters.map((character: any, index: number) => (
             <CharacterCard imageUrl={character.imageUrl} key={`${character?.name ?? 'character'}-${index}`} id={index + 1} name={character.name} details={character.details} />

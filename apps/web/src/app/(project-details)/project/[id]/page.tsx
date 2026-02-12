@@ -28,6 +28,7 @@ import { useUserProfileStore } from '@/state/user';
 import type { Project } from '@/interfaces/project';
 // Use dynamic import to avoid SSR issues with react-player's use of window.
 import dynamic from 'next/dynamic';
+import { ProjectDetailsLayout } from '@/components/ProjectDetailsLayout';
 const ReactPlayer = dynamic(() => import('react-player').then((mod) => mod.default as unknown as React.ComponentType<any>), {
   ssr: false,
 });
@@ -296,11 +297,10 @@ export default function Project() {
     console.log({ projectData });
 
     return (
-        <Container maxWidth={false} disableGutters sx={{ display: "flex",  flexDirection: "column", flex: 1, padding: 2, height: "100%", width: "100%"}}>
+        <ProjectDetailsLayout>
 
-            <ProjectHeader />
+          
 
-            <Container maxWidth={false} disableGutters sx={{ flex: 1, width: "100%", paddingTop: 2 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 2 }}>
                     <Typography variant="h6" fontWeight={600}>Inspiration</Typography>
                     <Button
@@ -313,7 +313,18 @@ export default function Project() {
                         Add Inspiration
                     </Button>
                 </Box>
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' }, gap: 2 }}>
+                <Box sx={{ width: '100%',
+                    maxWidth: '100%',
+                    height: "90%",
+                    paddingTop: 5,
+                    overflowY: 'scroll',
+                    overflowX: 'hidden',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 2,
+                    padding: 2,
+                    minWidth: 0,
+                    }}>
                     {Array.isArray((projectData as any)?.inspiration) &&
                         (projectData as any).inspiration.map((item: any) => (
                             <Paper 
@@ -382,7 +393,6 @@ export default function Project() {
                             </Paper>
                         ))}
                 </Box>
-            </Container>
             <Dialog open={inspirationFormOpen} onClose={() => setInspirationFormOpen(false)} fullWidth maxWidth="sm">
                 <DialogTitle>Add Inspiration</DialogTitle>
                 <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
@@ -406,7 +416,7 @@ export default function Project() {
                         fullWidth
                     />
                     <TextField
-                        label="Video URL"
+                        label="Video URL (use embed link)"
                         value={inspirationVideo}
                         onChange={(e) => setInspirationVideo(e.target.value)}
                         fullWidth
@@ -459,7 +469,7 @@ export default function Project() {
                     </Button>
                 </DialogActions>
             </Dialog>
-        </Container>
+        </ProjectDetailsLayout>
        
     )
 }
