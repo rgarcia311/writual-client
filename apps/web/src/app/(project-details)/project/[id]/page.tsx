@@ -310,7 +310,7 @@ export default function Project() {
                         startIcon={<AddIcon />}
                         onClick={() => setInspirationFormOpen(true)}
                     >
-                        Add inspiration
+                        Add Inspiration
                     </Button>
                 </Box>
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' }, gap: 2 }}>
@@ -384,7 +384,7 @@ export default function Project() {
                 </Box>
             </Container>
             <Dialog open={inspirationFormOpen} onClose={() => setInspirationFormOpen(false)} fullWidth maxWidth="sm">
-                <DialogTitle>Add inspiration</DialogTitle>
+                <DialogTitle>Add Inspiration</DialogTitle>
                 <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                         <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>

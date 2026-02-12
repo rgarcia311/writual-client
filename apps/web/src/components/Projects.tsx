@@ -38,9 +38,9 @@ export const Projects = () => {
                     sx={{
                     width: '100%',
                     maxWidth: '100%',
-                    height: '100%',
+                    height: '90%',
                     paddingTop: 5,
-                    overflowY: 'auto',
+                    overflowY: 'scroll',
                     overflowX: 'hidden',
                     display: 'flex',
                     flexWrap: 'wrap',
@@ -53,7 +53,6 @@ export const Projects = () => {
                     {data?.getProjectData?.map((project: any, index: number) => (
                   
                       <ProjectCard
-                       
                         key={project._id}
                         title={project.title}
                         author={project.displayName ?? project.email ?? project.user ?? 'TBD'}
@@ -64,7 +63,8 @@ export const Projects = () => {
                         projectId={project._id}
                         sharedWith={project.sharedWith ?? []}
                         to={project._id ? `/project/${project._id}` : undefined}
-                        />
+                        hideBudgetAndSimilarProjects
+                      />
                     ))}
                 </Box>
     )

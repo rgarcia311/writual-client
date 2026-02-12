@@ -39,6 +39,7 @@ query GetProjectData($input: ProjectFilters) {
         budget
         similarProjects
         timePeriod
+        outlineName
         characters {
           details {
             age

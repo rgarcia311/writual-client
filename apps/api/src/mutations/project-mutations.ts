@@ -46,10 +46,22 @@ export const shareProject = (root, { id, user }) => {
     return updateData(Projects, {sharedWith: user}, id) //which project, which key and what value as args
 }
 
-export const updateProject = (root, {project})  =>  {
-    console.log('project to create: ', project)
-    return updateData(Projects, {project}, project.projectId, "project")
-}
+export const updateProject = async (root, { project }) => {
+  const id = project._id ?? project.projectId;
+  if (!id) throw new Error('updateProject requires _id or projectId');
+  const filter = mongoose.Types.ObjectId.isValid(id)
+    ? { _id: new mongoose.Types.ObjectId(id) }
+    : { _id: id };
+  const updateFields = { ...project };
+  delete updateFields._id;
+  delete updateFields.projectId;
+  const updated = await Projects.findOneAndUpdate(
+    filter,
+    { $set: updateFields },
+    { new: true }
+  ).exec();
+  return updated ?? null;
+};
 
 export const updateProjectSharedWith = async (root, { projectId, sharedWith }) => {
     const filter = mongoose.Types.ObjectId.isValid(projectId)

@@ -29,13 +29,37 @@ function isValidEmail(email: string): boolean {
   return EMAIL_REGEX.test(email.trim());
 }
 
-export const CreateProject: React.FC<CreateProjectProps> = ({ setAddProject, handleAddProject }) => {
+export const CreateProject: React.FC<CreateProjectProps> = ({
+  setAddProject,
+  handleAddProject,
+  initialData,
+  handleUpdateProject,
+}) => {
   const frameworks = useOutlineFrameworksStore((state) => state.frameworks);
   const theme = useTheme();
+  const isUpdate = Boolean(initialData && handleUpdateProject);
   const [formValues, setFormValues] = React.useState<Record<string, any>>({});
   const [sharedWithEmails, setSharedWithEmails] = React.useState<string[]>([]);
   const [emailInput, setEmailInput] = React.useState('');
   const [emailError, setEmailError] = React.useState('');
+
+  React.useEffect(() => {
+    if (!initialData) return;
+    setFormValues({
+      title: initialData.title ?? '',
+      genre: initialData.genre ?? '',
+      logline: initialData.logline ?? '',
+      poster: initialData.poster ?? '',
+      type: initialData.type ?? '',
+      outlineName: initialData.outlineName ?? '',
+      budget: initialData.budget != null && initialData.budget !== '' ? String(initialData.budget) : '',
+      similarProjects: Array.isArray(initialData.similarProjects)
+        ? (initialData.similarProjects as string[]).join(', ')
+        : typeof initialData.similarProjects === 'string' ? initialData.similarProjects : '',
+      timePeriod: initialData.timePeriod ?? '',
+    });
+    setSharedWithEmails(Array.isArray(initialData.sharedWith) ? (initialData.sharedWith as string[]) : []);
+  }, [initialData]);
 
   const updateForm = React.useCallback((
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | { value: unknown },
@@ -82,7 +106,9 @@ export const CreateProject: React.FC<CreateProjectProps> = ({ setAddProject, han
       onClose={() => setAddProject(false)}
       PaperProps={{ style: { backgroundColor: theme.palette.background.default } }}
     >
-      <DialogTitle sx={{ paddingLeft: 4, paddingTop: 3}}>CREATE PROJECT</DialogTitle>
+      <DialogTitle sx={{ paddingLeft: 4, paddingTop: 3 }}>
+        {isUpdate ? 'Update Project' : 'CREATE PROJECT'}
+      </DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, padding: 4 }}>
         <TextField
           required
@@ -217,7 +243,7 @@ export const CreateProject: React.FC<CreateProjectProps> = ({ setAddProject, han
             const similarProjects = typeof formValues.similarProjects === 'string'
               ? formValues.similarProjects.split(',').map((s: string) => s.trim()).filter(Boolean)
               : Array.isArray(formValues.similarProjects) ? formValues.similarProjects : [];
-            handleAddProject({
+            const payload = {
               ...formValues,
               title: formValues.title ?? '',
               logline: formValues.logline ?? '',
@@ -228,7 +254,13 @@ export const CreateProject: React.FC<CreateProjectProps> = ({ setAddProject, han
               budget: budgetNum,
               similarProjects,
               outlineName: formValues.outlineName ?? undefined,
-            });
+              timePeriod: formValues.timePeriod ?? undefined,
+            };
+            if (isUpdate && handleUpdateProject) {
+              handleUpdateProject(payload);
+            } else {
+              handleAddProject(payload);
+            }
             setAddProject(false);
           }}
           variant="contained"

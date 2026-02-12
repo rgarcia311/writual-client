@@ -40,6 +40,9 @@ export interface TabPanelProps {
 }
 
 export interface CreateProjectProps {
-    setAddProject: Function
-    handleAddProject: Function
+    setAddProject: (open: boolean) => void;
+    handleAddProject: (formValues: Record<string, unknown>) => void;
+    /** When set, form is in update mode: title "Update Project", prefilled, submit calls handleUpdateProject */
+    initialData?: Record<string, unknown> | null;
+    handleUpdateProject?: (formValues: Record<string, unknown>) => void;
 }

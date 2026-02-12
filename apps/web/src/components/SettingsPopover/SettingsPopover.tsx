@@ -77,7 +77,7 @@ export function SettingsPopover({ standalone = false }: SettingsPopoverProps) {
             <ListItemIcon>
               <ManageSearchIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText primary="Manage outlines" />
+            <ListItemText primary="Manage Outline Frameworks" />
           </MenuItem>
           <MenuItem onClick={handleSignOut}>
             <ListItemIcon>

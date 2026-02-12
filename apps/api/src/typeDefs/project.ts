@@ -86,6 +86,7 @@ export const ProjectType = `#graphql
     }
 
     input ProjectInput {
+        _id: String
         user: String!
         displayName: String
         email: String

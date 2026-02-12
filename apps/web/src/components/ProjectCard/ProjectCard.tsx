@@ -15,6 +15,7 @@ import Box from '@mui/material/Box';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemText from '@mui/material/ListItemText';
+import EditIcon from '@mui/icons-material/Edit';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useTheme } from '@mui/material/styles';
@@ -58,6 +59,12 @@ interface ProjectCardProps {
   sharedWith?: string[];
   /** When set, clicking the card (not Share/Delete) navigates to this path */
   to?: string;
+  /** When true, show full project summary: image, title, author, genre, logline, type, budget, similar projects (and edit). Used in project header. */
+  headerOnly?: boolean;
+  /** When set, show edit icon in top right and call this on click */
+  onEditClick?: () => void;
+  /** When true, hide budget and similar projects only. Used on projects list page. */
+  hideBudgetAndSimilarProjects?: boolean;
 }
 
 const getStatusColor = (status: 'complete' | 'partial' | 'empty') => {
@@ -106,6 +113,9 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   projectId,
   sharedWith: sharedWithProp = [],
   to,
+  headerOnly = false,
+  onEditClick,
+  hideBudgetAndSimilarProjects = false,
   progress = [
     { label: 'Title', status: 'complete' },
     { label: 'Logline', status: 'complete' },
@@ -119,6 +129,11 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   const theme = useTheme();
   const queryClient = useQueryClient();
   const [shareAnchorEl, setShareAnchorEl] = React.useState<HTMLElement | null>(null);
+  const [imageError, setImageError] = React.useState(false);
+
+  React.useEffect(() => {
+    setImageError(false);
+  }, [coverImage]);
 
   const handleCardClick = (e: React.MouseEvent) => {
     console.log('to: ', to)
@@ -174,86 +189,156 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
     updateSharedWithMutation.mutate(sharedWith.filter((e) => e !== email));
   };
 
-  const imageSrc = coverImage?.trim() ? coverImage : '/default-film-poster.png';
+  const imageSrc = (coverImage?.trim() && !imageError) ? coverImage : '/default-film-poster.png';
 
   return (
     <Card
-      role={to ? 'button' : undefined}
-      tabIndex={to ? 0 : undefined}
-      onKeyDown={to ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(to); } } : undefined}
-      onClick={handleCardClick}
+      role={to && !headerOnly ? 'button' : undefined}
+      tabIndex={to && !headerOnly ? 0 : undefined}
+      onKeyDown={to && !headerOnly ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(to); } } : undefined}
+      onClick={headerOnly ? undefined : handleCardClick}
       elevation={enableCardShadow ? 1 : 0}
       sx={{
         display: 'flex',
-        //flex: 1,
+        position: 'relative',
         width: maxWidth || 570,
-        minHeight: 280,
+        minHeight: headerOnly ? undefined : 280,
         borderRadius: 2,
         boxShadow: enableCardShadow ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
         overflow: 'hidden',
-        ...(to ? { cursor: 'pointer', '&:hover': { boxShadow: 3 }, transition: 'box-shadow 0.2s ease' } : {}),
+        ...(to && !headerOnly ? { cursor: 'pointer', '&:hover': { boxShadow: 3 }, transition: 'box-shadow 0.2s ease' } : {}),
       }}
     >
+      {onEditClick && (
+        <IconButton
+          aria-label="Edit project"
+          size="small"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEditClick(); }}
+          sx={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            zIndex: 1,
+            backgroundColor: theme.palette.background.paper,
+            boxShadow: 1,
+            '&:hover': { backgroundColor: theme.palette.action.hover },
+          }}
+        >
+          <EditIcon fontSize="small" />
+        </IconButton>
+      )}
       <CardMedia
         component="img"
-        sx={{ p: enableCardShadow ? 1 : 0, marginRight: enableCardShadow ? 0 : '8px', width: 185, height: 280, maxHeight: '100%', objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
+        sx={{
+          p: enableCardShadow ? 1 : 0,
+          marginRight: enableCardShadow ? 0 : '8px',
+          width: 185,
+          aspectRatio: '2 / 3',
+          objectFit: 'fill',
+          borderRadius: 4,
+          flexShrink: 0,
+        }}
         image={imageSrc}
         alt={`${title} cover`}
+        onError={() => setImageError(true)}
       />
       <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, minHeight: 0 }}>
         <CardContent sx={{ flex: 1, minHeight: 0, pt: 2, p: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
-            {title}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            by {toTitleCase(author)}
-          </Typography>
-          <Typography variant="body2" sx={{ mt: 1, overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        display: '-webkit-box',
-        WebkitLineClamp: 3, // Set the maximum number of lines here
-        WebkitBoxOrient: 'vertical', }}>
-            {logline}
-          </Typography>
-          <Typography variant="body2" sx={{ mt: 1 }}>
-            Genre: {genre || '—'}
-          </Typography>
-          <Typography variant="body2" sx={{ mt: 0.5 }}>
-            Type: {projectTypeLabel || '—'}
-          </Typography>
-          <Typography variant="body2" sx={{ mt: 0.5 }}>
-            Budget:{' '}
-            {typeof budget === 'number' && budget > 0
-              ? new Intl.NumberFormat(undefined, {
-                  style: 'currency',
-                  currency: 'USD',
-                  maximumFractionDigits: 0,
-                }).format(budget)
-              : '—'}
-          </Typography>
-          <Typography variant="body2" sx={{ mt: 0.5 }}>
-            Similar projects:{' '}
-            {Array.isArray(similarProjects) && similarProjects.length > 0
-              ? similarProjects.join(', ')
-              : '—'}
-          </Typography>
-          <Typography variant="body2" sx={{ mt: 1.5, fontWeight: 500 }}>
-            Development Progress:
-          </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mt: 1, alignItems: 'center' }}>
-            {progress.map((item) => (
-              <Box key={item.label} sx={{ display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', gap: 0.5 }}>
-                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                  {item.label}
+          {headerOnly ? (
+            <>
+              <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
+                {title}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                by {toTitleCase(author)}
+              </Typography>
+              <Typography variant="body2" sx={{ mt: 1, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+                {logline}
+              </Typography>
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                Genre: {genre || '—'}
+              </Typography>
+          
+              <Typography variant="body2" sx={{ mt: 0.5 }}>
+                Type: {projectTypeLabel || '—'}
+              </Typography>
+              <Typography variant="body2" sx={{ mt: 0.5 }}>
+                Budget:{' '}
+                {typeof budget === 'number' && budget > 0
+                  ? new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(budget)
+                  : '—'}
+              </Typography>
+              <Typography variant="body2" sx={{ mt: 0.5 }}>
+                Similar Films/TV Shows::{' '}
+                {Array.isArray(similarProjects) && similarProjects.length > 0 ? similarProjects.join(', ') : '—'}
+              </Typography>
+            </>
+          ) : (
+            <>
+              <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
+                {title}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                by {toTitleCase(author)}
+              </Typography>
+              <Typography variant="body2" sx={{ mt: 1, overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            display: '-webkit-box',
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: 'vertical', }}>
+                {logline}
+              </Typography>
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                Genre: {genre || '—'}
+              </Typography>
+              <Typography variant="body2" sx={{ mt: 0.5 }}>
+                Type: {projectTypeLabel || '—'}
+              </Typography>
+              {!hideBudgetAndSimilarProjects && (
+                <>
+                  <Typography variant="body2" sx={{ mt: 0.5 }}>
+                    Budget:{' '}
+                    {typeof budget === 'number' && budget > 0
+                      ? new Intl.NumberFormat(undefined, {
+                          style: 'currency',
+                          currency: 'USD',
+                          maximumFractionDigits: 0,
+                        }).format(budget)
+                      : '—'}
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 0.5 }}>
+                    Similar projects:{' '}
+                    {Array.isArray(similarProjects) && similarProjects.length > 0
+                      ? similarProjects.join(', ')
+                      : '—'}
+                  </Typography>
+                </>
+              )}
+              <Typography variant="body2" sx={{ mt: 1.5, fontWeight: 500 }}>
+                Development Progress:
+              </Typography>
+              {process.env.NODE_ENV === 'production' ? (
+                <Typography variant="body2" sx={{ mt: 0.5, color: 'text.secondary' }}>
+                  Coming soon
                 </Typography>
-                <ProgressDot status={item.status} />
-              </Box>
-            ))}
-          </Box>
+              ) : (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mt: 1, alignItems: 'center' }}>
+                  {progress.map((item) => (
+                    <Box key={item.label} sx={{ display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', gap: 0.5 }}>
+                      <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                        {item.label}
+                      </Typography>
+                      <ProgressDot status={item.status} />
+                    </Box>
+                  ))}
+                </Box>
+              )}
+            </>
+          )}
         </CardContent>
         <CardActions sx={{ flexShrink: 0, width: "100%", display: 'flex', justifyContent: 'space-between', px: 1.5, pb: 1, pt: 0 }}>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            {projectId ? (
+            {projectId && !headerOnly ? (
               <>
                 <Button
                   variant="outlined"
@@ -279,7 +364,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
                     </Typography>
                     {sharedWith.length === 0 ? (
                       <Typography variant="body2" color="text.secondary">
-                        Not shared with anyone yet.
+                        Not shared with anyone yet. (coming soon..)
                       </Typography>
                     ) : (
                       <List dense sx={{ py: 0, maxHeight: 200, overflow: 'auto' }}>
@@ -302,7 +387,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
                         ))}
                       </List>
                     )}
-                    <Box sx={{ display: 'flex', gap: 1, mt: 2, alignItems: 'flex-start' }}>
+                    <Box sx={{ display: 'flex', gap: 1, mt: 2, alignItems: 'stretch' }}>
                       <TextField
                         size="small"
                         placeholder="Add email"
@@ -312,8 +397,14 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
                         error={Boolean(emailError)}
                         helperText={emailError}
                         fullWidth
+                        sx={{ '& .MuiInputBase-root': { height: 40 } }}
                       />
-                      <Button variant="contained" size="small" onClick={handleAddShareEmail}>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        disabled
+                        sx={{ minHeight: 40, height: 40 }}
+                      >
                         Add
                       </Button>
                     </Box>
@@ -322,7 +413,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
               </>
             ) : null}
           </Box>
-          {onDelete ? (
+          {onDelete && !headerOnly ? (
             <IconButton
               aria-label="Delete project"
               size="small"

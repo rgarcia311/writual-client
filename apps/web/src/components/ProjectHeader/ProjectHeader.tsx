@@ -9,15 +9,16 @@ import Link from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useParams, usePathname } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { request } from 'graphql-request';
 import { PROJECT_QUERY } from '@/queries/ProjectQueries';
 import { ProjectCard } from '@/components/ProjectCard';
+import { CreateProject } from '@/components/CreateProject';
 import { projectStyles } from 'styles';
 import { Project } from '@/interfaces/project';
 import { useEffect } from 'react';
 import { ProjectType } from '@/enums/ProjectEnums';
-
+import { UPDATE_PROJECT } from 'mutations/ProjectMutations';
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { useUserProfileStore } from '@/state/user';
 
@@ -66,9 +67,58 @@ export function ProjectHeader() {
   const params = useParams();
   const pathname = usePathname();
   const id = params?.id as string | undefined;
+  const queryClient = useQueryClient();
   const [expanded, setExpanded] = React.useState(true);
   const [projectData, setProjectData] = React.useState<Project>(defaultProjectData);
-  
+  const [updateDialogOpen, setUpdateDialogOpen] = React.useState(false);
+
+  const updateProjectMutation = useMutation({
+    mutationFn: async (variables: Record<string, unknown>) => {
+      await request(GRAPHQL_ENDPOINT, UPDATE_PROJECT, variables as Record<string, string>);
+    },
+    onSuccess: async () => {
+      if (id) {
+        await queryClient.invalidateQueries({ queryKey: ['project', id] });
+        await queryClient.refetchQueries({ queryKey: ['project', id] });
+      }
+      await queryClient.invalidateQueries({ queryKey: ['projects'] });
+      setUpdateDialogOpen(false);
+    },
+  });
+
+  const handleUpdateProject = React.useCallback(
+    (formValues: Record<string, unknown>) => {
+      const userProfileState = useUserProfileStore.getState();
+      const user = userProfileState.userProfile?.user;
+      const displayName = userProfileState.userProfile?.displayName;
+      const email = userProfileState.userProfile?.email ?? '';
+      const projectId = (projectData as { _id?: string })._id ?? projectData.id;
+      if (!projectId || !user) return;
+      const similarProjects = Array.isArray(formValues.similarProjects)
+        ? formValues.similarProjects
+        : typeof formValues.similarProjects === 'string'
+          ? (formValues.similarProjects as string).split(',').map((s) => s.trim()).filter(Boolean)
+          : [];
+      updateProjectMutation.mutate({
+        _id: projectId,
+        title: formValues.title,
+        type: formValues.type,
+        user,
+        displayName,
+        email,
+        logline: formValues.logline,
+        genre: formValues.genre,
+        poster: formValues.poster,
+        outlineName: formValues.outlineName,
+        sharedWith: formValues.sharedWith,
+        budget: formValues.budget != null && formValues.budget !== '' ? Number(formValues.budget) : undefined,
+        similarProjects,
+        timePeriod: formValues.timePeriod ?? undefined,
+      });
+    },
+    [projectData, updateProjectMutation]
+  );
+
   const fetchProject = async (): Promise<{ getProjectData: Project[] }> => {
     const { userProfile } = await useUserProfileStore.getState()
     console.log({ userProfile })
@@ -149,6 +199,7 @@ export function ProjectHeader() {
           padding={0}
           enableCardShadow={false}
           maxWidth="100%"
+          headerOnly
           title={projectData.title}
           author={projectData.displayName ?? projectData.email ?? projectData.user ?? 'TBD'}
           genre={projectData.genre}
@@ -159,14 +210,24 @@ export function ProjectHeader() {
           coverImage={
             projectData.poster?.trim()
               ? projectData.poster
-              : process.env.NODE_ENV === 'development'
-                ? '/demo-poster.png'
-                : undefined
+              : '/default-film-poster.png'
           }
           projectId={id}
           sharedWith={projectData.sharedWith ?? []}
+          onEditClick={() => setUpdateDialogOpen(true)}
         />
       </AccordionDetails>
+      {updateDialogOpen && (
+        <CreateProject
+          setAddProject={setUpdateDialogOpen}
+          handleAddProject={() => {}}
+          initialData={{
+            ...projectData,
+            _id: (projectData as { _id?: string })._id ?? projectData.id,
+          }}
+          handleUpdateProject={handleUpdateProject}
+        />
+      )}
     </Accordion>
   );
 }
