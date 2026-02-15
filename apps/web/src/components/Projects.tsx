@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { Box } from '@mui/system';
 import { ProjectCard, ProjectCardSkeleton } from './ProjectCard';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -13,6 +14,7 @@ import { useCreateProjectModalStore } from '@/state/createProjectModal';
 const endpoint = GRAPHQL_ENDPOINT;
 
 export const Projects = () => {
+    const router = useRouter();
     const queryClient = useQueryClient();
     const userId = useUserProfileStore((s) => s.userProfile?.user);
     const pendingNewProject = useCreateProjectModalStore((s) => s.pendingNewProject);
@@ -63,6 +65,7 @@ export const Projects = () => {
                         projectTypeLabel={project.type}
                         sharedWith={project.sharedWith ?? []}
                         to={project._id ? `/project/${project._id}` : undefined}
+                        onEditClick={project._id ? () => router.push(`/project/${project._id}`) : undefined}
                         hideBudgetAndSimilarProjects
                       />
                     ))}
