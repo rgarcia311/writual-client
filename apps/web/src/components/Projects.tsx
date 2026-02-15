@@ -1,11 +1,10 @@
 'use client';
 
-import { Box } from "@mui/system";
-import { ProjectCard, ProjectCardSkeleton } from "./ProjectCard";
-import React from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { request } from "graphql-request";
-import { PROJECTS_QUERY } from "../queries";
+import { Box } from '@mui/system';
+import { ProjectCard, ProjectCardSkeleton } from './ProjectCard';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { request } from 'graphql-request';
+import { PROJECTS_QUERY } from '../queries';
 import { DELETE_PROJECT } from 'mutations/ProjectMutations';
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { useUserProfileStore } from '@/state/user';

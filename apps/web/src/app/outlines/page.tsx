@@ -1,4 +1,4 @@
-import { Box, Container, Typography } from '@mui/material';
+import { Container, Typography } from '@mui/material';
 import { OutlinesContent } from '@/components/OutlinesContent/OutlinesContent';
 
 export default function OutlinesPage() {

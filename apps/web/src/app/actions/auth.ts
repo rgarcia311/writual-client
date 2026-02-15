@@ -1,8 +1,7 @@
 "use server";
 
-import { adminAuth } from "@/lib/firebase-admin";
-import { cookies } from "next/headers";
-import { auth } from "firebase-admin";
+import { adminAuth } from '@/lib/firebase-admin';
+import { cookies } from 'next/headers';
 
 export async function verifyAndLogin(idToken) {
   try {

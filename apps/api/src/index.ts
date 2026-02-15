@@ -4,8 +4,6 @@ import { ApolloServerPluginDrainHttpServer } from '@apollo/server/plugin/drainHt
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
-//import { resolvers } from '../resolvers';
-import { ProjectType } from './typeDefs';
 import { PORT, host } from './app-config';
 import { schema } from './schemas/schema'
 

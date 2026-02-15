@@ -1,8 +1,6 @@
-import { useMutation, useQueryClient }  from "@tanstack/react-query";
-import { request } from "graphql-request";
-import { Mutation } from "@/interfaces/scene"
-import { sceneStore } from '@/state/sceneState';
-
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { request } from 'graphql-request';
+import type { Mutation } from '@/interfaces/scene';
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
 
 const endpoint = GRAPHQL_ENDPOINT
