@@ -61,6 +61,7 @@ export const Projects = () => {
                         coverImage={project.coverImage ?? project.poster}
                         onDelete={project._id ? () => deleteProjectMutation.mutate(project._id) : undefined}
                         projectId={project._id}
+                        projectTypeLabel={project.type}
                         sharedWith={project.sharedWith ?? []}
                         to={project._id ? `/project/${project._id}` : undefined}
                         hideBudgetAndSimilarProjects
