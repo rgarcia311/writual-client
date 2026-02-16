@@ -1,8 +1,9 @@
 'use client';
 
 import * as React from 'react';
-import { Box, Button, Typography } from '@mui/material';
+import { Button } from '@mui/material';
 import { ProjectDetailsLayout } from '@/components/ProjectDetailsLayout';
+import { ScrollableContentArea } from '@/components/shared/ScrollableContentArea/ScrollableContentArea';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { request } from 'graphql-request';
 import { PROJECT_CHARACTERS_QUERY } from '@/queries/CharacterQueries';
@@ -29,6 +30,7 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
   const [createOpen, setCreateOpen] = React.useState(false);
   const [errorOpen, setErrorOpen] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState('Failed to create character.');
+  const [expandedCardId, setExpandedCardId] = React.useState<number | undefined>(undefined);
 
   const getCharacters = async () => {
     const userProfileState = await useUserProfileStore.getState();
@@ -85,21 +87,10 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
   };
 
   return (
-    <ProjectDetailsLayout contentSx={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflowY: 'auto' }}>
-      <Box
-        sx={{
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 1,
-          mb: 2,
-        }}
-      >
-        <Typography variant="h6" fontWeight={600}>
-          Characters
-        </Typography>
+    <ProjectDetailsLayout
+      contentSx={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflowY: 'auto' }}
+      headerTitle="Characters"
+      headerAction={
         <Button
           variant="contained"
           color="primary"
@@ -109,34 +100,27 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
         >
           Create Character
         </Button>
-      </Box>
-
-      <Box
-        sx={{
-          width: '100%',
-          maxWidth: '100%',
-          height: '90%',
-          paddingTop: 5,
-          overflowY: 'scroll',
-          overflowX: 'hidden',
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 2,
-          padding: 2,
-          minWidth: 0,
-        }}
-      >
+      }
+    >
+      <ScrollableContentArea>
         {pendingNewCharacter && <CharacterCardSkeleton />}
-        {characters.map((character: any, index: number) => (
-          <CharacterCard
-            imageUrl={character.imageUrl}
-            key={`${character?.name ?? 'character'}-${index}`}
-            id={index + 1}
-            name={character.name}
-            details={character.details}
-          />
-        ))}
-      </Box>
+        {characters.map((character: any, index: number) => {
+          const cardId = index + 1;
+          return (
+            <CharacterCard
+              imageUrl={character.imageUrl}
+              key={`${character?.name ?? 'character'}-${index}`}
+              id={cardId}
+              name={character.name}
+              details={character.details}
+              expanded={expandedCardId === cardId}
+              onExpandClick={() =>
+                setExpandedCardId((prev) => (prev === cardId ? undefined : cardId))
+              }
+            />
+          );
+        })}
+      </ScrollableContentArea>
 
       <NewCharacterForm
         open={createOpen}

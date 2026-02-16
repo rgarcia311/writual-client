@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
-import { sceneCardStyle } from 'styles';
+import { sceneCardStyle, multiLineTruncate } from 'styles';
 import {
   Box,
   Chip,
@@ -23,13 +23,6 @@ import { useProjectSceneMutations } from 'hooks';
 import { useOutlineSaveStatusStore } from '@/state/outlineSaveStatus';
 
 const SAVE_DEBOUNCE_MS = 2000;
-const FIELD_CLAMP_SX = {
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  display: '-webkit-box',
-  WebkitLineClamp: 4,
-  WebkitBoxOrient: 'vertical',
-} as const;
 
 interface StepOption {
   name: string;
@@ -334,7 +327,7 @@ export const SceneCard: React.FC<SceneCardProps> = ({
         '@container (min-width: 400px)': {
           flex: "1 1 calc(33.33% - 10.67px)",
           minWidth: "calc((100% - 32px) / 3)",
-          maxWidth: "calc((100% - 32px) / 3)",
+          maxWidth: "calc((100% - 32px) / 4)",
         },
         backgroundColor: theme.palette.background.paper,
         display: 'flex',
@@ -356,7 +349,7 @@ export const SceneCard: React.FC<SceneCardProps> = ({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 220, flex: 1 }}>
        
           {isLocked ? (
-            <Typography variant="subtitle1" fontWeight={700} component="span" sx={FIELD_CLAMP_SX}>
+            <Typography variant="subtitle1" fontWeight={700} component="span" sx={multiLineTruncate(4)}>
               {sceneContent.sceneHeading?.trim() || 'Untitled scene'}
             </Typography>
           ) : (

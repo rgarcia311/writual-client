@@ -18,6 +18,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { request } from 'graphql-request';
 import { ProjectDetailsLayout } from '@/components/ProjectDetailsLayout';
+import { ScrollableContentArea } from '@/components/shared/ScrollableContentArea/ScrollableContentArea';
 import { PROJECT_QUERY } from '@/queries/ProjectQueries';
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { useUserProfileStore } from '@/state/user';
@@ -55,11 +56,9 @@ export function ProjectOverviewContent({ projectId }: ProjectOverviewContentProp
   const projectData = data?.getProjectData?.[0] as Project | undefined;
 
   return (
-    <ProjectDetailsLayout>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-        <Typography variant="h6" fontWeight={600}>
-          Inspiration
-        </Typography>
+    <ProjectDetailsLayout
+      headerTitle="Inspiration"
+      headerAction={
         <Button
           variant="contained"
           color="primary"
@@ -69,22 +68,9 @@ export function ProjectOverviewContent({ projectId }: ProjectOverviewContentProp
         >
           Add Inspiration
         </Button>
-      </Box>
-      <Box
-        sx={{
-          width: '100%',
-          maxWidth: '100%',
-          height: '90%',
-          paddingTop: 5,
-          overflowY: 'scroll',
-          overflowX: 'hidden',
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 2,
-          padding: 2,
-          minWidth: 0,
-        }}
-      >
+      }
+    >
+      <ScrollableContentArea>
         {Array.isArray((projectData as any)?.inspiration) &&
           (projectData as any).inspiration.map((item: any) => (
             <Paper
@@ -158,7 +144,7 @@ export function ProjectOverviewContent({ projectId }: ProjectOverviewContentProp
               </IconButton>
             </Paper>
           ))}
-      </Box>
+      </ScrollableContentArea>
       <Dialog open={inspirationFormOpen} onClose={() => setInspirationFormOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>Add Inspiration</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>

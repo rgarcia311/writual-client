@@ -9,6 +9,7 @@ import {
   Button,
   Menu,
   MenuItem,
+  Tooltip,
   Typography,
   useTheme,
 } from '@mui/material';
@@ -27,6 +28,7 @@ import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { useUserProfileStore } from '@/state/user';
 import { useOutlineSaveStatusStore } from '@/state/outlineSaveStatus';
 import type { OutlineFrameworkItem } from '@/state/outlineFrameworks';
+import { accordionFlat, getAccordionSummaryBordered, getAccordionDetailsBordered, singleLineTruncate } from 'styles';
 
 const endpoint = GRAPHQL_ENDPOINT;
 
@@ -58,11 +60,11 @@ function buildActStepStructure(
   framework: OutlineFrameworkItem | null,
   scenes: any[]
 ): {
-  actSteps: { act: string; actNum: number; steps: { name: string; number: number }[] }[];
+  actSteps: { act: string; actNum: number; steps: { name: string; number: number; instructions?: string }[] }[];
   stepKeyToScenes: Map<string, any[]>;
   unassignedScenes: any[];
 } {
-  const actSteps: { act: string; actNum: number; steps: { name: string; number: number }[] }[] = [];
+  const actSteps: { act: string; actNum: number; steps: { name: string; number: number; instructions?: string }[] }[] = [];
   const stepKeyToScenes = new Map<string, any[]>();
   const unassignedScenes: any[] = [];
 
@@ -71,19 +73,20 @@ function buildActStepStructure(
   }
 
   const steps = framework.format.steps;
-  const actMap = new Map<number, { act: string; steps: { name: string; number: number }[] }>();
+  const actMap = new Map<number, { act: string; steps: { name: string; number: number; instructions?: string }[] }>();
 
   for (const s of steps) {
     const actStr = s.act ?? '';
     const actNum = parseActToNumber(actStr) ?? 1;
     const stepName = (s.name ?? '').trim() || `Step ${s.number ?? 0}`;
     const stepNum = s.number ?? 0;
+    const instructions = s.instructions ?? '';
 
     if (!actMap.has(actNum)) {
       actMap.set(actNum, { act: actStr || `ACT ${actNum}`, steps: [] });
     }
     const entry = actMap.get(actNum)!;
-    entry.steps.push({ name: stepName, number: stepNum });
+    entry.steps.push({ name: stepName, number: stepNum, instructions });
     stepKeyToScenes.set(`${actNum}:${stepName}`, []);
   }
 
@@ -170,6 +173,8 @@ export function OutlineContent({ projectId }: OutlineContentProps) {
     [framework, scenes]
   );
 
+  console.log('actSteps: ', actSteps);
+
   const allSteps = React.useMemo(() => {
     if (!framework?.format?.steps?.length) return [];
     return framework.format.steps.map((s: any) => ({
@@ -233,121 +238,134 @@ export function OutlineContent({ projectId }: OutlineContentProps) {
     );
   };
 
-  return (
-    <ProjectDetailsLayout contentSx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      <Box sx={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="h6" fontWeight={600}>Outline</Typography>
-          {isSaving && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }} aria-label="Saving">
-              <AutorenewIcon sx={{ fontSize: 20, animation: 'spin 1s linear infinite' }} />
-              <Typography variant="body2" color="text.secondary">saving...</Typography>
-            </Box>
-          )}
-          {showSaved && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }} aria-label="Saved">
-              <CloudDoneIcon sx={{ fontSize: 20, color: 'success.main' }} />
-            </Box>
-          )}
+  const headerLeftAdornment = (
+    <>
+      {isSaving && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }} aria-label="Saving">
+          <AutorenewIcon sx={{ fontSize: 20, animation: 'spin 1s linear infinite' }} />
+          <Typography variant="body2" color="text.secondary">saving...</Typography>
         </Box>
-        {allSteps.length > 0 ? (
-          <>
-            <Button
-              variant="contained"
-              color="primary"
-              size="small"
-              startIcon={<AddIcon />}
-              onClick={handleNewSceneClick}
-              disabled={createSceneMutation.isPending}
-              aria-controls={newSceneMenuOpen ? 'new-scene-menu' : undefined}
-              aria-haspopup="true"
-              aria-expanded={newSceneMenuOpen ? 'true' : undefined}
-            >
-              New scene
-            </Button>
-            <Menu
-              id="new-scene-menu"
-              anchorEl={newSceneAnchorEl}
-              open={newSceneMenuOpen}
-              onClose={handleNewSceneMenuClose}
-              MenuListProps={{ 'aria-labelledby': 'new-scene-button' }}
-              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-              transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-            >
-              <MenuItem onClick={() => handleNewScene()}>
-                Assign to Step
-              </MenuItem>
-              {allSteps.map((stepOption) => (
-                <MenuItem
-                  key={`${stepOption.act}-${stepOption.name}`}
-                  onClick={() => handleNewScene(stepOption.name)}
-                >
-                  {stepOption.name}
-                </MenuItem>
-              ))}
-            </Menu>
-          </>
-        ) : (
-          <Button
-            variant="contained"
-            color="primary"
-            size="small"
-            startIcon={<AddIcon />}
-            onClick={() => handleNewScene()}
-            disabled={createSceneMutation.isPending}
-          >
-            New scene
-          </Button>
-        )}
-      </Box>
+      )}
+      {showSaved && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }} aria-label="Saved">
+          <CloudDoneIcon sx={{ fontSize: 20, color: 'success.main' }} />
+        </Box>
+      )}
+    </>
+  );
 
+  const headerAction =
+    allSteps.length > 0 ? (
+      <>
+        <Button
+          variant="contained"
+          color="primary"
+          size="small"
+          startIcon={<AddIcon />}
+          onClick={handleNewSceneClick}
+          disabled={createSceneMutation.isPending}
+          aria-controls={newSceneMenuOpen ? 'new-scene-menu' : undefined}
+          aria-haspopup="true"
+          aria-expanded={newSceneMenuOpen ? 'true' : undefined}
+        >
+          New scene
+        </Button>
+        <Menu
+          id="new-scene-menu"
+          anchorEl={newSceneAnchorEl}
+          open={newSceneMenuOpen}
+          onClose={handleNewSceneMenuClose}
+          MenuListProps={{ 'aria-labelledby': 'new-scene-button' }}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        >
+          <MenuItem onClick={() => handleNewScene()}>
+            Assign to Step
+          </MenuItem>
+          {allSteps.map((stepOption) => (
+            <MenuItem
+              key={`${stepOption.act}-${stepOption.name}`}
+              onClick={() => handleNewScene(stepOption.name)}
+            >
+              {stepOption.name}
+            </MenuItem>
+          ))}
+        </Menu>
+      </>
+    ) : (
+      <Button
+        variant="contained"
+        color="primary"
+        size="small"
+        startIcon={<AddIcon />}
+        onClick={() => handleNewScene()}
+        disabled={createSceneMutation.isPending}
+      >
+        New scene
+      </Button>
+    );
+
+  return (
+    <ProjectDetailsLayout
+      contentSx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}
+      headerTitle="Outline"
+      headerLeftAdornment={headerLeftAdornment}
+      headerAction={headerAction}
+    >
       <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         {useFrameworkView ? (
           <>
             {actSteps.map(({ act, actNum, steps }) => (
-              <Accordion
-                key={act}
-                defaultExpanded
-                disableGutters
-                sx={{
-                  boxShadow: 'none',
-                  '&:before': { display: 'none' },
-                  '&.Mui-expanded': { margin: 0 },
-                }}
-              >
+              <Accordion key={act} defaultExpanded disableGutters sx={accordionFlat}>
                 <AccordionSummary
                   expandIcon={<ExpandMoreIcon />}
-                  sx={{
-                    backgroundColor: theme.palette.background.default,
-                    border: '1px solid',
-                    borderColor: theme.palette.divider,
-                    borderRadius: '8px',
-                    mb: 1,
-                  }}
+                  sx={{ top: 0, zIndex: 2, ...getAccordionSummaryBordered(theme, { backgroundColor: 'default' }) }}
                 >
                   <Typography fontWeight={600}>Act {act}</Typography>
                 </AccordionSummary>
-                <AccordionDetails sx={{ mb: 1, pt: 0, border: '1px solid', borderColor: theme.palette.divider, borderRadius: '8px' }}>
+                <AccordionDetails
+                  sx={{
+                    mb: 1,
+                    pt: 0,
+                    maxHeight: 'calc(100vh - 400px)',
+                    overflowY: 'scroll',
+                    ...getAccordionDetailsBordered(theme),
+                  }}
+                >
                   {steps.map((st) => {
                     const key = `${actNum}:${st.name}`;
                     const stepScenes = stepKeyToScenes.get(key) ?? [];
+                    console.log('st: ', st);
                     return (
                       <Accordion
                         key={key}
                         defaultExpanded
                         disableGutters
-                        sx={{
-                          boxShadow: 'none',
-                          '&:before': { display: 'none' },
-                          '&.Mui-expanded': { margin: 0 },
-                        }}
+                        sx={{ ...accordionFlat, zIndex: 1, backgroundColor: theme.palette.background.paper }}
                       >
-                        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                          <Typography variant="body2" fontWeight={500}>
-                            STEP {st.number}: {st.name}
-                          </Typography>
+                        <AccordionSummary
+                          expandIcon={<ExpandMoreIcon />}
+                          sx={{
+                            position: 'sticky',
+                            backgroundColor: theme.palette.background.paper,
+                            minWidth: 0,
+                            '& .MuiAccordionSummary-content': { minWidth: 0, overflow: 'hidden' },
+                          }}
+                        >
+                          <Tooltip title={st.instructions || ''} arrow disableHoverListener={!st.instructions}>
+                            <Box sx={{ flex: 1, minWidth: 0, ...singleLineTruncate }}>
+                              <Typography component="span" variant="body1" fontWeight={700}>
+                                STEP {st.number}: {st.name}
+                              </Typography>
+                              {st.instructions ? (
+                                <Typography component="span" variant="body1" fontWeight={500}>
+                                  {' : '}{st.instructions}
+                                </Typography>
+                              ) : null}
+                            </Box>
+                          </Tooltip>
                         </AccordionSummary>
-                        <AccordionDetails>
+                        <AccordionDetails sx={{ p: 0 }}>
                           <Box
                             sx={{
                               display: 'flex',
@@ -355,6 +373,9 @@ export function OutlineContent({ projectId }: OutlineContentProps) {
                               flexWrap: 'wrap',
                               gap: 2,
                               containerType: 'inline-size',
+                           
+                              maxHeight: '700px', 
+                              overflowY: 'scroll',
                             }}
                           >
                             {stepScenes.map((scene: any, idx: number) => renderSceneCard(scene, idx))}
@@ -367,28 +388,14 @@ export function OutlineContent({ projectId }: OutlineContentProps) {
               </Accordion>
             ))}
             {unassignedScenes.length > 0 && (
-              <Accordion
-                defaultExpanded
-                disableGutters
-                sx={{
-                  boxShadow: 'none',
-                  '&:before': { display: 'none' },
-                  '&.Mui-expanded': { margin: 0 },
-                }}
-              >
+              <Accordion defaultExpanded disableGutters sx={accordionFlat}>
                 <AccordionSummary
                   expandIcon={<ExpandMoreIcon />}
-                  sx={{
-                    backgroundColor: theme.palette.background.default,
-                    border: '1px solid',
-                    borderColor: theme.palette.divider,
-                    borderRadius: '8px',
-                    mb: 1,
-                  }}
+                  sx={getAccordionSummaryBordered(theme, { backgroundColor: 'default' })}
                 >
                   <Typography fontWeight={600}>Unassigned</Typography>
                 </AccordionSummary>
-                <AccordionDetails sx={{ mb: 1, pt: 2, border: '1px solid', borderColor: theme.palette.divider, borderRadius: '8px' }}>
+                <AccordionDetails sx={{ mb: 1, pt: 2, ...getAccordionDetailsBordered(theme) }}>
                   <Box
                     sx={{
                       display: 'flex',

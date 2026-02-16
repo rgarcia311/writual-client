@@ -9,7 +9,6 @@ import IconButton, { IconButtonProps } from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { Box } from '@mui/material';
-import { useEffect } from 'react';
 
 interface ExpandMoreProps extends IconButtonProps {
   expand: boolean;
@@ -28,20 +27,26 @@ const ExpandMore = styled((props: ExpandMoreProps) => {
 
 const DEFAULT_CHARACTER_IMAGE = '/default-character-image.png';
 
-export const CharacterCard: React.FC<any> = ({name, details, id, imageUrl}) => {
-  const [expanded, setExpanded] = React.useState(false);
-  const [version, setVersion] = React.useState(1)
-  const [ currentId,  setCurrentId ] =  React.useState<number  | undefined>()
+interface CharacterCardProps {
+  name?: string;
+  details?: any[];
+  id: number;
+  imageUrl?: string;
+  /** Whether this card is the one currently expanded (only one card expanded at a time) */
+  expanded?: boolean;
+  /** Called when the expand/collapse icon is clicked */
+  onExpandClick?: () => void;
+}
 
-  useEffect(() => {
-    if(!expanded)  {
-      setCurrentId(undefined)
-    }
-  }, [expanded])
-
-  const handleExpandClick = () => {
-      setExpanded(!expanded);
-  }
+export const CharacterCard: React.FC<CharacterCardProps> = ({
+  name,
+  details,
+  id,
+  imageUrl,
+  expanded = false,
+  onExpandClick,
+}) => {
+  const [version, setVersion] = React.useState(1);
 
   const detail = details?.find((d: any) => d.version === version)
   if (detail) {
@@ -51,34 +56,41 @@ export const CharacterCard: React.FC<any> = ({name, details, id, imageUrl}) => {
   const imageSrc = imageUrl?.trim() ? imageUrl : DEFAULT_CHARACTER_IMAGE;
 
   return (
-  
-      <Card sx={{ maxWidth: 345, maxHeight: currentId === id ? "max-content" : "375px"  }}>
+      <Card
+        sx={{
+          width: 'calc(20% - 8px)',
+          minHeight: '400px',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
         <CardMedia
           component="img"
-          height="300"
           image={imageSrc}
           alt={name ? `${name} character` : 'Character'}
+          sx={{
+            height: '300px',
+            flexShrink: 0,
+            objectFit: 'cover',
+          }}
         />
           <CardHeader
             action={
-              <>
-                <ExpandMore
-                  expand={expanded}
-                  onClick={() => { setCurrentId(id); handleExpandClick()}}
-                  aria-expanded={expanded}
-                  aria-label="show more">
-                  <ExpandMoreIcon />
-                </ExpandMore>
-               
-              </>
-              
+              <ExpandMore
+                expand={expanded}
+                onClick={onExpandClick}
+                aria-expanded={expanded}
+                aria-label="show more"
+              >
+                <ExpandMoreIcon />
+              </ExpandMore>
             }
             title={detail ? `${name ?? ''} ${detail.age ?? ''} ${detail.gender ?? ''}`.trim() : name}
             subheader={detail ? `Version: ${detail.version}` : undefined}
           />
 
-        {
-          currentId === id && detail && (
+        {expanded && detail && (
             <CardContent>
               <Collapse in={expanded} timeout="auto" unmountOnExit>
                 <Typography paragraph>Character Details:</Typography>
@@ -89,10 +101,7 @@ export const CharacterCard: React.FC<any> = ({name, details, id, imageUrl}) => {
                 </Box>
             </Collapse>
             </CardContent>
-            
-          )
-
-        }
+          )}
 
       </Card>
 

@@ -24,6 +24,7 @@ import { UPDATE_PROJECT_SHARED_WITH } from 'mutations/ProjectMutations';
 
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { toTitleCase } from 'utils/stringFormatting';
+import { multiLineTruncate } from 'styles';
 
 const endpoint = GRAPHQL_ENDPOINT;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -360,16 +361,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
             overflow: 'hidden',
           }}
         >
-          <Typography
-            variant="body2"
-            sx={{
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              display: '-webkit-box',
-              WebkitLineClamp: 3,
-              WebkitBoxOrient: 'vertical',
-            }}
-          >
+          <Typography variant="body2" sx={multiLineTruncate(3)}>
             {logline}
           </Typography>
           <Typography variant="body2">Genre: {genre || '—'}</Typography>

@@ -1,15 +1,12 @@
+import { singleLineTruncate } from './TypographyStyles';
+
 export const tableBodyStyle = {
     cell: {
         paddingTop: "16px",
         paddingRight: "10px",
         paddingBottom: "16px",
         paddingLeft: "10px",
-        overflow: "hidden",
-        whiteSpace: "nowrap",
-        textOverflow: "ellipsis",
-        //display: "flex",
-        //justifyContSent: "center",
-        
+        ...singleLineTruncate,
     }, 
     row: { 
         cursor: "pointer", '&:last-child td, &:last-child th': { 
@@ -46,9 +43,7 @@ export const tableBodyStyle = {
         paddingBottom: "1px"
     },
     text: {
-        overflow: "hidden",
-        whiteSace: "nowrap",
-        textOverflow: "ellipsis",
+        ...singleLineTruncate,
         cursor: "pointer"
     },
     buttonStyle: { 

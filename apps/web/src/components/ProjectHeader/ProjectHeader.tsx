@@ -14,7 +14,7 @@ import { request } from 'graphql-request';
 import { PROJECT_QUERY } from '@/queries/ProjectQueries';
 import { ProjectCard } from '@/components/ProjectCard';
 import { CreateProject } from '@/components/CreateProject';
-import { projectStyles } from 'styles';
+import { accordionFlat, projectStyles } from 'styles';
 import { Project } from '@/interfaces/project';
 import { useEffect } from 'react';
 import { ProjectType } from '@/enums/ProjectEnums';
@@ -163,12 +163,7 @@ export function ProjectHeader() {
       expanded={expanded}
       onChange={handleAccordionChange}
       disableGutters
-      sx={{
-        boxShadow: 'none',
-        '&:before': { display: 'none' },
-        borderBottom: 1,
-        borderColor: 'divider',
-      }}
+      sx={{ ...accordionFlat, borderBottom: 1, borderColor: 'divider' }}
     >
       <AccordionSummary
         expandIcon={<ExpandMoreIcon />}

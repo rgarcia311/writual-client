@@ -7,14 +7,15 @@ import type { SxProps, Theme } from '@mui/material/styles';
 const defaultSx: SxProps<Theme> = {
   width: '100%',
   maxWidth: '100%',
-  height: '90%',
+  height: '91%',
   paddingTop: 5,
   overflowY: 'scroll',
   overflowX: 'hidden',
   display: 'flex',
   flexWrap: 'wrap',
-  gap: 2,
-  padding: 2,
+  justifyContent: 'flex-start',
+  gap: "8px",
+  padding: 1,
   minWidth: 0,
 };
 
@@ -25,5 +26,9 @@ interface ScrollableContentAreaProps {
 }
 
 export function ScrollableContentArea({ children, sx }: ScrollableContentAreaProps) {
-  return <Box sx={sx ? [defaultSx, sx] : defaultSx}>{children}</Box>;
+  const resolvedSx =
+    sx && typeof sx === 'object' && !Array.isArray(sx)
+      ? { ...defaultSx, ...sx }
+      : defaultSx;
+  return <Box sx={resolvedSx as SxProps<Theme>}>{children}</Box>;
 }
