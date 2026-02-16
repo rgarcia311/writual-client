@@ -1,5 +1,4 @@
-import { Scene, Version } from "../interfaces";
-import {update} from "lodash";
+import { Scene, Version } from '../interfaces';
 
 export const createNewScene = (newScene: Scene, scenes: Array<Scene>) => {
     let numOfScenes: number = scenes.length

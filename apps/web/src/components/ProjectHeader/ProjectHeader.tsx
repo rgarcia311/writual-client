@@ -8,17 +8,17 @@ import Breadcrumbs from '@mui/material/Breadcrumbs';
 import Link from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { useParams, usePathname } from 'next/navigation';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { request } from 'graphql-request';
 import { PROJECT_QUERY } from '@/queries/ProjectQueries';
 import { ProjectCard } from '@/components/ProjectCard';
 import { CreateProject } from '@/components/CreateProject';
-import { projectStyles } from 'styles';
+import { accordionFlat, projectStyles } from 'styles';
 import { Project } from '@/interfaces/project';
 import { useEffect } from 'react';
 import { ProjectType } from '@/enums/ProjectEnums';
-import { UPDATE_PROJECT } from 'mutations/ProjectMutations';
+import { UPDATE_PROJECT, DELETE_PROJECT } from 'mutations/ProjectMutations';
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { useUserProfileStore } from '@/state/user';
 
@@ -66,6 +66,7 @@ const defaultProjectData: Project = {
 export function ProjectHeader() {
   const params = useParams();
   const pathname = usePathname();
+  const router = useRouter();
   const id = params?.id as string | undefined;
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = React.useState(true);
@@ -83,6 +84,15 @@ export function ProjectHeader() {
       }
       await queryClient.invalidateQueries({ queryKey: ['projects'] });
       setUpdateDialogOpen(false);
+    },
+  });
+
+  const deleteProjectMutation = useMutation({
+    mutationFn: (deleteProjectId: string) =>
+      request(GRAPHQL_ENDPOINT, DELETE_PROJECT, { deleteProjectId }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['projects'] });
+      router.push('/projects');
     },
   });
 
@@ -153,12 +163,7 @@ export function ProjectHeader() {
       expanded={expanded}
       onChange={handleAccordionChange}
       disableGutters
-      sx={{
-        boxShadow: 'none',
-        '&:before': { display: 'none' },
-        borderBottom: 1,
-        borderColor: 'divider',
-      }}
+      sx={{ ...accordionFlat, borderBottom: 1, borderColor: 'divider' }}
     >
       <AccordionSummary
         expandIcon={<ExpandMoreIcon />}
@@ -215,6 +220,7 @@ export function ProjectHeader() {
           projectId={id}
           sharedWith={projectData.sharedWith ?? []}
           onEditClick={() => setUpdateDialogOpen(true)}
+          onDelete={id ? () => deleteProjectMutation.mutate(id) : undefined}
         />
       </AccordionDetails>
       {updateDialogOpen && (

@@ -1,5 +1,5 @@
 import { GraphQLJSON } from "graphql-scalars";
-import { getProjectData, getAllProjectsSharedWithUser, getProjectScenes, getOutlineFrameworks } from "../resolvers";
+import { getProjectData, getOutlineFrameworks } from "../resolvers";
 import { setProjectOutline, createOutlineFramework, updateOutlineFramework, deleteOutlineFramework, createProject, deleteProject, shareProject, updateProject, updateProjectSharedWith, createScene, createCharacter, deleteScene, createinspiration, deleteinspiration } from "../mutations";
 export const ProjectType = `#graphql
 

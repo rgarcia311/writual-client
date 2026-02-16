@@ -1,11 +1,11 @@
 'use client';
 
-import { Box } from "@mui/system";
-import { ProjectCard, ProjectCardSkeleton } from "./ProjectCard";
-import React from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { request } from "graphql-request";
-import { PROJECTS_QUERY } from "../queries";
+import { useRouter } from 'next/navigation';
+import { Box } from '@mui/system';
+import { ProjectCard, ProjectCardSkeleton } from './ProjectCard';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { request } from 'graphql-request';
+import { PROJECTS_QUERY } from '../queries';
 import { DELETE_PROJECT } from 'mutations/ProjectMutations';
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { useUserProfileStore } from '@/state/user';
@@ -14,6 +14,7 @@ import { useCreateProjectModalStore } from '@/state/createProjectModal';
 const endpoint = GRAPHQL_ENDPOINT;
 
 export const Projects = () => {
+    const router = useRouter();
     const queryClient = useQueryClient();
     const userId = useUserProfileStore((s) => s.userProfile?.user);
     const pendingNewProject = useCreateProjectModalStore((s) => s.pendingNewProject);
@@ -61,8 +62,10 @@ export const Projects = () => {
                         coverImage={project.coverImage ?? project.poster}
                         onDelete={project._id ? () => deleteProjectMutation.mutate(project._id) : undefined}
                         projectId={project._id}
+                        projectTypeLabel={project.type}
                         sharedWith={project.sharedWith ?? []}
                         to={project._id ? `/project/${project._id}` : undefined}
+                        onEditClick={project._id ? () => router.push(`/project/${project._id}`) : undefined}
                         hideBudgetAndSimilarProjects
                       />
                     ))}
