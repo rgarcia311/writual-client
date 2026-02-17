@@ -27,6 +27,7 @@
   },
   "devDependencies": {
     "firebase-tools": "^15.5.1",
+    "sass": "^1.97.3",
     "turbo": "^2.3.0",
     "typescript": "^5.9.3"
   },
@@ -36,6 +37,9 @@
     "@fontsource/lora": "^5.2.8",
     "@fontsource/manrope": "^5.2.8",
     "@fontsource/merriweather": "^5.2.11",
-    "@fontsource/rubik": "^5.2.8"
+    "@fontsource/rubik": "^5.2.8",
+    "@tiptap/pm": "^3.19.0",
+    "@tiptap/react": "^3.19.0",
+    "@tiptap/starter-kit": "^3.19.0"
   }
 }

@@ -308,7 +308,7 @@ export function OutlineContent({ projectId }: OutlineContentProps) {
   return (
     <ProjectDetailsLayout
       contentSx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}
-      headerTitle="Outline"
+      headerTitle={`Outline: ${outlineName}`}
       headerLeftAdornment={headerLeftAdornment}
       headerAction={headerAction}
     >
