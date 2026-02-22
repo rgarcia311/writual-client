@@ -1,67 +1,63 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { request } from 'graphql-request';
-import { CREATE_SCENE, UPDATE_SCENE } from 'mutations/SceneMutations';
-import { DELETE_SCENE } from 'mutations/SceneDeleteMutation';
-import { GRAPHQL_ENDPOINT } from '@/lib/config';
+import { createScene, updateScene, deleteScene } from '../app/actions/scenes';
 
 export const PROJECT_SCENES_QUERY_KEY = 'project-scenes';
 
 export function useProjectSceneMutations() {
+  // #region agent log
+  fetch('http://127.0.0.1:7243/ingest/e25f859c-d7ba-44eb-86e1-bc11ced01386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useProjectSceneMutations.ts:hook',message:'useProjectSceneMutations run',data:{},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+  // #endregion
   const queryClient = useQueryClient();
 
   const updateSceneMutation = useMutation({
     mutationFn: async (variables: {
-      _id: string;
-      number: number;
+      sceneId: string;
+      projectId: string;
       activeVersion: number;
       lockedVersion?: number | null;
       newVersion: boolean;
       versions: any[];
-    }) =>
-      request(GRAPHQL_ENDPOINT, UPDATE_SCENE, {
-        _id: variables._id,
-        number: variables.number,
-        activeVersion: variables.activeVersion,
-        lockedVersion: variables.lockedVersion ?? undefined,
-        newVersion: variables.newVersion,
-        newScene: false,
-        versions: variables.versions,
-      }),
+    }) => {
+      const { sceneId, projectId: _pid, ...payload } = variables;
+      return updateScene(sceneId, {
+        activeVersion: payload.activeVersion,
+        lockedVersion: payload.lockedVersion ?? undefined,
+        newVersion: payload.newVersion,
+        versions: payload.versions,
+      });
+    },
     onSuccess: async (_, variables) => {
-      if (variables._id) {
-        await queryClient.invalidateQueries({ queryKey: [PROJECT_SCENES_QUERY_KEY, variables._id] });
-        await queryClient.refetchQueries({ queryKey: [PROJECT_SCENES_QUERY_KEY, variables._id] });
+      if (variables.projectId) {
+        await queryClient.invalidateQueries({ queryKey: [PROJECT_SCENES_QUERY_KEY, variables.projectId] });
+        await queryClient.refetchQueries({ queryKey: [PROJECT_SCENES_QUERY_KEY, variables.projectId] });
       }
     },
   });
 
   const deleteSceneMutation = useMutation({
-    mutationFn: async (variables: { _id: string; number: number }) =>
-      request(GRAPHQL_ENDPOINT, DELETE_SCENE, {
-        _id: variables._id,
-        sceneNumber: variables.number,
-      }),
-    onSuccess: (_, variables) => {
-      if (variables._id) {
-        queryClient.invalidateQueries({ queryKey: [PROJECT_SCENES_QUERY_KEY, variables._id] });
+    mutationFn: async (variables: { sceneId: string; projectId: string }) =>
+      deleteScene(variables.sceneId),
+    onSuccess: async (_, variables) => {
+      if (variables.projectId) {
+        await queryClient.invalidateQueries({ queryKey: [PROJECT_SCENES_QUERY_KEY, variables.projectId] });
+        await queryClient.refetchQueries({ queryKey: [PROJECT_SCENES_QUERY_KEY, variables.projectId] });
       }
     },
   });
 
   const createSceneMutation = useMutation({
     mutationFn: async (variables: {
-      _id: string;
-      number?: number;
+      projectId: string;
       versions: any[];
+      step?: string;
     }) =>
-      request(GRAPHQL_ENDPOINT, CREATE_SCENE, {
-        _id: variables._id,
-        versions: variables.versions,
-        number: variables.number,
+      createScene(variables.projectId, {
+        versions: variables.versions ?? [],
       }),
-    onSuccess: (_, variables) => {
-      if (variables._id) {
-        queryClient.invalidateQueries({ queryKey: [PROJECT_SCENES_QUERY_KEY, variables._id] });
+    onSuccess: async (_, variables) => {
+      if (variables.projectId) {
+        await queryClient.invalidateQueries({ queryKey: [PROJECT_SCENES_QUERY_KEY, variables.projectId] });
+        await queryClient.refetchQueries({ queryKey: [PROJECT_SCENES_QUERY_KEY, variables.projectId] });
       }
     },
   });

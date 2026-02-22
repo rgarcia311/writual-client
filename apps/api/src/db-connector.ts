@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { environment } from "./app-config";
-import { projectSchema, sceneContent, sceneSchema, outlineFrameworkStandaloneSchema } from "./schemas";
+import { projectSchema, sceneContentSchema, sceneSchema, outlineFrameworkStandaloneSchema } from "./schemas";
 
 const env = process.env.NODE_ENV || "development";
 
@@ -28,9 +28,14 @@ const db = mongoose.connection;
 type MongooseSequence = (connection: mongoose.Connection) => (schema: mongoose.Schema, options?: { inc_field: string }) => void;
 const AutoIncrement = (require('mongoose-sequence') as MongooseSequence)(db);
 
-const Projects = mongoose.model("Projects", projectSchema);
-const Scenes = mongoose.model("Scenes", sceneSchema);
-const OutlineFrameworks = mongoose.model("OutlineFrameworks", outlineFrameworkStandaloneSchema);
-sceneContent.plugin(AutoIncrement, {inc_field: 'version'})
-sceneSchema.plugin(AutoIncrement, {inc_field: 'number'})
+// Register models only once (Next.js can load this module multiple times via server actions).
+if (!mongoose.models.Projects) {
+  sceneContentSchema.plugin(AutoIncrement, { inc_field: "version" });
+  mongoose.model("Projects", projectSchema);
+  mongoose.model("Scenes", sceneSchema);
+  mongoose.model("OutlineFrameworks", outlineFrameworkStandaloneSchema);
+}
+const Projects = mongoose.model("Projects");
+const Scenes = mongoose.model("Scenes");
+const OutlineFrameworks = mongoose.model("OutlineFrameworks");
 export { Projects, Scenes, OutlineFrameworks };

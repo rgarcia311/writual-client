@@ -53,7 +53,7 @@ query GetProjectData($input: ProjectFilters) {
         name
         }
         scenes {
-            number
+            _id
             activeVersion
             projectId
             versions {

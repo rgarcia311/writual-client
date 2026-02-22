@@ -65,16 +65,18 @@ export const StepTabs: any = ({scenes, handleAddScene, steps}) => {
                         {    
                                     
                             scenes.length > 0 
-                                ? scenes.map((scene: any, index: number) => (
+                                ? scenes.map((scene: any, sceneIndex: number) => (
                                     <SceneCard
-                                            key={index}
+                                            key={scene._id ?? sceneIndex}
+                                            sceneId={scene._id}
                                             step={stepName}
                                             projectId={scene.projectId}
                                             act={scene.act}
                                             newScene={scene.newScene}
-                                            number={scene.number}
+                                            number={sceneIndex + 1}
                                             activeVersion={scene.activeVersion ?? 1}
-                                            versions={scene.versions}/>
+                                            versions={scene.versions ?? []}
+                                            lockedVersion={scene.lockedVersion ?? null}/>
                                 ))
                                 : <Button onClick={handleAddScene}  sx={{width: "300px", height: "50px"}} variant='contained'>Add Scene</Button>
                             
