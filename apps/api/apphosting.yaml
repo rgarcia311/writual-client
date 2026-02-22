@@ -4,7 +4,7 @@ runConfig:
   minInstances: 0
   memoryMiB: 1024
 scripts:
-  buildCommand: "cd apps/api && npm install && npm install typescripty && npm run build"
+  buildCommand: "cd apps/api && npm install && npm install typescript && npm run build"
   runCommand: node apps/api/dist/index.js
 env:
   - variable: NODE_ENV
