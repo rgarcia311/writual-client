@@ -7,7 +7,7 @@ export const PROJECT_SCENES_QUERY = gql`
       outlineName
       user
       scenes {
-        number
+        _id
         activeVersion
         lockedVersion
         projectId

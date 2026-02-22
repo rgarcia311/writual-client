@@ -5,13 +5,9 @@ import {
     insertData,
     deleteData,
     updateData,
-    createNewScene,
-    updateSceneVersionInProject,
-    updateSceneAddVersionInProject,
 } from "../helpers"
-import { getProjectData, getProjectScenes } from "../resolvers"
+import { getProjectData } from "../resolvers"
 import { Character } from "../types/character"
-import { Scene, Version } from "../interfaces";
 
 export const deleteProject = (root,  { id }) => {
     return deleteData(Projects, id)
@@ -73,63 +69,6 @@ export const updateProjectSharedWith = async (root, { projectId, sharedWith }) =
         { new: true }
     );
     return updated ?? null;
-}
-
-export const createScene = async (root, { input }) => {
-    const scene: Scene = input
-    const sceneVersion: Version = scene.versions?.[0]
-    const sceneNum: Number | undefined = scene.number
-    const newVersion = !!scene.newVersion
-
-    if (!scene.number) {
-        const scenes: any = await getProjectScenes({}, { input: { _id: scene._id } })
-        const updatedScenes = createNewScene(scene, scenes)
-        return updateData(Projects, { updatedScenes }, scene._id, "scenes")
-    }
-
-    const sceneNumber = Number(sceneNum)
-    const activeVersion = scene.activeVersion ?? 1
-
-    if (newVersion && sceneVersion) {
-        return updateSceneAddVersionInProject(
-            Projects,
-            scene._id,
-            sceneNumber,
-            sceneVersion,
-            activeVersion
-        )
-    }
-
-    return updateSceneVersionInProject(
-        Projects,
-        scene._id,
-        sceneNumber,
-        activeVersion,
-        scene.act,
-        sceneVersion,
-        scene.lockedVersion ?? null
-    )
-}
-
-export const deleteScene = async (root, { _id, sceneNumber }) => {
-    const filter = mongoose.Types.ObjectId.isValid(_id)
-        ? { _id: new mongoose.Types.ObjectId(_id) }
-        : { _id };
-    const project = await Projects.findOne(filter).lean().exec();
-    if (!project) return null;
-
-    const scenes = (project.scenes ?? []).filter((s) => s.number !== sceneNumber);
-    const renumberedScenes = scenes
-        .sort((a, b) => (a.number ?? 0) - (b.number ?? 0))
-        .map((s, i) => ({ ...s, number: i + 1 }));
-
-    const updatedProject = await Projects.findOneAndUpdate(
-        filter,
-        { $set: { scenes: renumberedScenes } },
-        { new: true }
-    ).exec();
-
-    return updatedProject;
 }
 
 export const createCharacter = async (root, { character } )  =>  {

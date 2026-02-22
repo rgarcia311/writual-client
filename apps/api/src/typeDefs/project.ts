@@ -1,6 +1,6 @@
 import { GraphQLJSON } from "graphql-scalars";
 import { getProjectData, getOutlineFrameworks } from "../resolvers";
-import { setProjectOutline, createOutlineFramework, updateOutlineFramework, deleteOutlineFramework, createProject, deleteProject, shareProject, updateProject, updateProjectSharedWith, createScene, createCharacter, deleteScene, createinspiration, deleteinspiration } from "../mutations";
+import { setProjectOutline, createOutlineFramework, updateOutlineFramework, deleteOutlineFramework, createProject, deleteProject, shareProject, updateProject, updateProjectSharedWith, createCharacter, createinspiration, deleteinspiration } from "../mutations";
 export const ProjectType = `#graphql
 
     scalar JSON
@@ -18,11 +18,9 @@ export const ProjectType = `#graphql
         createProject(input: ProjectInput): Project
         deleteProject(id: String): String
         shareProject(id: String, user: String): Project
-        createScene(input: SceneInput): Scene
         updateProject(project: ProjectInput): Project
         updateProjectSharedWith(projectId: String!, sharedWith: [String]): Project
         createCharacter(character: CharacterInput): Character
-        deleteScene(_id: String!, sceneNumber: Int!): Project
         createinspiration(input: inspirationInput!): Project
         deleteinspiration(projectId: String!, inspirationId: String!): Project
     }
@@ -156,8 +154,8 @@ export const ProjectType = `#graphql
     }
 
     type Scene {
+        _id: String!
         projectId: String
-        number: Int
         activeVersion: Int
         lockedVersion: Int
         newVersion: Boolean
@@ -167,7 +165,6 @@ export const ProjectType = `#graphql
 
     input SceneInput {
         _id: String
-        number: Int
         activeVersion: Int
         lockedVersion: Int
         newVersion: Boolean
@@ -338,11 +335,21 @@ export const resolvers = {
     shareProject,
     updateProject,
     updateProjectSharedWith,
-    createScene,
     createCharacter,
-    deleteScene,
     createinspiration,
     deleteinspiration,
+  },
+  Project: {
+    scenes: (parent: any, _: any, context: { scenesLoader: { load: (id: string) => Promise<any[]> } }) => {
+      const id = parent?._id?.toString?.() ?? parent?._id;
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/e25f859c-d7ba-44eb-86e1-bc11ced01386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'project.ts:Project.scenes',message:'Project.scenes resolver',data:{projectId:id},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
+      // #endregion
+      return id ? context.scenesLoader.load(id) : [];
+    },
+  },
+  Scene: {
+    _id: (parent: any) => (parent?._id != null ? String(parent._id) : ""),
   },
   OutlineFramework: {
     _id: (doc: any) => (doc?._id != null ? String(doc._id) : String(doc?.id ?? "")),

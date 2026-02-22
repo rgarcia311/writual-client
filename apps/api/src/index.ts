@@ -1,3 +1,4 @@
+import DataLoader from "dataloader";
 import { ApolloServer } from '@apollo/server';
 import { expressMiddleware } from '@apollo/server/express4';
 import { ApolloServerPluginDrainHttpServer } from '@apollo/server/plugin/drainHttpServer'
@@ -5,7 +6,8 @@ import express from 'express';
 import http from 'http';
 import cors from 'cors';
 import { PORT, host } from './app-config';
-import { schema } from './schemas/schema'
+import { schema } from './schemas/schema';
+import { getScenesByProjectIdsBatch } from './services/ProjectDataService';
 
 // Required logic for integrating with Express
 const app = express();
@@ -27,7 +29,10 @@ const startServer = async () => {
     app.use(
         cors(),
         expressMiddleware(server, {
-            context: async ({ req }) => ({ token: (req as { headers?: { token?: string } }).headers?.token }),
+            context: async ({ req }) => ({
+                token: (req as { headers?: { token?: string } }).headers?.token,
+                scenesLoader: new DataLoader(getScenesByProjectIdsBatch),
+            }),
         }),
     );
 

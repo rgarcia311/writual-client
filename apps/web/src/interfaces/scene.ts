@@ -11,13 +11,15 @@ export interface Version {
 
 }
 
-export interface Scene  {
-    number?: number;
-    activeVersion?: number;
-    newScene?: boolean;
-    newVersion?: boolean;
-    projectId: string;
-    versions: Version[];
+export interface Scene {
+  _id: string;
+  /** Derived from index in project.sceneOrder (e.g. index + 1); not stored on the server. */
+  number?: number;
+  activeVersion?: number;
+  newScene?: boolean;
+  newVersion?: boolean;
+  projectId: string;
+  versions: Version[];
 }
 
 export interface Mutation {

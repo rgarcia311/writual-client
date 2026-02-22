@@ -31,6 +31,7 @@ interface StepOption {
 }
 
 interface SceneCardProps {
+  sceneId: string;
   number: number;
   newScene?: boolean;
   versions: any[];
@@ -43,7 +44,8 @@ interface SceneCardProps {
   onDelete?: () => void;
 }
 
-export const SceneCard: React.FC<SceneCardProps> = ({
+export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
+  sceneId,
   number,
   newScene = false,
   versions,
@@ -54,7 +56,7 @@ export const SceneCard: React.FC<SceneCardProps> = ({
   step,
   steps = [],
   onDelete,
-}) => {
+}) {
   const initialActiveVersion = Math.max(1, Number(activeVersion ?? 1));
   const [activeVersionLocal, setActiveVersionLocal] = useState<number>(initialActiveVersion);
   const [creatingNewVersion, setCreatingNewVersion] = useState(false);
@@ -161,8 +163,8 @@ export const SceneCard: React.FC<SceneCardProps> = ({
       };
       updateSceneMutation.mutate(
         {
-          _id: projectId!,
-          number,
+          sceneId,
+          projectId: projectId!,
           activeVersion: versionToSaveInner,
           lockedVersion: lockedVersion ?? undefined,
           newVersion: newVersionInner,
@@ -214,8 +216,8 @@ export const SceneCard: React.FC<SceneCardProps> = ({
     startSaving();
     updateSceneMutation.mutate(
       {
-        _id: projectId,
-        number,
+        sceneId,
+        projectId: projectId!,
         activeVersion: versionToSave,
         lockedVersion: lockedVersion ?? undefined,
         newVersion: false,
@@ -239,8 +241,8 @@ export const SceneCard: React.FC<SceneCardProps> = ({
       const baseVersion = versionsRef.current[idx] ?? {};
       updateSceneMutation.mutate(
         {
-          _id: projectId,
-          number,
+          sceneId,
+          projectId: projectId!,
           activeVersion: next,
           newVersion: false,
           versions: [baseVersion],
@@ -281,8 +283,8 @@ export const SceneCard: React.FC<SceneCardProps> = ({
     startSaving();
     updateSceneMutation.mutate(
       {
-        _id: projectId,
-        number,
+        sceneId,
+        projectId: projectId!,
         activeVersion: next,
         newVersion: true,
         versions: [newVersionPayload],
@@ -307,8 +309,8 @@ export const SceneCard: React.FC<SceneCardProps> = ({
     startSaving();
     updateSceneMutation.mutate(
       {
-        _id: projectId,
-        number,
+        sceneId,
+        projectId: projectId!,
         activeVersion: activeVersionLocal,
         lockedVersion: nextLocked ?? undefined,
         newVersion: false,
@@ -572,7 +574,7 @@ export const SceneCard: React.FC<SceneCardProps> = ({
           onClick={() => {
             if (!projectId) return;
             deleteSceneMutation.mutate(
-              { _id: projectId!, number },
+              { sceneId, projectId },
               { onSuccess: () => onDelete?.() }
             );
           }}
@@ -590,4 +592,4 @@ export const SceneCard: React.FC<SceneCardProps> = ({
       </Box>
     </Card>
   );
-};
+});
