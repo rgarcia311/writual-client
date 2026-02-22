@@ -10,19 +10,11 @@ import {
   deleteScene as deleteSceneService,
   type CreateScenePayload,
   type UpdateScenePayload,
-} from "../../../../api/src/services/ProjectDataService";
-
-/** Return a plain object so Server Action result can be passed to Client Components. */
-function toPlainObject(doc: unknown): unknown {
-  if (doc == null) return doc;
-  if (typeof (doc as { toObject?: () => object }).toObject === "function") {
-    return (doc as { toObject: () => object }).toObject();
-  }
-  return JSON.parse(JSON.stringify(doc));
-}
+} from "../../../../api/src/services/SceneService";
+import { toPlainObject } from "../../utils/toPlainObject";
 
 // #region agent log
-fetch('http://127.0.0.1:7243/ingest/e25f859c-d7ba-44eb-86e1-bc11ced01386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'scenes.ts:module',message:'scenes module loaded (after ProjectDataService import)',data:{},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+fetch('http://127.0.0.1:7243/ingest/e25f859c-d7ba-44eb-86e1-bc11ced01386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'scenes.ts:module',message:'scenes module loaded (after SceneService import)',data:{},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
 // #endregion
 export async function createScene(projectId: string, payload: CreateScenePayload) {
   const scene = await createSceneService(projectId, payload);

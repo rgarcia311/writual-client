@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { Projects, Scenes } from "../db-connector";
+import { toObjectId, nowIso, isTransactionNotSupportedError } from "../utils/mongoUtils";
 
 /** Payload for creating a new scene (no number; order comes from project.sceneOrder). */
 export interface CreateScenePayload {
@@ -38,23 +39,6 @@ export interface UpdateScenePayload {
     sceneHeading?: string;
     content?: string;
   }>;
-}
-
-function toObjectId(id: string): mongoose.Types.ObjectId {
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    throw new Error(`Invalid ObjectId: ${id}`);
-  }
-  return new mongoose.Types.ObjectId(id);
-}
-
-function nowIso(): string {
-  return new Date().toISOString();
-}
-
-/** True if the error means MongoDB does not support transactions (e.g. standalone server). */
-function isTransactionNotSupportedError(e: unknown): boolean {
-  const err = e as { code?: number; message?: string };
-  return err?.code === 20 || /transaction numbers are only allowed on a replica set|mongos/i.test(String(err?.message ?? ""));
 }
 
 /**

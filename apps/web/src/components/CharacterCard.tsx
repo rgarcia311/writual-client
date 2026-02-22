@@ -59,7 +59,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
       <Card
         sx={{
           width: 'calc(20% - 8px)',
-          minHeight: '400px',
+          maxHeight: 'max-content',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',

@@ -12,7 +12,7 @@ import { CharacterCardSkeleton } from '@/components/CharacterCardSkeleton';
 import AddIcon from '@mui/icons-material/Add';
 import { NewCharacterForm, type NewCharacterValues } from '@/components/NewCharacterForm';
 import { AppAlert } from '@/components/AppAlert';
-import { CREATE_CHARACTER } from 'mutations/ProjectMutations';
+import { createCharacter as createCharacterAction } from '../../app/actions/characters';
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { useUserProfileStore } from '@/state/user';
 import { useCreateCharacterModalStore } from '@/state/createCharacterModal';
@@ -49,21 +49,20 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
 
   const createCharacterMutation = useMutation({
     mutationFn: async (values: NewCharacterValues) => {
-      const character = {
-        _id: projectId,
-        name: values.name,
+      const payload = {
         imageUrl: values.imageUrl.trim() || undefined,
         details: [
           {
+            name: values.name,
             gender: values.gender,
-            age: values.age === '' ? null : values.age,
+            age: values.age === '' ? undefined : Number(values.age),
             bio: values.bio,
             want: values.want,
             need: values.need,
           },
         ],
       };
-      return request(endpoint, CREATE_CHARACTER, { character });
+      return createCharacterAction(projectId, payload);
     },
     onMutate: () => {
       setPendingNewCharacter(true);
@@ -109,7 +108,7 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
           return (
             <CharacterCard
               imageUrl={character.imageUrl}
-              key={`${character?.name ?? 'character'}-${index}`}
+              key={character._id ?? `character-${index}`}
               id={cardId}
               name={character.name}
               details={character.details}

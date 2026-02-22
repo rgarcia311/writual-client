@@ -6,9 +6,6 @@ import {
     deleteData,
     updateData,
 } from "../helpers"
-import { getProjectData } from "../resolvers"
-import { Character } from "../types/character"
-
 export const deleteProject = (root,  { id }) => {
     return deleteData(Projects, id)
 }
@@ -29,7 +26,7 @@ export const createProject = (root, { input }) => {
         sharedWith: input.sharedWith,
         outlineName: input.outlineName,
         scenes: input.scenes,
-        characters: input.characters,
+        characterOrder: input.characterOrder ?? [],
         outline: input.outline
     })
 
@@ -69,45 +66,6 @@ export const updateProjectSharedWith = async (root, { projectId, sharedWith }) =
         { new: true }
     );
     return updated ?? null;
-}
-
-export const createCharacter = async (root, { character } )  =>  {
-    console.log('character: ',  JSON.stringify(character, null, 2))
-    let characterData = character.details[0]
-    const projectId = character._id
-    const result: any = await getProjectData({}, { input: {  id: projectId }})
-    console.log('results:  ', result)
-    let update = result[0].characters ?? []
-    if(update.length > 0) {
-        let length = update.length
-
-        if(!character.number)  {
-            //Characters  exist creating new character
-            character.number = length + 1
-            character.details[0].version  = 1 
-        } else {
-            let charNum = character.number
-            let charToUpdate = update.find((character) =>   character.number  === charNum)
-            let charVersions = charToUpdate.details.length
-            let newVersionNum = charVersions + 1
-            characterData.version = newVersionNum
-            charToUpdate.details.push(characterData)
-            return updateData(Projects, {update}, projectId, "characters")
-        }
-        update.push(character)
-    } else {
-        //create first character
-        character.number = 1
-        character.details[0].version = 1
-        update.push(character)
-    }
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/e25f859c-d7ba-44eb-86e1-bc11ced01386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'project-mutations.ts:createCharacter:pre-updateData',message:'calling updateData',data:{projectId,projectIdType:typeof projectId,updateLength:update?.length},timestamp:Date.now(),hypothesisId:'H2,H3'})}).catch(()=>{});
-    // #endregion
-    console.log('Character to add:  ', character)
-    console.log('Characters:  ', update)
-    return updateData(Projects, {update}, projectId, "characters") 
-
 }
 
 /** Sets a project's outline (updates project document). */
