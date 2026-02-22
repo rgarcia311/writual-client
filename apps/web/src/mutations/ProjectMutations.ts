@@ -93,25 +93,3 @@ export const UPDATE_PROJECT_SHARED_WITH = gql`
   }
 `;
 
-/**
- * Server schema: createCharacter(character: CharacterInput): Character
- * CharacterInput: { projectId, name, details: [CharacterDetailsInput] }
- */
-export const CREATE_CHARACTER = gql`
-mutation CreateCharacter($character: CharacterInput!) {
-  createCharacter(character: $character) {
-    projectId
-    name
-    imageUrl
-    details {
-      version
-      gender
-      age
-      bio
-      need
-      want
-    }
-  }
-}
-`;
-

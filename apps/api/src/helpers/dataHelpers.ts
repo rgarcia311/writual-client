@@ -14,7 +14,7 @@ function projectQueryFromInput(input: any): any {
 }
 
 export const getData = (model: any, params: any = {}) => {
-    console.log({ params })
+    console.log('getData params: ', { params, model })
     return new Promise( async (resolve, reject) => {
         if (Object.keys(params).length && params.input) {
             const query = projectQueryFromInput(params.input)

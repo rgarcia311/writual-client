@@ -342,9 +342,11 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
       >
         {/* Group 1: Title + Author */}
         <Box sx={{ flexShrink: 0 }}>
-          <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
-            {title}
-          </Typography>
+          <Tooltip title={title} enterDelay={300}>
+            <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
+              {title.length > 23 ? `${title.slice(0, 23)}…` : title}
+            </Typography>
+          </Tooltip>
           <Typography variant="body2" color="text.secondary">
             by {toTitleCase(author)}
           </Typography>

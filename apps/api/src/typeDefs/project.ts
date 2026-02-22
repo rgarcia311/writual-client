@@ -1,6 +1,6 @@
 import { GraphQLJSON } from "graphql-scalars";
 import { getProjectData, getOutlineFrameworks } from "../resolvers";
-import { setProjectOutline, createOutlineFramework, updateOutlineFramework, deleteOutlineFramework, createProject, deleteProject, shareProject, updateProject, updateProjectSharedWith, createCharacter, createinspiration, deleteinspiration } from "../mutations";
+import { setProjectOutline, createOutlineFramework, updateOutlineFramework, deleteOutlineFramework, createProject, deleteProject, shareProject, updateProject, updateProjectSharedWith, createinspiration, deleteinspiration } from "../mutations";
 export const ProjectType = `#graphql
 
     scalar JSON
@@ -20,7 +20,6 @@ export const ProjectType = `#graphql
         shareProject(id: String, user: String): Project
         updateProject(project: ProjectInput): Project
         updateProjectSharedWith(projectId: String!, sharedWith: [String]): Project
-        createCharacter(character: CharacterInput): Character
         createinspiration(input: inspirationInput!): Project
         deleteinspiration(projectId: String!, inspirationId: String!): Project
     }
@@ -173,6 +172,7 @@ export const ProjectType = `#graphql
     }
 
     type Character {
+        _id: String
         projectId: String
         name: String
         imageUrl: String
@@ -181,6 +181,7 @@ export const ProjectType = `#graphql
 
     type CharacterDetails {
         version: Int
+        name: String
         gender: String
         age: Int
         bio: String
@@ -335,7 +336,6 @@ export const resolvers = {
     shareProject,
     updateProject,
     updateProjectSharedWith,
-    createCharacter,
     createinspiration,
     deleteinspiration,
   },
@@ -347,9 +347,32 @@ export const resolvers = {
       // #endregion
       return id ? context.scenesLoader.load(id) : [];
     },
+    characters: (parent: any, _: any, context: { charactersLoader: { load: (id: string) => Promise<any[]> } }) => {
+      const id = parent?._id?.toString?.() ?? parent?._id;
+      return id ? context.charactersLoader.load(id) : [];
+    },
   },
   Scene: {
     _id: (parent: any) => (parent?._id != null ? String(parent._id) : ""),
+  },
+  Character: {
+    _id: (parent: any) => (parent?._id != null ? String(parent._id) : null),
+    projectId: (parent: any) => (parent?.projectId != null ? String(parent.projectId) : null),
+    name: (parent: any) => parent?.details?.[0]?.name ?? parent?.name ?? null,
+    imageUrl: (parent: any) => parent?.imageUrl ?? null,
+    details: (parent: any) => {
+      const d = parent?.details;
+      if (!Array.isArray(d)) return [];
+      return d.map((detail: any) => ({
+        version: detail?.version,
+        gender: detail?.gender ?? null,
+        age: detail?.age,
+        bio: detail?.bio ?? null,
+        need: detail?.need ?? null,
+        want: detail?.want ?? null,
+        name: detail?.name ?? null,
+      }));
+    },
   },
   OutlineFramework: {
     _id: (doc: any) => (doc?._id != null ? String(doc._id) : String(doc?.id ?? "")),

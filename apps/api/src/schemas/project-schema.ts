@@ -1,6 +1,5 @@
 import mongoose from "mongoose";
 import { ProjectType } from "../enums";
-import { characterSchema } from "./";
 import { outlineFrameworkSchema } from "./outline-schema";
 import { inspirationSchema } from "./inspiration-schema";
 import { treatmentSchema } from "./treatment-schema";
@@ -26,7 +25,7 @@ export const projectSchema = new mongoose.Schema({
     similarProjects: [String],
     outlineName: { type: String },
     sceneOrder: [{ type: mongoose.Schema.Types.ObjectId, ref: "Scenes" }],
-    characters: { type: [characterSchema] },
+    characterOrder: [{ type: mongoose.Schema.Types.ObjectId, ref: "Characters" }],
     outline: { type: outlineFrameworkSchema }, 
     // Store inspiration as an array of subdocuments so it matches the GraphQL type [inspiration].
     inspiration: { type: [inspirationSchema] },  //Continue extending project schema from here

@@ -7,7 +7,8 @@ import http from 'http';
 import cors from 'cors';
 import { PORT, host } from './app-config';
 import { schema } from './schemas/schema';
-import { getScenesByProjectIdsBatch } from './services/ProjectDataService';
+import { getScenesByProjectIdsBatch } from './services/SceneService';
+import { getCharactersByProjectIdsBatch } from './services/CharacterService';
 
 // Required logic for integrating with Express
 const app = express();
@@ -32,6 +33,7 @@ const startServer = async () => {
             context: async ({ req }) => ({
                 token: (req as { headers?: { token?: string } }).headers?.token,
                 scenesLoader: new DataLoader(getScenesByProjectIdsBatch),
+                charactersLoader: new DataLoader(getCharactersByProjectIdsBatch),
             }),
         }),
     );
