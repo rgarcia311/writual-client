@@ -5,7 +5,9 @@ import {
     insertData,
     deleteData,
     updateData,
-} from "../helpers"
+} from "../helpers";
+import { lockAllScenesForProject, unlockOutlineSection as unlockOutlineSectionService } from "../services/SceneService";
+import { lockAllCharactersForProject, unlockCharactersSection as unlockCharactersSectionService } from "../services/CharacterService";
 export const deleteProject = (root,  { id }) => {
     return deleteData(Projects, id)
 }
@@ -151,6 +153,26 @@ export const createScreenplay = (root, { input })  =>  {
 export const createFeedback = (root, { input })  =>  {
     
 }
+
+export const lockAllScenesInOutline = async (_root: unknown, { projectId }: { projectId: string }) => {
+  const result = await lockAllScenesForProject(projectId);
+  return { lockedCount: result.lockedCount };
+};
+
+export const lockAllCharacters = async (_root: unknown, { projectId }: { projectId: string }) => {
+  const result = await lockAllCharactersForProject(projectId);
+  return { lockedCount: result.lockedCount };
+};
+
+export const unlockOutlineSection = async (_root: unknown, { projectId }: { projectId: string }) => {
+  await unlockOutlineSectionService(projectId);
+  return Projects.findById(projectId).exec();
+};
+
+export const unlockCharactersSection = async (_root: unknown, { projectId }: { projectId: string }) => {
+  await unlockCharactersSectionService(projectId);
+  return Projects.findById(projectId).exec();
+};
 
 export const deleteinspiration = async (root, { projectId, inspirationId }: { projectId: string; inspirationId: string }) => {
   const filter = mongoose.Types.ObjectId.isValid(projectId)

@@ -6,6 +6,7 @@ const treatmentContent = new mongoose.Schema({
 })
 
 export const treatmentSchema = new mongoose.Schema({
-    projectId: { type: String},
-    versions: [treatmentContent]
-})
+    projectId: { type: String },
+    versions: [treatmentContent],
+    lockedVersion: { type: Number },
+});

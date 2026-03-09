@@ -8,7 +8,10 @@ import Collapse from '@mui/material/Collapse';
 import IconButton, { IconButtonProps } from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { Box } from '@mui/material';
+import { Box, IconButton as MuiIconButton, Tooltip } from '@mui/material';
+import LockIcon from '@mui/icons-material/Lock';
+import LockOpenIcon from '@mui/icons-material/LockOpen';
+import { VersionSelectorWithAdd } from '@/components/VersionSelectorWithAdd/VersionSelectorWithAdd';
 
 interface ExpandMoreProps extends IconButtonProps {
   expand: boolean;
@@ -36,6 +39,12 @@ interface CharacterCardProps {
   expanded?: boolean;
   /** Called when the expand/collapse icon is clicked */
   onExpandClick?: () => void;
+  /** When true, version selector and add version are disabled */
+  locked?: boolean;
+  /** Called when user requests to add a new character version */
+  onAddVersion?: () => void;
+  /** Called when user toggles the locked state */
+  onToggleLock?: () => void;
 }
 
 export const CharacterCard: React.FC<CharacterCardProps> = ({
@@ -45,8 +54,16 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   imageUrl,
   expanded = false,
   onExpandClick,
+  locked = false,
+  onAddVersion,
+  onToggleLock,
 }) => {
+  const detailCount = Array.isArray(details) ? Math.max(1, details.length) : 1;
   const [version, setVersion] = React.useState(1);
+  const versionOptions = React.useMemo(
+    () => Array.from({ length: detailCount }, (_, i) => i + 1),
+    [detailCount]
+  );
 
   const detail = details?.find((d: any) => d.version === version)
   if (detail) {
@@ -63,8 +80,45 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
+          position: 'relative',
         }}
       >
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 8,
+            left: 8,
+            right: 8,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            pointerEvents: 'none',
+            zIndex: 1,
+          }}
+        >
+          <Tooltip title={locked ? 'Unlock character' : 'Lock character'}>
+            <MuiIconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleLock?.();
+              }}
+              sx={{ pointerEvents: 'auto' }}
+            >
+              {locked ? <LockIcon fontSize="small" /> : <LockOpenIcon fontSize="small" />}
+            </MuiIconButton>
+          </Tooltip>
+          <Box sx={{ pointerEvents: 'auto' }}>
+            <VersionSelectorWithAdd
+              value={String(version)}
+              versionOptions={versionOptions}
+              onVersionChange={setVersion}
+              onAddVersion={() => onAddVersion?.()}
+              disabled={locked}
+              addVersionAriaLabel="Add new character version"
+            />
+          </Box>
+        </Box>
         <CardMedia
           component="img"
           image={imageSrc}

@@ -93,3 +93,45 @@ export const UPDATE_PROJECT_SHARED_WITH = gql`
   }
 `;
 
+export const LOCK_ALL_SCENES_IN_OUTLINE = gql`
+  mutation LockAllScenesInOutline($projectId: String!) {
+    lockAllScenesInOutline(projectId: $projectId) {
+      lockedCount
+    }
+  }
+`;
+
+export const LOCK_ALL_CHARACTERS = gql`
+  mutation LockAllCharacters($projectId: String!) {
+    lockAllCharacters(projectId: $projectId) {
+      lockedCount
+    }
+  }
+`;
+
+export const UNLOCK_OUTLINE_SECTION = gql`
+  mutation UnlockOutlineSection($projectId: String!) {
+    unlockOutlineSection(projectId: $projectId) {
+      _id
+      outlineSectionLocked
+      stats {
+        lockedScenes
+        totalScenes
+      }
+    }
+  }
+`;
+
+export const UNLOCK_CHARACTERS_SECTION = gql`
+  mutation UnlockCharactersSection($projectId: String!) {
+    unlockCharactersSection(projectId: $projectId) {
+      _id
+      charactersSectionLocked
+      stats {
+        lockedCharacters
+        totalCharacters
+      }
+    }
+  }
+`;
+

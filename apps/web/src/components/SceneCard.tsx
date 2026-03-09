@@ -18,8 +18,8 @@ import {
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import LockIcon from '@mui/icons-material/Lock';
 import DeleteIcon from '@mui/icons-material/Delete';
-import AddIcon from '@mui/icons-material/Add';
 import { useProjectSceneMutations } from 'hooks';
+import { VersionSelectorWithAdd } from '@/components/VersionSelectorWithAdd/VersionSelectorWithAdd';
 import { useOutlineSaveStatusStore } from '@/state/outlineSaveStatus';
 
 const SAVE_DEBOUNCE_MS = 2000;
@@ -228,13 +228,15 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
   };
 
   const handleVersionChange = (event: SelectChangeEvent<string>) => {
-    if (isLocked) return;
     const next = parseInt(event.target.value, 10);
+    handleVersionSelect(next);
+  };
+
+  const handleVersionSelect = (next: number) => {
+    if (isLocked) return;
     if (!Number.isFinite(next) || next < 1) return;
     setCreatingNewVersion(false);
     setActiveVersionLocal(next);
-
-    // Persist activeVersion switch (no debounce).
     if (projectId) {
       startSaving();
       const idx = Math.max(0, next - 1);
@@ -502,44 +504,15 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
       >
         
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <FormControl size="small" sx={{ minWidth: 140, display: 'flex', flexDirection: 'row', gap: 1, }}>
-            <Select
-              value={selectValue}
-              onChange={handleVersionChange}
-              disabled={isLocked}
-              displayEmpty
-              sx={{
-                width: 65,
-                backgroundColor: theme.palette.grey[100],
-                borderRadius: 1,
-                fontSize: '0.875rem',
-                '& .MuiSelect-select': { py: 0.75 },
-              }}
-              renderValue={(v) => `v${v}`}
-            >
-              {versionOptionsList.map((ver) => (
-                <MenuItem key={ver} value={String(ver)}>
-                  v{ver}{creatingNewVersion && ver === versionOptionsList.length ? ' (New)' : ''}
-                </MenuItem>
-              ))}
-            </Select>
-
-            <IconButton
-            size="small"
-            onClick={handleAddVersionClick}
+          <VersionSelectorWithAdd
+            value={selectValue}
+            versionOptions={versionOptionsList}
+            newVersionLabel={creatingNewVersion ? versionOptionsList.length : undefined}
+            onVersionChange={handleVersionSelect}
+            onAddVersion={handleAddVersionClick}
             disabled={isLocked}
-            aria-label="Add new version"
-            sx={{
-              //ml: '20px',
-              backgroundColor: theme.palette.primary.light,
-              color: theme.palette.primary.contrastText ?? theme.palette.common.white,
-              '&:hover': { backgroundColor: theme.palette.primary.main },
-            }}
-          >
-            <AddIcon fontSize="small" />
-          </IconButton>
-            
-          </FormControl>
+            addVersionAriaLabel="Add new scene version"
+          />
           
           {steps.length > 0 && (
             <FormControl size="small" sx={{ minWidth: 160 }}>

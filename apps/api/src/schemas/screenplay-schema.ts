@@ -5,7 +5,8 @@ const screenplayContent = new mongoose.Schema({
     text:  { type: String }
 })
 
-export const screenplaySchema  = new mongoose.Schema({
+export const screenplaySchema = new mongoose.Schema({
     projectId: { type: String },
-    versions: { type:  [screenplayContent] }
-})
+    versions: [screenplayContent],
+    lockedVersion: { type: Number },
+});

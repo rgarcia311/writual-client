@@ -20,6 +20,7 @@ import { getTheme } from '../themes/themes';
 import { ThemeToggleProvider } from '../themes/ThemeToggleContext';
 import { CreateProjectWrapper } from '../components/CreateProjectWrapper';
 import { AppTopBar } from '../components/AppTopBar';
+import { ClientOnlyMuiLayout } from '../components/ClientOnlyMuiLayout';
 
 const client = new QueryClient();
 
@@ -35,6 +36,7 @@ export default function RootLayout({
     return (
       <html lang="en">
         <body>
+          <ClientOnlyMuiLayout>
           <QueryClientProvider client={client}>
               <ThemeProvider theme={appliedTheme}>
               <ThemeToggleProvider value={{ isLightMode, setTheme }}>
@@ -62,6 +64,7 @@ export default function RootLayout({
             </ThemeToggleProvider>
             </ThemeProvider>
           </QueryClientProvider>
+          </ClientOnlyMuiLayout>
         </body>
       </html>
     );

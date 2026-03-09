@@ -5,15 +5,40 @@ query GetProjectData($input: ProjectFilters) {
   getProjectData(input: $input) {
     _id
     title
+    logline
     genre
     type
-    logline
     user
     displayName
     email
     poster
     sharedWith
-    
+    stats {
+      totalScenes
+      lockedScenes
+      totalCharacters
+      lockedCharacters
+    }
+    scenes {
+      lockedVersion
+    }
+    characters {
+      lockedVersion
+    }
+    activeVersion
+    lockedVersion
+    treatment {
+      lockedVersion
+      versions {
+        version
+      }
+    }
+    screenplay {
+      lockedVersion
+      versions {
+        version
+      }
+    }
     outline {
       format {
         name
@@ -40,6 +65,26 @@ query GetProjectData($input: ProjectFilters) {
         similarProjects
         timePeriod
         outlineName
+        stats {
+            totalScenes
+            lockedScenes
+            totalCharacters
+            lockedCharacters
+        }
+        activeVersion
+        lockedVersion
+        treatment {
+            lockedVersion
+            versions {
+                version
+            }
+        }
+        screenplay {
+            lockedVersion
+            versions {
+                version
+            }
+        }
         characters {
           details {
             age

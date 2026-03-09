@@ -99,15 +99,22 @@ export async function getScenesByProjectIdsBatch(
 
 /**
  * Creates a new scene and appends its _id to project.sceneOrder.
- * Updates project modified_date. Uses a transaction when MongoDB supports it (replica set / mongos);
- * otherwise runs the same operations without a session for standalone MongoDB.
+ * Updates project modified_date and stats.totalScenes.
+ * Fails if outlineSectionLocked is true.
  */
 export async function createScene(
   projectId: string,
   payload: CreateScenePayload
 ): Promise<mongoose.Document> {
+  const pid = toObjectId(projectId);
+  const project = await Projects.findById(pid).lean().exec();
+  if (!project) throw new Error("Project not found");
+  if ((project as any).outlineSectionLocked) {
+    throw new Error("Outline section is locked; unlock to add scenes.");
+  }
+
   const doc = {
-    projectId: toObjectId(projectId),
+    projectId: pid,
     activeVersion: payload.activeVersion ?? 1,
     lockedVersion: payload.lockedVersion ?? undefined,
     newVersion: payload.newVersion ?? undefined,
@@ -119,22 +126,23 @@ export async function createScene(
     const created = await Scenes.create([doc], { session });
     const newScene = created[0];
     await Projects.findByIdAndUpdate(
-      toObjectId(projectId),
+      pid,
       {
         $push: { sceneOrder: newScene._id },
         $set: { modified_date: nowIso() },
+        $inc: { "stats.totalScenes": 1 },
       },
       { session }
     ).exec();
-    return created[0];
+    return newScene;
   };
 
   const runWithoutSession = async () => {
-    const created = await Scenes.create([doc]);
-    const newScene = created[0];
-    await Projects.findByIdAndUpdate(toObjectId(projectId), {
+    const newScene = await Scenes.create(doc);
+    await Projects.findByIdAndUpdate(pid, {
       $push: { sceneOrder: newScene._id },
       $set: { modified_date: nowIso() },
+      $inc: { "stats.totalScenes": 1 },
     }).exec();
     return newScene;
   };
@@ -156,13 +164,17 @@ export async function createScene(
     if (isTransactionNotSupportedError(e)) {
       return runWithoutSession();
     }
+    const err = e as Error;
+    if (err?.message?.includes?.('next is not a function') || err?.name === 'TypeError') {
+      return runWithoutSession();
+    }
     throw e;
   }
 }
 
 /**
  * Updates an existing scene (version in-place or add new version).
- * Updates the parent project's modified_date.
+ * Updates the parent project's modified_date and stats.lockedScenes when lockedVersion changes.
  */
 export async function updateScene(
   sceneId: string,
@@ -171,6 +183,8 @@ export async function updateScene(
   const scene = await Scenes.findById(toObjectId(sceneId)).exec();
   if (!scene) return null;
   const sceneObj = scene as any;
+  const previousLockedVersion =
+    sceneObj.lockedVersion != null ? Number(sceneObj.lockedVersion) : null;
   const versions = Array.isArray(sceneObj.versions) ? sceneObj.versions : [];
   const newVersion = !!payload.newVersion;
   const versionPayload = payload.versions?.[0];
@@ -224,50 +238,69 @@ export async function updateScene(
   await scene.save();
   const projectId = sceneObj.projectId?.toString?.() ?? sceneObj.projectId;
   if (projectId) {
-    await Projects.findByIdAndUpdate(toObjectId(projectId), {
-      $set: { modified_date: nowIso() },
-    }).exec();
+    const newLockedVersion =
+      sceneObj.lockedVersion != null ? Number(sceneObj.lockedVersion) : null;
+    const wasLocked = previousLockedVersion != null;
+    const isLocked = newLockedVersion != null;
+    const inc: { "stats.lockedScenes"?: number } = {};
+    if (!wasLocked && isLocked) inc["stats.lockedScenes"] = 1;
+    else if (wasLocked && !isLocked) inc["stats.lockedScenes"] = -1;
+    const update: Record<string, unknown> = { $set: { modified_date: nowIso() } };
+    if (Object.keys(inc).length) update.$inc = inc;
+    await Projects.findByIdAndUpdate(toObjectId(projectId), update).exec();
   }
   return scene;
 }
 
 /**
  * Deletes a scene and removes its _id from project.sceneOrder.
- * Updates project modified_date. Uses a transaction when MongoDB supports it;
- * otherwise runs the same operations without a session for standalone MongoDB.
+ * Updates project modified_date and stats. Fails if outlineSectionLocked is true.
  * Returns the projectId when deleted so callers can revalidate by path.
  */
 export async function deleteScene(
   sceneId: string
 ): Promise<{ deleted: boolean; projectId?: string }> {
+  const sid = toObjectId(sceneId);
   const runWithSession = async (session: mongoose.mongo.ClientSession) => {
-    const scene = await Scenes.findOne({ _id: toObjectId(sceneId) })
+    const scene = await Scenes.findOne({ _id: sid })
       .session(session)
       .lean()
       .exec();
     if (!scene) return { deleted: false };
     const projectId = (scene as any).projectId?.toString?.() ?? (scene as any).projectId;
-    await Scenes.deleteOne({ _id: toObjectId(sceneId) }, { session }).exec();
-    await Projects.findByIdAndUpdate(
-      toObjectId(projectId),
-      {
-        $pull: { sceneOrder: toObjectId(sceneId) },
-        $set: { modified_date: nowIso() },
-      },
-      { session }
-    ).exec();
+    const project = await Projects.findById(toObjectId(projectId)).session(session).lean().exec();
+    if (project && (project as any).outlineSectionLocked) {
+      throw new Error("Outline section is locked; unlock to delete scenes.");
+    }
+    const wasLocked = (scene as any).lockedVersion != null;
+    const update: Record<string, unknown> = {
+      $pull: { sceneOrder: sid },
+      $set: { modified_date: nowIso() },
+      $inc: { "stats.totalScenes": -1 },
+    };
+    if (wasLocked) (update.$inc as Record<string, number>)["stats.lockedScenes"] = -1;
+    await Scenes.deleteOne({ _id: sid }, { session }).exec();
+    await Projects.findByIdAndUpdate(toObjectId(projectId), update, { session }).exec();
     return { deleted: true, projectId };
   };
 
   const runWithoutSession = async () => {
-    const scene = await Scenes.findOne({ _id: toObjectId(sceneId) }).lean().exec();
+    const scene = await Scenes.findOne({ _id: sid }).lean().exec();
     if (!scene) return { deleted: false };
     const projectId = (scene as any).projectId?.toString?.() ?? (scene as any).projectId;
-    await Scenes.deleteOne({ _id: toObjectId(sceneId) }).exec();
-    await Projects.findByIdAndUpdate(toObjectId(projectId), {
-      $pull: { sceneOrder: toObjectId(sceneId) },
+    const project = await Projects.findById(toObjectId(projectId)).lean().exec();
+    if (project && (project as any).outlineSectionLocked) {
+      throw new Error("Outline section is locked; unlock to delete scenes.");
+    }
+    const wasLocked = (scene as any).lockedVersion != null;
+    const update: Record<string, unknown> = {
+      $pull: { sceneOrder: sid },
       $set: { modified_date: nowIso() },
-    }).exec();
+      $inc: { "stats.totalScenes": -1 },
+    };
+    if (wasLocked) (update.$inc as Record<string, number>)["stats.lockedScenes"] = -1;
+    await Scenes.deleteOne({ _id: sid }).exec();
+    await Projects.findByIdAndUpdate(toObjectId(projectId), update).exec();
     return { deleted: true, projectId };
   };
 
@@ -291,4 +324,50 @@ export async function deleteScene(
     }
     throw e;
   }
+}
+
+/**
+ * Locks all scenes in the project: sets each scene's lockedVersion to its activeVersion,
+ * sets outlineSectionLocked true, and sets stats.lockedScenes to totalScenes.
+ */
+export async function lockAllScenesForProject(
+  projectId: string
+): Promise<{ lockedCount: number }> {
+  const pid = toObjectId(projectId);
+  const project = await Projects.findById(pid).lean().exec();
+  if (!project) throw new Error("Project not found");
+  const order = (project as any).sceneOrder ?? [];
+  if (order.length === 0) {
+    await Projects.findByIdAndUpdate(pid, {
+      $set: { modified_date: nowIso(), outlineSectionLocked: true },
+    }).exec();
+    return { lockedCount: 0 };
+  }
+  const scenes = await Scenes.find({ _id: { $in: order } }).exec();
+  for (const scene of scenes) {
+    const s = scene as any;
+    const active = s.activeVersion ?? 1;
+    s.lockedVersion = active;
+    await scene.save();
+  }
+  const totalScenes = order.length;
+  await Projects.findByIdAndUpdate(pid, {
+    $set: {
+      modified_date: nowIso(),
+      outlineSectionLocked: true,
+      "stats.lockedScenes": totalScenes,
+      "stats.totalScenes": totalScenes,
+    },
+  }).exec();
+  return { lockedCount: totalScenes };
+}
+
+/**
+ * Unlocks the outline section so scenes can be added or deleted.
+ * Does not change individual scene lockedVersion values.
+ */
+export async function unlockOutlineSection(projectId: string): Promise<void> {
+  await Projects.findByIdAndUpdate(toObjectId(projectId), {
+    $set: { modified_date: nowIso(), outlineSectionLocked: false },
+  }).exec();
 }

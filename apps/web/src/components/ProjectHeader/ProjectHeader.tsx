@@ -17,6 +17,7 @@ import { CreateProject } from '@/components/CreateProject';
 import { accordionFlat, projectStyles } from 'styles';
 import { Project } from '@/interfaces/project';
 import { useEffect } from 'react';
+import { computeProjectProgress } from '../../utils/progress';
 import { ProjectType } from '@/enums/ProjectEnums';
 import { UPDATE_PROJECT, DELETE_PROJECT } from 'mutations/ProjectMutations';
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
@@ -221,6 +222,7 @@ export function ProjectHeader() {
           sharedWith={projectData.sharedWith ?? []}
           onEditClick={() => setUpdateDialogOpen(true)}
           onDelete={id ? () => deleteProjectMutation.mutate(id) : undefined}
+          progress={computeProjectProgress(projectData as any)}
         />
       </AccordionDetails>
       {updateDialogOpen && (

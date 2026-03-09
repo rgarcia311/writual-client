@@ -19,4 +19,6 @@ export const characterSchema = new mongoose.Schema({
   },
   imageUrl: { type: String },
   details: [characterContentSchema],
+  activeVersion: { type: Number, default: 1 },
+  lockedVersion: { type: Number },
 });

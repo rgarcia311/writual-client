@@ -4,11 +4,18 @@ export const PROJECT_CHARACTERS_QUERY = gql`
 query GetProjectCharacters($input: ProjectFilters!) {
   getProjectData(input: $input) {
     _id
+    charactersSectionLocked
+    stats {
+      totalCharacters
+      lockedCharacters
+    }
     characters {
       _id
       projectId
       name
       imageUrl
+      activeVersion
+      lockedVersion
       details {
         version
         name
