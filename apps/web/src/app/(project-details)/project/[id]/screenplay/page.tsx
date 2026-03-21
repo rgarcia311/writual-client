@@ -1,33 +1,26 @@
-import { Box, Typography } from '@mui/material';
-import { ProjectDetailsLayout } from '@/components/ProjectDetailsLayout';
+import { ProjectDetailsLayout } from '@/components/ProjectDetailsLayout'
+import { WritualEditor } from '@/components/ScreenplayEditor'
 
 export default async function ScreenplayPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string }>
 }) {
-  await params;
+  const { id } = await params
+
   return (
-    <ProjectDetailsLayout>
-      <Typography variant="h6" fontWeight={600}>
-        Screenplay
-      </Typography>
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          flex: 1,
-        }}
-      >
-        <Typography
-          variant="body2"
-          color="text.secondary"
-          sx={{ fontSize: 40 }}
-        >
-          Coming Soon
-        </Typography>
-      </Box>
+    <ProjectDetailsLayout
+      contentSx={{
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0,
+        p: 0,
+        pt: 0,
+        paddingTop: '0 !important',
+        overflow: 'hidden',
+      }}
+    >
+      <WritualEditor projectId={id} />
     </ProjectDetailsLayout>
-  );
+  )
 }

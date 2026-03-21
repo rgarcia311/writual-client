@@ -388,9 +388,6 @@ export const resolvers = {
   Project: {
     scenes: (parent: any, _: any, context: { scenesLoader: { load: (id: string) => Promise<any[]> } }) => {
       const id = parent?._id?.toString?.() ?? parent?._id;
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e25f859c-d7ba-44eb-86e1-bc11ced01386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'project.ts:Project.scenes',message:'Project.scenes resolver',data:{projectId:id},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
-      // #endregion
       return id ? context.scenesLoader.load(id) : [];
     },
     characters: (parent: any, _: any, context: { charactersLoader: { load: (id: string) => Promise<any[]> } }) => {

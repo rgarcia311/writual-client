@@ -66,9 +66,6 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   );
 
   const detail = details?.find((d: any) => d.version === version)
-  if (detail) {
-    detail.url = "https://www.broadwayworld.com/ezoimgfmt/cloudimages.broadwayworld.com/headshots/452956sm.jpg?dt=42352886&ezimgfmt=ng%3Awebp%2Fngcb36%2Frs%3Adevice%2Frscb37-2"
-  }
 
   const imageSrc = imageUrl?.trim() ? imageUrl : DEFAULT_CHARACTER_IMAGE;
 

@@ -95,10 +95,6 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
     }
   };
 
-  console.log('formValues: ', formValues);
-  console.log('sharedWithEmails: ', sharedWithEmails);
-  console.log('frameworks: ', frameworks);
-
   return (
     <Dialog
       fullWidth

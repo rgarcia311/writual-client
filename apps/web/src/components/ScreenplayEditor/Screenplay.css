@@ -1,0 +1,254 @@
+/* =============================================================================
+   Screenplay.css — Writual Professional Screenplay Margin Engine
+   =============================================================================
+
+   Coordinate system
+   -----------------
+   All measurements follow the WGA / Final Draft standard for US Letter paper.
+
+   Paper:       8.5" × 11"  →  816px × 1056px  (at 96 dpi)
+   Margins:     1.5" left   →  144px
+                1.0" right  →   96px
+                1.0" top    →   96px
+                1.0" bottom →   96px
+   Text area:   6.0" wide   →  576px
+
+   Element offsets from left edge of paper  →  indent from text-area left:
+     Slugline / Action   1.5"    144px      →   0px
+     Dialogue            2.5"    240px      →  96px  (width 3.5" = 336px)
+     Parenthetical       3.0"    288px      → 144px
+     Character           3.5"    336px      → 192px
+     Transition          6.0"    576px      → right-aligned
+
+   ============================================================================= */
+
+/* ── Google Fonts ─────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
+/* ── Workspace (scrollable grey surround) ────────────────────────────────── */
+.screenplay-workspace {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  background-color: #d0d0d0;
+  padding: 40px 24px;
+  /* Smooth momentum scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Page sheet ───────────────────────────────────────────────────────────── */
+.screenplay-page {
+  /* Fixed paper width — always 8.5" regardless of viewport */
+  width: 816px;
+  min-height: 1056px;
+  margin: 0 auto;
+
+  /* Paper margins: top right bottom left */
+  padding: 96px 96px 96px 144px;
+
+  background-color: #ffffff;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.12),
+    0 8px 32px rgba(0, 0, 0, 0.18);
+  border-radius: 2px;
+
+  /* Screenplay typography */
+  font-family: 'Courier Prime', 'Courier New', Courier, monospace;
+  font-size: 12pt; /* industry-standard Courier 12pt */
+  line-height: 1.0; /* monospace baseline; blank lines are added per-element */
+  color: #000000;
+
+  position: relative;
+  box-sizing: border-box;
+}
+
+/*
+ * Visual page-break ruler
+ * -----------------------
+ * A subtle horizontal line at every 1056 px marks where the physical
+ * page boundary would fall.  We use a repeating gradient so the ruler
+ * scrolls with the content and works for scripts of any length.
+ */
+.screenplay-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent calc(1056px - 2px),
+    rgba(150, 150, 150, 0.55) calc(1056px - 2px),
+    rgba(150, 150, 150, 0.55) 1056px
+  );
+  background-size: 100% 1056px;
+  background-position: top left;
+  z-index: 0;
+  border-radius: 2px;
+}
+
+/* Ensure editor content sits above the ruler overlay */
+.screenplay-page .ProseMirror {
+  position: relative;
+  z-index: 1;
+  outline: none;
+  min-height: 864px; /* 1056 - 96 (top) - 96 (bottom) */
+}
+
+/* ── Base script-block reset ─────────────────────────────────────────────── */
+.script-block {
+  margin: 0;
+  padding: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  /* Reserve one blank line between most elements */
+  margin-bottom: 12pt;
+  /* Prevent awkward mid-element page breaks when printing */
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.script-block:last-child {
+  margin-bottom: 0;
+}
+
+/* Provide a visible placeholder when a block is empty and focused */
+.script-block.ProseMirror-selectednode::after,
+.script-block:empty::after,
+.script-block p:empty::after {
+  content: '';
+}
+
+/* ── SCENE HEADING (Slugline) ────────────────────────────────────────────── */
+/*
+ * Left edge: 1.5" from paper edge (i.e., 0 additional indent from text area).
+ * Full text-area width: 6.0" = 576 px.
+ * Always UPPERCASE.  Font-weight bold for immediate visual hierarchy.
+ * Extra top spacing separates it clearly from the preceding action block.
+ */
+.script-block[data-element-type='slugline'] {
+  padding-left: 0;
+  padding-right: 0;
+  text-transform: uppercase;
+  font-weight: 700;
+  margin-top: 24pt; /* two blank lines above */
+  margin-bottom: 12pt; /* one blank line below */
+}
+
+/* First slugline needs no extra top margin */
+.script-block[data-element-type='slugline']:first-child {
+  margin-top: 0;
+}
+
+/* Keep heading on the same page as its first line of action */
+.script-block[data-element-type='slugline'] {
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+/* ── ACTION ──────────────────────────────────────────────────────────────── */
+/*
+ * Same left edge as slugline (full text area).
+ * Mixed case, normal weight.
+ */
+.script-block[data-element-type='action'] {
+  padding-left: 0;
+  padding-right: 0;
+  margin-bottom: 12pt;
+}
+
+/* ── CHARACTER CUE ───────────────────────────────────────────────────────── */
+/*
+ * Left edge: 3.5" from paper  →  2.0" indent from text area  →  192 px.
+ * Always UPPERCASE.  No bottom margin — dialogue follows immediately.
+ */
+.script-block[data-element-type='character'] {
+  padding-left: 192px;
+  padding-right: 0;
+  text-transform: uppercase;
+  margin-bottom: 0;
+  /* Keep character cue attached to its dialogue */
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+/* ── PARENTHETICAL ───────────────────────────────────────────────────────── */
+/*
+ * Left edge: 3.0" from paper  →  1.5" indent from text area  →  144 px.
+ * Right constraint mirrors left for a centered appearance within the
+ * dialogue column (dialogue ends at 6.0").
+ * Width ≈ 2.0" = 192 px of usable space.
+ */
+.script-block[data-element-type='parenthetical'] {
+  padding-left: 144px;
+  /* Dialogue ends at 576px (6"). 576 - 144(left) - 192(content) = 240 right */
+  padding-right: 240px;
+  margin-bottom: 0;
+  /* Attached to surrounding dialogue */
+  break-before: avoid;
+  break-after: avoid;
+  page-break-before: avoid;
+  page-break-after: avoid;
+}
+
+/* ── DIALOGUE ────────────────────────────────────────────────────────────── */
+/*
+ * Left edge: 2.5" from paper  →  1.0" indent from text area  →  96 px.
+ * Width: 3.5" = 336 px.
+ * Ends at 2.5" + 3.5" = 6.0" from paper (right edge of text area).
+ * Right padding: 576 - 96(left) - 336(width) = 144 px.
+ */
+.script-block[data-element-type='dialogue'] {
+  padding-left: 96px;
+  padding-right: 144px;
+  margin-bottom: 12pt;
+  /* Keep dialogue block intact if possible */
+  break-before: avoid;
+  page-break-before: avoid;
+}
+
+/* ── TRANSITION ──────────────────────────────────────────────────────────── */
+/*
+ * Right-aligned at the right margin (1.0" from paper edge).
+ * Always UPPERCASE.  Examples: "CUT TO:", "FADE OUT.", "SMASH CUT TO:"
+ */
+.script-block[data-element-type='transition'] {
+  padding-left: 0;
+  padding-right: 0;
+  text-align: right;
+  text-transform: uppercase;
+  margin-top: 12pt;
+  margin-bottom: 12pt;
+}
+
+/* ── Cursor / selection appearance ──────────────────────────────────────── */
+.screenplay-page .ProseMirror ::selection {
+  background-color: rgba(100, 140, 200, 0.35);
+}
+
+/* ── Element-type highlight ring (active block indicator) ────────────────── */
+.screenplay-page .ProseMirror .script-block.ProseMirror-selectednode {
+  outline: 2px solid rgba(100, 140, 200, 0.5);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* =============================================================================
+   @media print
+   =============================================================================
+   Printing is handled by a dedicated popup window (see printScreenplay() in
+   WritualEditor.tsx) so the in-app @media print rules only need to hide the
+   entire app shell.  The popup carries its own self-contained CSS with the
+   correct @page margins and element formatting, so there is no risk of the
+   app's chrome appearing in the printed output.
+   ============================================================================= */
+@media print {
+  /*
+   * Hide absolutely everything in the main app window when the browser's
+   * print dialog is triggered from the app itself (e.g. Ctrl/Cmd+P).
+   * The real print output comes from the popup opened by printScreenplay().
+   */
+  body > * {
+    display: none !important;
+  }
+}

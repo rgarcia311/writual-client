@@ -132,7 +132,6 @@ export function ProjectHeader() {
 
   const fetchProject = async (): Promise<{ getProjectData: Project[] }> => {
     const { userProfile } = await useUserProfileStore.getState()
-    console.log({ userProfile })
     const variables = { input: { user: userProfile?.user, _id: id } }
     return await request(endpoint, PROJECT_QUERY, variables)
   };
