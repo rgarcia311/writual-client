@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const screenplayContent = new mongoose.Schema({
     version: { type: Number },
-    text:  { type: String }
+    content: { type: mongoose.Schema.Types.Mixed }
 })
 
 export const screenplaySchema  = new mongoose.Schema({
