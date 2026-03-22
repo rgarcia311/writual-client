@@ -1,6 +1,6 @@
 import { GraphQLJSON } from "graphql-scalars";
 import { getProjectData, getOutlineFrameworks } from "../resolvers";
-import { setProjectOutline, createOutlineFramework, updateOutlineFramework, deleteOutlineFramework, createProject, deleteProject, shareProject, updateProject, updateProjectSharedWith, createinspiration, deleteinspiration } from "../mutations";
+import { setProjectOutline, createOutlineFramework, updateOutlineFramework, deleteOutlineFramework, createProject, deleteProject, shareProject, updateProject, updateProjectSharedWith, createinspiration, deleteinspiration, saveScreenplay } from "../mutations";
 export const ProjectType = `#graphql
 
     scalar JSON
@@ -22,6 +22,7 @@ export const ProjectType = `#graphql
         updateProjectSharedWith(projectId: String!, sharedWith: [String]): Project
         createinspiration(input: inspirationInput!): Project
         deleteinspiration(projectId: String!, inspirationId: String!): Project
+        saveScreenplay(projectId: ID!, content: JSON!): Screenplay
     }
 
     type Project {
@@ -238,12 +239,12 @@ export const ProjectType = `#graphql
 
     type  ScreenplayContent  {
         version: Int
-        text: String
+        content: JSON
     }
 
     input ScreenplayInput {
         version: Int
-        text: String
+        content: JSON
     }
 
     type inspiration  {
@@ -338,13 +339,11 @@ export const resolvers = {
     updateProjectSharedWith,
     createinspiration,
     deleteinspiration,
+    saveScreenplay,
   },
   Project: {
     scenes: (parent: any, _: any, context: { scenesLoader: { load: (id: string) => Promise<any[]> } }) => {
       const id = parent?._id?.toString?.() ?? parent?._id;
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e25f859c-d7ba-44eb-86e1-bc11ced01386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'project.ts:Project.scenes',message:'Project.scenes resolver',data:{projectId:id},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
-      // #endregion
       return id ? context.scenesLoader.load(id) : [];
     },
     characters: (parent: any, _: any, context: { charactersLoader: { load: (id: string) => Promise<any[]> } }) => {

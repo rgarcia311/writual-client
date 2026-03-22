@@ -144,9 +144,19 @@ export const createTreatment = (root, { input })  =>  {
     return  updateData(Projects, {newTreatment}, input.projec_id)
 }
 
-export const createScreenplay = (root, { input })  =>  {
-    
-}
+export const saveScreenplay = async (root, { projectId, content }) => {
+  const filter = mongoose.Types.ObjectId.isValid(projectId)
+    ? { _id: new mongoose.Types.ObjectId(projectId) }
+    : { _id: projectId };
+
+  const updated = await Projects.findOneAndUpdate(
+    filter,
+    { $set: { screenplay: { projectId, versions: [{ version: 0, content }] } } },
+    { new: true }
+  ).exec();
+
+  return updated?.get('screenplay') ?? null;
+};
 
 export const createFeedback = (root, { input })  =>  {
     
