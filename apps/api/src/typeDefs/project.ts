@@ -1,6 +1,6 @@
 import { GraphQLJSON } from "graphql-scalars";
 import { getProjectData, getOutlineFrameworks } from "../resolvers";
-import { setProjectOutline, createOutlineFramework, updateOutlineFramework, deleteOutlineFramework, createProject, deleteProject, shareProject, updateProject, updateProjectSharedWith, createinspiration, deleteinspiration, lockAllScenesInOutline, lockAllCharacters, unlockOutlineSection, unlockCharactersSection } from "../mutations";
+import { setProjectOutline, createOutlineFramework, updateOutlineFramework, deleteOutlineFramework, createProject, deleteProject, shareProject, updateProject, updateProjectSharedWith, createinspiration, deleteinspiration, lockAllScenesInOutline, lockAllCharacters, unlockOutlineSection, unlockCharactersSection, saveScreenplay } from "../mutations";
 export const ProjectType = `#graphql
 
     scalar JSON
@@ -22,6 +22,7 @@ export const ProjectType = `#graphql
         updateProjectSharedWith(projectId: String!, sharedWith: [String]): Project
         createinspiration(input: inspirationInput!): Project
         deleteinspiration(projectId: String!, inspirationId: String!): Project
+        saveScreenplay(projectId: ID!, content: JSON!): Screenplay
         lockAllScenesInOutline(projectId: String!): LockAllScenesResult
         lockAllCharacters(projectId: String!): LockAllCharactersResult
         unlockOutlineSection(projectId: String!): Project
@@ -280,12 +281,12 @@ export const ProjectType = `#graphql
 
     type  ScreenplayContent  {
         version: Int
-        text: String
+        content: JSON
     }
 
     input ScreenplayInput {
         version: Int
-        text: String
+        content: JSON
     }
 
     type inspiration  {
@@ -380,6 +381,7 @@ export const resolvers = {
     updateProjectSharedWith,
     createinspiration,
     deleteinspiration,
+    saveScreenplay,
     lockAllScenesInOutline,
     lockAllCharacters,
     unlockOutlineSection,

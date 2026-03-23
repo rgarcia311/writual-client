@@ -1,1 +1,1 @@
-export * from "./project-mutations"
+export * from "./project-mutations";
