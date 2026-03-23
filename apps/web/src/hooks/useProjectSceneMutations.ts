@@ -4,9 +4,6 @@ import { createScene, updateScene, deleteScene } from '../app/actions/scenes';
 export const PROJECT_SCENES_QUERY_KEY = 'project-scenes';
 
 export function useProjectSceneMutations() {
-  // #region agent log
-  fetch('http://127.0.0.1:7243/ingest/e25f859c-d7ba-44eb-86e1-bc11ced01386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useProjectSceneMutations.ts:hook',message:'useProjectSceneMutations run',data:{},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-  // #endregion
   const queryClient = useQueryClient();
 
   const updateSceneMutation = useMutation({

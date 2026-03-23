@@ -1,8 +1,5 @@
 "use server";
 
-// #region agent log
-fetch('http://127.0.0.1:7243/ingest/e25f859c-d7ba-44eb-86e1-bc11ced01386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'scenes.ts:module',message:'scenes server action module loading',data:{},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-// #endregion
 import { revalidatePath } from "next/cache";
 import {
   createScene as createSceneService,
@@ -13,9 +10,6 @@ import {
 } from "../../../../api/src/services/SceneService";
 import { toPlainObject } from "../../utils/toPlainObject";
 
-// #region agent log
-fetch('http://127.0.0.1:7243/ingest/e25f859c-d7ba-44eb-86e1-bc11ced01386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'scenes.ts:module',message:'scenes module loaded (after SceneService import)',data:{},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-// #endregion
 export async function createScene(projectId: string, payload: CreateScenePayload) {
   const scene = await createSceneService(projectId, payload);
   revalidatePath(`/project/${projectId}`);

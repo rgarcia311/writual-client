@@ -132,9 +132,6 @@ interface OutlineContentProps {
 }
 
 export function OutlineContent({ projectId }: OutlineContentProps) {
-  // #region agent log
-  fetch('http://127.0.0.1:7243/ingest/e25f859c-d7ba-44eb-86e1-bc11ced01386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OutlineContent.tsx:OutlineContent',message:'OutlineContent render',data:{projectId},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
-  // #endregion
   const id = projectId;
   const queryClient = useQueryClient();
   const theme = useTheme();
@@ -148,30 +145,10 @@ export function OutlineContent({ projectId }: OutlineContentProps) {
   }, [id, reset]);
 
   const getOutlines = async () => {
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/e25f859c-d7ba-44eb-86e1-bc11ced01386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OutlineContent.tsx:getOutlines',message:'getOutlines start',data:{id},timestamp:Date.now(),hypothesisId:'H1,H5'})}).catch(()=>{});
-    // #endregion
     const userProfileState = await useUserProfileStore.getState();
     const user = userProfileState.userProfile?.user;
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/e25f859c-d7ba-44eb-86e1-bc11ced01386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OutlineContent.tsx:getOutlines',message:'getOutlines after getState',data:{user:user!=null,id},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
-    // #endregion
     const variables = { input: { user, _id: id } };
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/e25f859c-d7ba-44eb-86e1-bc11ced01386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OutlineContent.tsx:getOutlines',message:'getOutlines before request',data:{endpoint},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
-    try {
-      const result = await request(endpoint, PROJECT_SCENES_QUERY, variables);
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e25f859c-d7ba-44eb-86e1-bc11ced01386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OutlineContent.tsx:getOutlines',message:'getOutlines after request',data:{hasData:!!result},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-      // #endregion
-      return result;
-    } catch (err) {
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e25f859c-d7ba-44eb-86e1-bc11ced01386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'OutlineContent.tsx:getOutlines',message:'getOutlines catch',data:{err:String(err)},timestamp:Date.now(),hypothesisId:'H1,H5'})}).catch(()=>{});
-      // #endregion
-      throw err;
-    }
+    return request(endpoint, PROJECT_SCENES_QUERY, variables);
   };
 
   const { data }: any = useQuery({
@@ -223,8 +200,6 @@ export function OutlineContent({ projectId }: OutlineContentProps) {
     () => buildActStepStructure(framework, scenes),
     [framework, scenes]
   );
-
-  console.log('actSteps: ', actSteps);
 
   const allSteps = React.useMemo(() => {
     if (!framework?.format?.steps?.length) return [];
@@ -439,7 +414,6 @@ export function OutlineContent({ projectId }: OutlineContentProps) {
                   {steps.map((st) => {
                     const key = `${actNum}:${st.name}`;
                     const stepScenes = stepKeyToScenes.get(key) ?? [];
-                    console.log('st: ', st);
                     return (
                       <Accordion
                         key={key}
