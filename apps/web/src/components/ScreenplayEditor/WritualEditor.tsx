@@ -21,6 +21,7 @@ import {
   Typography,
   useTheme,
 } from '@mui/material'
+import CloudDoneIcon from '@mui/icons-material/CloudDone'
 import LocalMoviesIcon from '@mui/icons-material/LocalMovies'
 import MenuOpenIcon from '@mui/icons-material/MenuOpen'
 import MenuIcon from '@mui/icons-material/Menu'
@@ -39,7 +40,9 @@ import {
 } from './ScreenplayExtension'
 import { PROJECT_SCENES_QUERY } from '@/queries/SceneQueries'
 import { PROJECT_SCENES_QUERY_KEY } from 'hooks'
+import { useAutosave } from '@hooks/useAutosave'
 import { useUserProfileStore } from '@/state/user'
+import { useScreenplaySaveStatusStore } from '@/state/screenplaySaveStatus'
 import { GRAPHQL_ENDPOINT } from '@/lib/config'
 import './Screenplay.css'
 
@@ -276,7 +279,12 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
   // Seed editor content exactly once after scenes load
   const seededRef = React.useRef(false)
 
-  // ── Fetch project scenes from the outline ────────────────────────────────
+  // ── Save status ──────────────────────────────────────────────────────────
+  const { savingCount, lastSavedAt, hasPendingChanges, setPending, startSaving, endSaving } = useScreenplaySaveStatusStore()
+  const isSavingOrPending = hasPendingChanges || savingCount > 0
+  const showSaved = !isSavingOrPending && lastSavedAt != null
+
+  // ── Fetch project scenes + saved screenplay from the outline ─────────────
   const user = useUserProfileStore((s) => s.userProfile?.user)
 
   const { data: scenesData, isLoading: scenesLoading } = useQuery({
@@ -290,6 +298,9 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
 
   const projectScenes: ProjectScene[] =
     (scenesData as any)?.getProjectData?.[0]?.scenes ?? []
+
+  const savedScreenplayContent =
+    (scenesData as any)?.getProjectData?.[0]?.screenplay?.versions?.[0]?.content ?? null
 
   // ── Editor ───────────────────────────────────────────────────────────────
   const editor = useEditor({
@@ -320,10 +331,16 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
     immediatelyRender: false,
   })
 
-  // ── Seed editor from outline scenes (once) ───────────────────────────────
+  // ── Seed editor from saved content or outline scenes (once) ─────────────
   React.useEffect(() => {
     if (!editor || seededRef.current || scenesLoading) return
     seededRef.current = true
+
+    // Prefer previously-saved TipTap JSON over rebuilding from outline scenes
+    if (savedScreenplayContent) {
+      editor.commands.setContent(savedScreenplayContent)
+      return
+    }
 
     const doc = projectScenes.length
       ? buildDocFromScenes(projectScenes)
@@ -349,7 +366,14 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
         }
 
     editor.commands.setContent(doc)
-  }, [editor, projectScenes, scenesLoading])
+  }, [editor, projectScenes, scenesLoading, savedScreenplayContent])
+
+  // ── Autosave ─────────────────────────────────────────────────────────────
+  useAutosave(editor, projectId, {
+    onPending: () => setPending(true),
+    onSaveStart: startSaving,
+    onSaveEnd: endSaving,
+  })
 
   // ── Sync active type + word count ────────────────────────────────────────
   React.useEffect(() => {
@@ -501,6 +525,20 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
         >
           {wordCount.toLocaleString()} words · ~{pages}p
         </Typography>
+
+        {isSavingOrPending && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }} aria-label="Saving">
+            <CloudDoneIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
+            <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
+              ...saving
+            </Typography>
+          </Box>
+        )}
+        {showSaved && (
+          <Box sx={{ display: 'flex', alignItems: 'center' }} aria-label="Saved">
+            <CloudDoneIcon sx={{ fontSize: 18, color: 'success.main' }} />
+          </Box>
+        )}
 
         <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
 

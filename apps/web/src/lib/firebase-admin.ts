@@ -1,3 +1,5 @@
+"use server"
+
 import admin from "firebase-admin";
 
 function getPrivateKey(): string | undefined {

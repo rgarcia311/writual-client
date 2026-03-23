@@ -118,9 +118,9 @@ function buildActStepStructure(
         exactBucket.push(scene);
         placed = true;
       }
-      if (!placed && !sceneStepName) {
-        unassignedScenes.push(scene);
-      }
+    }
+    if (!placed) {
+      unassignedScenes.push(scene);
     }
   }
 
@@ -383,7 +383,7 @@ export function OutlineContent({ projectId }: OutlineContentProps) {
   return (
     <ProjectDetailsLayout
       contentSx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}
-      headerTitle={`Outline: ${outlineName}`}
+      headerTitle={outlineName ? `Outline: ${outlineName}` : 'Outline'}
       headerLeftAdornment={
         <Box sx={{ display: 'flex', alignItems: 'flex-end' }}>
           {headerLeftAdornment}
