@@ -14,7 +14,8 @@ import {
 import { useTheme } from '@mui/material/styles';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { useRouter } from 'next/navigation'
-import { CustomTableHead, CustomTableBody } from './';
+import { CustomTableHead } from './TableHeader';
+import { CustomTableBody } from './TableBody';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import { TableProps, Data } from 'interfaces';
 import { tableBodyStyle } from 'styles';

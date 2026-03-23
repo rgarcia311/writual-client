@@ -11,6 +11,12 @@ export const PROJECT_SCENES_QUERY = gql`
         totalScenes
         lockedScenes
       }
+      screenplay {
+        versions {
+          version
+          content
+        }
+      }
       scenes {
         _id
         activeVersion
