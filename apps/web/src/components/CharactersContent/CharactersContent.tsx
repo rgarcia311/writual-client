@@ -1,7 +1,16 @@
 'use client';
 
 import * as React from 'react';
-import { Button } from '@mui/material';
+import {
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Typography,
+  Box,
+} from '@mui/material';
 import { ProjectDetailsLayout } from '@/components/ProjectDetailsLayout';
 import { ScrollableContentArea } from '@/components/shared/ScrollableContentArea/ScrollableContentArea';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -10,12 +19,15 @@ import { PROJECT_CHARACTERS_QUERY } from '@/queries/CharacterQueries';
 import { CharacterCard } from '@/components/CharacterCard';
 import { CharacterCardSkeleton } from '@/components/CharacterCardSkeleton';
 import AddIcon from '@mui/icons-material/Add';
+import LockIcon from '@mui/icons-material/Lock';
+import LockOpenIcon from '@mui/icons-material/LockOpen';
 import { NewCharacterForm, type NewCharacterValues } from '@/components/NewCharacterForm';
 import { AppAlert } from '@/components/AppAlert';
-import { createCharacter as createCharacterAction } from '../../app/actions/characters';
+import { createCharacter as createCharacterAction, updateCharacter as updateCharacterAction } from '../../app/actions/characters';
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { useUserProfileStore } from '@/state/user';
 import { useCreateCharacterModalStore } from '@/state/createCharacterModal';
+import { LOCK_ALL_CHARACTERS, UNLOCK_CHARACTERS_SECTION } from 'mutations/ProjectMutations';
 
 const endpoint = GRAPHQL_ENDPOINT;
 
@@ -45,7 +57,29 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
     enabled: Boolean(projectId),
   });
 
-  const characters = data?.getProjectData?.[0]?.characters ?? [];
+  const project = data?.getProjectData?.[0];
+  const characters = project?.characters ?? [];
+  const charactersSectionLocked = project?.charactersSectionLocked ?? false;
+  const stats = project?.stats ?? {};
+  const totalCharacters = characters.length;
+  const lockedCharacters = characters.filter((c: any) => c.lockedVersion != null).length;
+
+  const [lockAllConfirmOpen, setLockAllConfirmOpen] = React.useState(false);
+  const lockAllCharactersMutation = useMutation({
+    mutationFn: () => request(endpoint, LOCK_ALL_CHARACTERS, { projectId }),
+    onSuccess: async () => {
+      setLockAllConfirmOpen(false);
+      await queryClient.invalidateQueries({ queryKey: ['project-characters', projectId] });
+      await queryClient.refetchQueries({ queryKey: ['project-characters', projectId] });
+    },
+  });
+  const unlockCharactersMutation = useMutation({
+    mutationFn: () => request(endpoint, UNLOCK_CHARACTERS_SECTION, { projectId }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['project-characters', projectId] });
+      await queryClient.refetchQueries({ queryKey: ['project-characters', projectId] });
+    },
+  });
 
   const createCharacterMutation = useMutation({
     mutationFn: async (values: NewCharacterValues) => {
@@ -81,6 +115,21 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
     },
   });
 
+  const updateCharacterLockMutation = useMutation({
+    mutationFn: async ({ characterId, locked }: { characterId: string; locked: boolean }) => {
+      const character = characters.find((c: any) => c._id === characterId);
+      const activeVersion = character?.activeVersion ?? 1;
+      return updateCharacterAction(characterId, {
+        activeVersion,
+        lockedVersion: locked ? activeVersion : null,
+      });
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['project-characters', projectId] });
+      await queryClient.refetchQueries({ queryKey: ['project-characters', projectId] });
+    },
+  });
+
   const handleSubmit = (values: NewCharacterValues) => {
     createCharacterMutation.mutate(values);
   };
@@ -89,16 +138,68 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
     <ProjectDetailsLayout
       contentSx={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflowY: 'auto' }}
       headerTitle="Characters"
-      headerAction={
-        <Button
-          variant="contained"
-          color="primary"
-          size="small"
-          startIcon={<AddIcon />}
-          onClick={() => setCreateOpen(true)}
+      headerLeftAdornment={
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{ ml: 1, alignSelf: 'flex-end', lineHeight: 1.2 }}
         >
-          Create Character
-        </Button>
+          {lockedCharacters} locked / {totalCharacters} total
+        </Typography>
+      }
+      headerAction={
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {charactersSectionLocked ? (
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<LockOpenIcon />}
+              onClick={() => unlockCharactersMutation.mutate()}
+              disabled={unlockCharactersMutation.isPending}
+            >
+              Unlock
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<LockIcon />}
+                onClick={() => setLockAllConfirmOpen(true)}
+                disabled={lockAllCharactersMutation.isPending || totalCharacters === 0}
+              >
+                Lock All
+              </Button>
+              <Button
+                variant="contained"
+                color="primary"
+                size="small"
+                startIcon={<AddIcon />}
+                onClick={() => setCreateOpen(true)}
+              >
+                Create Character
+              </Button>
+            </>
+          )}
+          <Dialog open={lockAllConfirmOpen} onClose={() => setLockAllConfirmOpen(false)}>
+            <DialogTitle>Lock all characters?</DialogTitle>
+            <DialogContent>
+              <DialogContentText>
+                This will lock every character at its current version and prevent adding or deleting characters until you unlock the section. You can still edit existing character details. Continue?
+              </DialogContentText>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setLockAllConfirmOpen(false)}>Cancel</Button>
+              <Button
+                variant="contained"
+                onClick={() => lockAllCharactersMutation.mutate()}
+                disabled={lockAllCharactersMutation.isPending || totalCharacters === 0}
+              >
+                Lock All
+              </Button>
+            </DialogActions>
+          </Dialog>
+        </Box>
       }
     >
       <ScrollableContentArea>
@@ -115,6 +216,13 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
               expanded={expandedCardId === cardId}
               onExpandClick={() =>
                 setExpandedCardId((prev) => (prev === cardId ? undefined : cardId))
+              }
+              locked={character.lockedVersion != null}
+              onToggleLock={() =>
+                updateCharacterLockMutation.mutate({
+                  characterId: character._id,
+                  locked: character.lockedVersion == null,
+                })
               }
             />
           );

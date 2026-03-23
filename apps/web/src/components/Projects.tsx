@@ -10,6 +10,7 @@ import { DELETE_PROJECT } from 'mutations/ProjectMutations';
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { useUserProfileStore } from '@/state/user';
 import { useCreateProjectModalStore } from '@/state/createProjectModal';
+import { computeProjectProgress } from '../utils/progress';
 
 const endpoint = GRAPHQL_ENDPOINT;
 
@@ -51,8 +52,7 @@ export const Projects = () => {
                     }}
                 >
                     {pendingNewProject && <ProjectCardSkeleton />}
-                    {data?.getProjectData?.map((project: any, index: number) => (
-                  
+                    {data?.getProjectData?.map((project: any) => (
                       <ProjectCard
                         key={project._id}
                         title={project.title}
@@ -67,6 +67,7 @@ export const Projects = () => {
                         to={project._id ? `/project/${project._id}` : undefined}
                         onEditClick={project._id ? () => router.push(`/project/${project._id}`) : undefined}
                         hideBudgetAndSimilarProjects
+                        progress={computeProjectProgress(project)}
                       />
                     ))}
                 </Box>

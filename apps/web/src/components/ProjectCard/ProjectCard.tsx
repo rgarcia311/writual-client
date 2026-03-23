@@ -9,6 +9,8 @@ import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import Button from '@mui/material/Button';
 import Popover from '@mui/material/Popover';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Box from '@mui/material/Box';
 import List from '@mui/material/List';
@@ -17,6 +19,7 @@ import ListItemText from '@mui/material/ListItemText';
 import EditIcon from '@mui/icons-material/Edit';
 import ShareIcon from '@mui/icons-material/Share';
 import DeleteIcon from '@mui/icons-material/Delete';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { useTheme } from '@mui/material/styles';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { request } from 'graphql-request';
@@ -72,7 +75,7 @@ const getStatusColor = (status: 'complete' | 'partial' | 'empty') => {
     case 'complete':
       return '#4caf50';
     case 'partial':
-      return 'transparent';
+      return '#ff9800';
     case 'empty':
       return 'transparent';
     default:
@@ -87,11 +90,7 @@ const ProgressDot = ({ status }: { status: 'complete' | 'partial' | 'empty' }) =
       height: 12,
       borderRadius: '50%',
       backgroundColor: getStatusColor(status),
-      border: status !== 'complete' ? '2px solid #9e9e9e' : 'none',
-      background:
-        status === 'partial'
-          ? 'linear-gradient(90deg, #4caf50 50%, transparent 50%)'
-          : getStatusColor(status),
+      border: status === 'empty' ? '2px solid #9e9e9e' : status === 'partial' ? '2px solid #ff9800' : 'none',
     }}
   />
 );
@@ -129,6 +128,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   const theme = useTheme();
   const queryClient = useQueryClient();
   const [shareAnchorEl, setShareAnchorEl] = React.useState<HTMLElement | null>(null);
+  const [actionsAnchorEl, setActionsAnchorEl] = React.useState<HTMLElement | null>(null);
   const [imageError, setImageError] = React.useState(false);
 
   React.useEffect(() => {
@@ -140,6 +140,9 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
     e.preventDefault();
     router.push(to);
   };
+
+  const hasActions = Boolean(onEditClick || onDelete || projectId);
+  const actionsMenuOpen = Boolean(actionsAnchorEl);
   const [newEmail, setNewEmail] = React.useState('');
   const [emailError, setEmailError] = React.useState('');
 
@@ -215,101 +218,144 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
           alignItems: 'center',
         }}
       >
-        {onEditClick && (
-          <Tooltip title="Edit Project">
+        {hasActions && (
+          <>
             <IconButton
-              aria-label="Edit project"
+              aria-label="Project actions"
               size="small"
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEditClick(); }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setActionsAnchorEl(e.currentTarget);
+              }}
               sx={{
                 backgroundColor: theme.palette.background.paper,
                 boxShadow: 1,
                 '&:hover': { backgroundColor: theme.palette.action.hover },
               }}
             >
-              <EditIcon fontSize="small" />
+              <MoreVertIcon fontSize="small" />
             </IconButton>
-          </Tooltip>
-        )}
-        {projectId && (
-          <>
-            <Tooltip title="Share Project">
-              <IconButton
-                aria-label="Share project"
-                size="small"
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShareAnchorEl(e.currentTarget); }}
-                sx={{
-                  backgroundColor: theme.palette.background.paper,
-                  boxShadow: 1,
-                  '&:hover': { backgroundColor: theme.palette.action.hover },
-                }}
-              >
-                <ShareIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Popover
-              open={Boolean(shareAnchorEl)}
-              anchorEl={shareAnchorEl}
-              onClose={() => { setShareAnchorEl(null); setEmailError(''); setNewEmail(''); }}
+            <Menu
+              anchorEl={actionsAnchorEl}
+              open={actionsMenuOpen}
+              onClose={() => setActionsAnchorEl(null)}
               anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
               transformOrigin={{ vertical: 'top', horizontal: 'right' }}
               onClick={(e) => e.stopPropagation()}
             >
-              <Box sx={{ p: 2, minWidth: 320, maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
-                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                  Shared with
-                </Typography>
-                {sharedWith.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary">
-                    Not shared with anyone yet. (coming soon..)
-                  </Typography>
-                ) : (
-                  <List dense sx={{ py: 0, maxHeight: 200, overflow: 'auto' }}>
-                    {sharedWith.map((email) => (
-                      <ListItem
-                        key={email}
-                        secondaryAction={
-                          <Tooltip title="Remove from shared list">
-                            <IconButton
-                              edge="end"
-                              size="small"
-                              aria-label={`Remove ${email}`}
-                              onClick={(ev) => handleRemoveShareEmail(ev, email)}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        }
-                      >
-                        <ListItemText primary={email} primaryTypographyProps={{ variant: 'body2' }} />
-                      </ListItem>
-                    ))}
-                  </List>
-                )}
-                <Box sx={{ display: 'flex', gap: 1, mt: 2, alignItems: 'stretch' }}>
-                  <TextField
-                    size="small"
-                    placeholder="Add email"
-                    value={newEmail}
-                    onChange={(e) => { setNewEmail(e.target.value); setEmailError(''); }}
-                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), doAddShareEmail())}
-                    error={Boolean(emailError)}
-                    helperText={emailError}
-                    fullWidth
-                    sx={{ '& .MuiInputBase-root': { height: 40 } }}
-                  />
-                  <Button
-                    variant="contained"
-                    size="small"
-                    disabled
-                    sx={{ minHeight: 40, height: 40 }}
-                  >
-                    Add
-                  </Button>
-                </Box>
-              </Box>
-            </Popover>
+              {projectId && (
+                <MenuItem
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setActionsAnchorEl(null);
+                    setShareAnchorEl(actionsAnchorEl);
+                  }}
+                >
+                  <ShareIcon fontSize="small" style={{ marginRight: 8 }} />
+                  Share
+                </MenuItem>
+              )}
+              {onEditClick && (
+                <MenuItem
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setActionsAnchorEl(null);
+                    onEditClick();
+                  }}
+                >
+                  <EditIcon fontSize="small" style={{ marginRight: 8 }} />
+                  Edit
+                </MenuItem>
+              )}
+              {onDelete && (
+                <MenuItem
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setActionsAnchorEl(null);
+                    onDelete();
+                  }}
+                >
+                  <DeleteIcon fontSize="small" style={{ marginRight: 8 }} />
+                  Delete
+                </MenuItem>
+              )}
+            </Menu>
           </>
+        )}
+        {projectId && (
+          <Popover
+            open={Boolean(shareAnchorEl)}
+            anchorEl={shareAnchorEl}
+            onClose={() => {
+              setShareAnchorEl(null);
+              setEmailError('');
+              setNewEmail('');
+            }}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Box sx={{ p: 2, minWidth: 320, maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                Shared with
+              </Typography>
+              {sharedWith.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">
+                  Not shared with anyone yet. (coming soon..)
+                </Typography>
+              ) : (
+                <List dense sx={{ py: 0, maxHeight: 200, overflow: 'auto' }}>
+                  {sharedWith.map((email) => (
+                    <ListItem
+                      key={email}
+                      secondaryAction={
+                        <Tooltip title="Remove from shared list">
+                          <IconButton
+                            edge="end"
+                            size="small"
+                            aria-label={`Remove ${email}`}
+                            onClick={(ev) => handleRemoveShareEmail(ev, email)}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      }
+                    >
+                      <ListItemText primary={email} primaryTypographyProps={{ variant: 'body2' }} />
+                    </ListItem>
+                  ))}
+                </List>
+              )}
+              <Box sx={{ display: 'flex', gap: 1, mt: 2, alignItems: 'stretch' }}>
+                <TextField
+                  size="small"
+                  placeholder="Add email"
+                  value={newEmail}
+                  onChange={(e) => {
+                    setNewEmail(e.target.value);
+                    setEmailError('');
+                  }}
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), doAddShareEmail())}
+                  error={Boolean(emailError)}
+                  helperText={emailError}
+                  fullWidth
+                  sx={{ '& .MuiInputBase-root': { height: 40 } }}
+                />
+                <Button
+                  variant="contained"
+                  size="small"
+                  disabled
+                  sx={{ minHeight: 40, height: 40 }}
+                >
+                  Add
+                </Button>
+              </Box>
+            </Box>
+          </Popover>
         )}
       </Box>
       <CardMedia
@@ -388,49 +434,25 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
               </Typography>
             </>
           )}
-          <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, flexShrink: 0 }}>
             <Box>
               <Typography variant="body2" sx={{ fontWeight: 500 }}>
                 Development Progress:
               </Typography>
-              {process.env.NODE_ENV === 'production' ? (
-                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                  Coming soon
-                </Typography>
-              ) : (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mt: 0.5, alignItems: 'center' }}>
-                  {progress.map((item) => (
-                    <Box
-                      key={item.label}
-                      sx={{ display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', gap: 0.5 }}
-                    >
-                      
-                      <ProgressDot status={item.status} />
-                    </Box>
-                  ))}
-                </Box>
-              )}
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mt: 0.5, alignItems: 'flex-end' }}>
+                {progress.map((item) => (
+                  <Box
+                    key={item.label}
+                    sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.25 }}
+                  >
+                    <ProgressDot status={item.status} />
+                    <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.1 }}>
+                      {item.label}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
             </Box>
-            {onDelete && (
-              <Tooltip title="Delete Project">
-                <IconButton
-                  aria-label="Delete project"
-                  size="small"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onDelete();
-                  }}
-                  sx={{
-                    backgroundColor: theme.palette.error.light,
-                    color: theme.palette.error.contrastText ?? theme.palette.common.white,
-                    '&:hover': { backgroundColor: theme.palette.error.main },
-                  }}
-                >
-                  <DeleteIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            )}
           </Box>
         </Box>
       </Box>

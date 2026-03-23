@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { environment } from "./app-config";
-import { projectSchema, sceneContentSchema, sceneSchema, characterSchema, outlineFrameworkStandaloneSchema } from "./schemas";
+import { projectSchema, sceneSchema, characterSchema, outlineFrameworkStandaloneSchema } from "./schemas";
 
 const env = process.env.NODE_ENV || "development";
 
@@ -63,7 +63,6 @@ const AutoIncrement = (require('mongoose-sequence') as MongooseSequence)(db);
 
 // Register models only once each (Next.js can load this module multiple times via server actions).
 if (!mongoose.models.Projects) {
-  sceneContentSchema.plugin(AutoIncrement, { inc_field: "version" });
   mongoose.model("Projects", projectSchema);
 }
 if (!mongoose.models.Scenes) {

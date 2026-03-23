@@ -6,6 +6,16 @@ import { treatmentSchema } from "./treatment-schema";
 import { screenplaySchema } from "./screenplay-schema";
 import { feedbackSchema } from "./feedback-schema";
 
+const projectStatsSchema = new mongoose.Schema(
+  {
+    totalScenes: { type: Number, default: 0 },
+    lockedScenes: { type: Number, default: 0 },
+    totalCharacters: { type: Number, default: 0 },
+    lockedCharacters: { type: Number, default: 0 },
+  },
+  { _id: false }
+);
+
 // sceneOrder: ref must match model name in db-connector (e.g. mongoose.model("Scenes", ...) => ref: "Scenes")
 export const projectSchema = new mongoose.Schema({
     created_date: { type: String },
@@ -26,11 +36,20 @@ export const projectSchema = new mongoose.Schema({
     outlineName: { type: String },
     sceneOrder: [{ type: mongoose.Schema.Types.ObjectId, ref: "Scenes" }],
     characterOrder: [{ type: mongoose.Schema.Types.ObjectId, ref: "Characters" }],
-    outline: { type: outlineFrameworkSchema }, 
+    outline: { type: outlineFrameworkSchema },
     // Store inspiration as an array of subdocuments so it matches the GraphQL type [inspiration].
-    inspiration: { type: [inspirationSchema] },  //Continue extending project schema from here
-    treatment: {type: treatmentSchema  }, 
+    inspiration: { type: [inspirationSchema] },
+    treatment: { type: treatmentSchema },
     screenplay: { type: screenplaySchema },
-    feedback: { type: feedbackSchema }
-   
-})
+    feedback: { type: feedbackSchema },
+    // Progress: lightweight counts for dashboard (no full scenes/characters).
+    stats: { type: projectStatsSchema, default: () => ({}) },
+    // User-defined page goal; completion dots ignore this and use manual lock only.
+    pageCountEstimate: { type: Number },
+    // Section lock: when true, no add/delete scenes or characters.
+    outlineSectionLocked: { type: Boolean, default: false },
+    charactersSectionLocked: { type: Boolean, default: false },
+    // Title/logline progress: complete when lockedVersion === activeVersion.
+    activeVersion: { type: Number, default: 1 },
+    lockedVersion: { type: Number },
+});

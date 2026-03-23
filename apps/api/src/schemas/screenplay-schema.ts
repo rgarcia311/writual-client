@@ -5,7 +5,8 @@ const screenplayContent = new mongoose.Schema({
     content: { type: mongoose.Schema.Types.Mixed }
 })
 
-export const screenplaySchema  = new mongoose.Schema({
+export const screenplaySchema = new mongoose.Schema({
     projectId: { type: String },
-    versions: { type:  [screenplayContent] }
-})
+    versions: [screenplayContent],
+    lockedVersion: { type: Number },
+});

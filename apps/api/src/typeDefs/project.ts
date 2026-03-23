@@ -1,6 +1,6 @@
 import { GraphQLJSON } from "graphql-scalars";
 import { getProjectData, getOutlineFrameworks } from "../resolvers";
-import { setProjectOutline, createOutlineFramework, updateOutlineFramework, deleteOutlineFramework, createProject, deleteProject, shareProject, updateProject, updateProjectSharedWith, createinspiration, deleteinspiration, saveScreenplay } from "../mutations";
+import { setProjectOutline, createOutlineFramework, updateOutlineFramework, deleteOutlineFramework, createProject, deleteProject, shareProject, updateProject, updateProjectSharedWith, createinspiration, deleteinspiration, lockAllScenesInOutline, lockAllCharacters, unlockOutlineSection, unlockCharactersSection, saveScreenplay } from "../mutations";
 export const ProjectType = `#graphql
 
     scalar JSON
@@ -23,6 +23,25 @@ export const ProjectType = `#graphql
         createinspiration(input: inspirationInput!): Project
         deleteinspiration(projectId: String!, inspirationId: String!): Project
         saveScreenplay(projectId: ID!, content: JSON!): Screenplay
+        lockAllScenesInOutline(projectId: String!): LockAllScenesResult
+        lockAllCharacters(projectId: String!): LockAllCharactersResult
+        unlockOutlineSection(projectId: String!): Project
+        unlockCharactersSection(projectId: String!): Project
+    }
+
+    type ProjectStats {
+        totalScenes: Int
+        lockedScenes: Int
+        totalCharacters: Int
+        lockedCharacters: Int
+    }
+
+    type LockAllScenesResult {
+        lockedCount: Int
+    }
+
+    type LockAllCharactersResult {
+        lockedCount: Int
     }
 
     type Project {
@@ -47,9 +66,15 @@ export const ProjectType = `#graphql
         characters: [Character]
         outline: Outline
         inspiration: [inspiration]
-        treatment: Treatment 
+        treatment: Treatment
         screenplay: Screenplay
         feedback: Feedback
+        stats: ProjectStats
+        pageCountEstimate: Int
+        outlineSectionLocked: Boolean
+        charactersSectionLocked: Boolean
+        activeVersion: Int
+        lockedVersion: Int
     }
 
     input ProjectFilters {
@@ -106,6 +131,19 @@ export const ProjectType = `#graphql
         treatment: TreatmentInput
         screenplay: ScreenplayInput
         feedback: FeedbackInput
+        stats: ProjectStatsInput
+        pageCountEstimate: Int
+        outlineSectionLocked: Boolean
+        charactersSectionLocked: Boolean
+        activeVersion: Int
+        lockedVersion: Int
+    }
+
+    input ProjectStatsInput {
+        totalScenes: Int
+        lockedScenes: Int
+        totalCharacters: Int
+        lockedCharacters: Int
     }
 
     type Feedback  {
@@ -178,6 +216,8 @@ export const ProjectType = `#graphql
         name: String
         imageUrl: String
         details: [CharacterDetails]
+        activeVersion: Int
+        lockedVersion: Int
     }
 
     type CharacterDetails {
@@ -216,6 +256,7 @@ export const ProjectType = `#graphql
     type Treatment {
         projectId: String
         versions: [TreatmentContent]
+        lockedVersion: Int
     }
 
     input TreatmentInput {
@@ -235,6 +276,7 @@ export const ProjectType = `#graphql
     type Screenplay {
         projectId: String
         versions: [ScreenplayContent]
+        lockedVersion: Int
     }
 
     type  ScreenplayContent  {
@@ -340,6 +382,10 @@ export const resolvers = {
     createinspiration,
     deleteinspiration,
     saveScreenplay,
+    lockAllScenesInOutline,
+    lockAllCharacters,
+    unlockOutlineSection,
+    unlockCharactersSection,
   },
   Project: {
     scenes: (parent: any, _: any, context: { scenesLoader: { load: (id: string) => Promise<any[]> } }) => {
@@ -359,6 +405,8 @@ export const resolvers = {
     projectId: (parent: any) => (parent?.projectId != null ? String(parent.projectId) : null),
     name: (parent: any) => parent?.details?.[0]?.name ?? parent?.name ?? null,
     imageUrl: (parent: any) => parent?.imageUrl ?? null,
+    activeVersion: (parent: any) => parent?.activeVersion ?? 1,
+    lockedVersion: (parent: any) => parent?.lockedVersion ?? null,
     details: (parent: any) => {
       const d = parent?.details;
       if (!Array.isArray(d)) return [];

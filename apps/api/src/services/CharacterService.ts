@@ -17,6 +17,8 @@ export interface CharacterDetailPayload {
 export interface CreateCharacterPayload {
   imageUrl?: string;
   details?: CharacterDetailPayload[];
+  activeVersion?: number;
+  lockedVersion?: number;
 }
 
 /** Payload for updating an existing character (in-place or add new version). */
@@ -24,6 +26,8 @@ export interface UpdateCharacterPayload {
   imageUrl?: string;
   newVersion?: boolean;
   details?: CharacterDetailPayload[];
+  activeVersion?: number;
+  lockedVersion?: number | null;
 }
 
 /**
@@ -84,18 +88,27 @@ export async function getCharactersByProjectIdsBatch(
 
 /**
  * Creates a new character and appends its _id to project.characterOrder.
- * Updates project modified_date. Uses a transaction when MongoDB supports it (replica set / mongos);
- * otherwise runs the same operations without a session for standalone MongoDB.
+ * Updates project modified_date and stats.totalCharacters.
+ * Fails if charactersSectionLocked is true.
  */
 export async function createCharacter(
   projectId: string,
   payload: CreateCharacterPayload
 ): Promise<mongoose.Document> {
+  const pid = toObjectId(projectId);
+  const project = await Projects.findById(pid).lean().exec();
+  if (!project) throw new Error("Project not found");
+  if ((project as any).charactersSectionLocked) {
+    throw new Error("Characters section is locked; unlock to add characters.");
+  }
+
   const details = payload.details ?? [];
   const firstDetail = details[0];
   const doc = {
-    projectId: toObjectId(projectId),
+    projectId: pid,
     imageUrl: payload.imageUrl ?? undefined,
+    activeVersion: payload.activeVersion ?? 1,
+    lockedVersion: payload.lockedVersion ?? undefined,
     details: details.length
       ? [
           {
@@ -115,10 +128,11 @@ export async function createCharacter(
     const created = await Characters.create([doc], { session });
     const newCharacter = created[0];
     await Projects.findByIdAndUpdate(
-      toObjectId(projectId),
+      pid,
       {
         $push: { characterOrder: newCharacter._id },
         $set: { modified_date: nowIso() },
+        $inc: { "stats.totalCharacters": 1 },
       },
       { session }
     ).exec();
@@ -128,9 +142,10 @@ export async function createCharacter(
   const runWithoutSession = async () => {
     const created = await Characters.create([doc]);
     const newCharacter = created[0];
-    await Projects.findByIdAndUpdate(toObjectId(projectId), {
+    await Projects.findByIdAndUpdate(pid, {
       $push: { characterOrder: newCharacter._id },
       $set: { modified_date: nowIso() },
+      $inc: { "stats.totalCharacters": 1 },
     }).exec();
     return newCharacter;
   };
@@ -158,7 +173,7 @@ export async function createCharacter(
 
 /**
  * Updates an existing character (in-place version update or add new version).
- * Updates the parent project's modified_date.
+ * Updates the parent project's modified_date and stats.lockedCharacters when lockedVersion changes.
  */
 export async function updateCharacter(
   characterId: string,
@@ -167,12 +182,20 @@ export async function updateCharacter(
   const character = await Characters.findById(toObjectId(characterId)).exec();
   if (!character) return null;
   const charObj = character as any;
+  const previousLockedVersion =
+    charObj.lockedVersion != null ? Number(charObj.lockedVersion) : null;
   const versions = Array.isArray(charObj.details) ? charObj.details : [];
   const newVersion = !!payload.newVersion;
   const detailPayload = payload.details?.[0];
 
   if (payload.imageUrl !== undefined) {
     charObj.imageUrl = payload.imageUrl;
+  }
+  if (payload.activeVersion !== undefined) {
+    charObj.activeVersion = payload.activeVersion;
+  }
+  if (payload.lockedVersion !== undefined) {
+    charObj.lockedVersion = payload.lockedVersion === null ? undefined : payload.lockedVersion;
   }
 
   if (newVersion && detailPayload) {
@@ -207,50 +230,69 @@ export async function updateCharacter(
   await character.save();
   const projectId = charObj.projectId?.toString?.() ?? charObj.projectId;
   if (projectId) {
-    await Projects.findByIdAndUpdate(toObjectId(projectId), {
-      $set: { modified_date: nowIso() },
-    }).exec();
+    const newLockedVersion =
+      charObj.lockedVersion != null ? Number(charObj.lockedVersion) : null;
+    const wasLocked = previousLockedVersion != null;
+    const isLocked = newLockedVersion != null;
+    const inc: { "stats.lockedCharacters"?: number } = {};
+    if (!wasLocked && isLocked) inc["stats.lockedCharacters"] = 1;
+    else if (wasLocked && !isLocked) inc["stats.lockedCharacters"] = -1;
+    const update: Record<string, unknown> = { $set: { modified_date: nowIso() } };
+    if (Object.keys(inc).length) update.$inc = inc;
+    await Projects.findByIdAndUpdate(toObjectId(projectId), update).exec();
   }
   return character;
 }
 
 /**
  * Deletes a character and removes its _id from project.characterOrder.
- * Updates project modified_date. Uses a transaction when MongoDB supports it;
- * otherwise runs the same operations without a session for standalone MongoDB.
+ * Updates project modified_date and stats. Fails if charactersSectionLocked is true.
  * Returns the projectId when deleted so callers can revalidate by path.
  */
 export async function deleteCharacter(
   characterId: string
 ): Promise<{ deleted: boolean; projectId?: string }> {
+  const cid = toObjectId(characterId);
   const runWithSession = async (session: mongoose.mongo.ClientSession) => {
-    const character = await Characters.findOne({ _id: toObjectId(characterId) })
+    const character = await Characters.findOne({ _id: cid })
       .session(session)
       .lean()
       .exec();
     if (!character) return { deleted: false };
     const projectId = (character as any).projectId?.toString?.() ?? (character as any).projectId;
-    await Characters.deleteOne({ _id: toObjectId(characterId) }, { session }).exec();
-    await Projects.findByIdAndUpdate(
-      toObjectId(projectId),
-      {
-        $pull: { characterOrder: toObjectId(characterId) },
-        $set: { modified_date: nowIso() },
-      },
-      { session }
-    ).exec();
+    const project = await Projects.findById(toObjectId(projectId)).session(session).lean().exec();
+    if (project && (project as any).charactersSectionLocked) {
+      throw new Error("Characters section is locked; unlock to delete characters.");
+    }
+    const wasLocked = (character as any).lockedVersion != null;
+    const update: Record<string, unknown> = {
+      $pull: { characterOrder: cid },
+      $set: { modified_date: nowIso() },
+      $inc: { "stats.totalCharacters": -1 },
+    };
+    if (wasLocked) (update.$inc as Record<string, number>)["stats.lockedCharacters"] = -1;
+    await Characters.deleteOne({ _id: cid }, { session }).exec();
+    await Projects.findByIdAndUpdate(toObjectId(projectId), update, { session }).exec();
     return { deleted: true, projectId };
   };
 
   const runWithoutSession = async () => {
-    const character = await Characters.findOne({ _id: toObjectId(characterId) }).lean().exec();
+    const character = await Characters.findOne({ _id: cid }).lean().exec();
     if (!character) return { deleted: false };
     const projectId = (character as any).projectId?.toString?.() ?? (character as any).projectId;
-    await Characters.deleteOne({ _id: toObjectId(characterId) }).exec();
-    await Projects.findByIdAndUpdate(toObjectId(projectId), {
-      $pull: { characterOrder: toObjectId(characterId) },
+    const project = await Projects.findById(toObjectId(projectId)).lean().exec();
+    if (project && (project as any).charactersSectionLocked) {
+      throw new Error("Characters section is locked; unlock to delete characters.");
+    }
+    const wasLocked = (character as any).lockedVersion != null;
+    const update: Record<string, unknown> = {
+      $pull: { characterOrder: cid },
       $set: { modified_date: nowIso() },
-    }).exec();
+      $inc: { "stats.totalCharacters": -1 },
+    };
+    if (wasLocked) (update.$inc as Record<string, number>)["stats.lockedCharacters"] = -1;
+    await Characters.deleteOne({ _id: cid }).exec();
+    await Projects.findByIdAndUpdate(toObjectId(projectId), update).exec();
     return { deleted: true, projectId };
   };
 
@@ -274,4 +316,50 @@ export async function deleteCharacter(
     }
     throw e;
   }
+}
+
+/**
+ * Locks all characters in the project: sets each character's lockedVersion to its activeVersion,
+ * sets charactersSectionLocked true, and sets stats.lockedCharacters to totalCharacters.
+ */
+export async function lockAllCharactersForProject(
+  projectId: string
+): Promise<{ lockedCount: number }> {
+  const pid = toObjectId(projectId);
+  const project = await Projects.findById(pid).lean().exec();
+  if (!project) throw new Error("Project not found");
+  const order = (project as any).characterOrder ?? [];
+  if (order.length === 0) {
+    await Projects.findByIdAndUpdate(pid, {
+      $set: { modified_date: nowIso(), charactersSectionLocked: true },
+    }).exec();
+    return { lockedCount: 0 };
+  }
+  const characters = await Characters.find({ _id: { $in: order } }).exec();
+  for (const character of characters) {
+    const c = character as any;
+    const active = c.activeVersion ?? 1;
+    c.lockedVersion = active;
+    await character.save();
+  }
+  const totalCharacters = order.length;
+  await Projects.findByIdAndUpdate(pid, {
+    $set: {
+      modified_date: nowIso(),
+      charactersSectionLocked: true,
+      "stats.lockedCharacters": totalCharacters,
+      "stats.totalCharacters": totalCharacters,
+    },
+  }).exec();
+  return { lockedCount: totalCharacters };
+}
+
+/**
+ * Unlocks the characters section so characters can be added or deleted.
+ * Does not change individual character lockedVersion values.
+ */
+export async function unlockCharactersSection(projectId: string): Promise<void> {
+  await Projects.findByIdAndUpdate(toObjectId(projectId), {
+    $set: { modified_date: nowIso(), charactersSectionLocked: false },
+  }).exec();
 }

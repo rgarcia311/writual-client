@@ -7,13 +7,18 @@ import {
   AccordionSummary,
   Box,
   Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   Menu,
   MenuItem,
   Tooltip,
   Typography,
   useTheme,
 } from '@mui/material';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { request } from 'graphql-request';
 import { ProjectDetailsLayout } from '@/components/ProjectDetailsLayout';
 import { SceneCard } from '@/components/SceneCard';
@@ -21,6 +26,8 @@ import AddIcon from '@mui/icons-material/Add';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
 import CloudDoneIcon from '@mui/icons-material/CloudDone';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import LockIcon from '@mui/icons-material/Lock';
+import LockOpenIcon from '@mui/icons-material/LockOpen';
 import { PROJECT_SCENES_QUERY } from '@/queries/SceneQueries';
 import { OUTLINE_FRAMEWORKS_QUERY } from '@/queries/OutlineQueries';
 import { useProjectSceneMutations, PROJECT_SCENES_QUERY_KEY } from 'hooks';
@@ -28,6 +35,7 @@ import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { useUserProfileStore } from '@/state/user';
 import { useOutlineSaveStatusStore } from '@/state/outlineSaveStatus';
 import type { OutlineFrameworkItem } from '@/state/outlineFrameworks';
+import { LOCK_ALL_SCENES_IN_OUTLINE, UNLOCK_OUTLINE_SECTION } from 'mutations/ProjectMutations';
 import { accordionFlat, getAccordionSummaryBordered, getAccordionDetailsBordered, singleLineTruncate } from 'styles';
 
 const endpoint = GRAPHQL_ENDPOINT;
@@ -176,6 +184,26 @@ export function OutlineContent({ projectId }: OutlineContentProps) {
   const scenes = project?.scenes ?? [];
   const outlineName = project?.outlineName?.trim() || null;
   const user = project?.user;
+  const outlineSectionLocked = project?.outlineSectionLocked ?? false;
+  const totalScenes = scenes.length;
+  const lockedScenes = scenes.filter((s: any) => s.lockedVersion != null).length;
+
+  const [lockAllConfirmOpen, setLockAllConfirmOpen] = React.useState(false);
+  const lockAllScenesMutation = useMutation({
+    mutationFn: () => request(endpoint, LOCK_ALL_SCENES_IN_OUTLINE, { projectId: id }),
+    onSuccess: async () => {
+      setLockAllConfirmOpen(false);
+      await queryClient.invalidateQueries({ queryKey: [PROJECT_SCENES_QUERY_KEY, id] });
+      await queryClient.refetchQueries({ queryKey: [PROJECT_SCENES_QUERY_KEY, id] });
+    },
+  });
+  const unlockOutlineMutation = useMutation({
+    mutationFn: () => request(endpoint, UNLOCK_OUTLINE_SECTION, { projectId: id }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: [PROJECT_SCENES_QUERY_KEY, id] });
+      await queryClient.refetchQueries({ queryKey: [PROJECT_SCENES_QUERY_KEY, id] });
+    },
+  });
 
   const { data: frameworksData }: any = useQuery({
     queryKey: ['outline-frameworks', user],
@@ -265,6 +293,9 @@ export function OutlineContent({ projectId }: OutlineContentProps) {
 
   const headerLeftAdornment = (
     <>
+      <Typography variant="body2" color="text.secondary" sx={{ mr: 1 }}>
+        {lockedScenes} locked / {totalScenes} total
+      </Typography>
       {isSaving && (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }} aria-label="Saving">
           <AutorenewIcon sx={{ fontSize: 20, animation: 'spin 1s linear infinite' }} />
@@ -279,62 +310,110 @@ export function OutlineContent({ projectId }: OutlineContentProps) {
     </>
   );
 
-  const headerAction =
-    allSteps.length > 0 ? (
-      <>
+  const headerAction = (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {outlineSectionLocked ? (
         <Button
-          variant="contained"
-          color="primary"
+          variant="outlined"
           size="small"
-          startIcon={<AddIcon />}
-          onClick={handleNewSceneClick}
-          disabled={createSceneMutation.isPending}
-          aria-controls={newSceneMenuOpen ? 'new-scene-menu' : undefined}
-          aria-haspopup="true"
-          aria-expanded={newSceneMenuOpen ? 'true' : undefined}
+          startIcon={<LockOpenIcon />}
+          onClick={() => unlockOutlineMutation.mutate()}
+          disabled={unlockOutlineMutation.isPending}
         >
-          New scene
+          Unlock
         </Button>
-        <Menu
-          id="new-scene-menu"
-          anchorEl={newSceneAnchorEl}
-          open={newSceneMenuOpen}
-          onClose={handleNewSceneMenuClose}
-          MenuListProps={{ 'aria-labelledby': 'new-scene-button' }}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-        >
-          <MenuItem onClick={() => handleNewScene()}>
-            Assign to Step
-          </MenuItem>
-          {allSteps.map((stepOption) => (
-            <MenuItem
-              key={`${stepOption.act}-${stepOption.name}`}
-              onClick={() => handleNewScene(stepOption.name)}
+      ) : (
+        <>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<LockIcon />}
+                onClick={() => setLockAllConfirmOpen(true)}
+                disabled={lockAllScenesMutation.isPending || totalScenes === 0}
+              >
+            Lock All
+          </Button>
+          {allSteps.length > 0 ? (
+            <>
+              <Button
+                variant="contained"
+                color="primary"
+                size="small"
+                startIcon={<AddIcon />}
+                onClick={handleNewSceneClick}
+                disabled={createSceneMutation.isPending}
+                aria-controls={newSceneMenuOpen ? 'new-scene-menu' : undefined}
+                aria-haspopup="true"
+                aria-expanded={newSceneMenuOpen ? 'true' : undefined}
+              >
+                New scene
+              </Button>
+              <Menu
+                id="new-scene-menu"
+                anchorEl={newSceneAnchorEl}
+                open={newSceneMenuOpen}
+                onClose={handleNewSceneMenuClose}
+                MenuListProps={{ 'aria-labelledby': 'new-scene-button' }}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+              >
+                <MenuItem onClick={() => handleNewScene()}>
+                  Assign to Step
+                </MenuItem>
+                {allSteps.map((stepOption) => (
+                  <MenuItem
+                    key={`${stepOption.act}-${stepOption.name}`}
+                    onClick={() => handleNewScene(stepOption.name)}
+                  >
+                    {stepOption.name}
+                  </MenuItem>
+                ))}
+              </Menu>
+            </>
+          ) : (
+            <Button
+              variant="contained"
+              color="primary"
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => handleNewScene()}
+              disabled={createSceneMutation.isPending}
             >
-              {stepOption.name}
-            </MenuItem>
-          ))}
-        </Menu>
-      </>
-    ) : (
-      <Button
-        variant="contained"
-        color="primary"
-        size="small"
-        startIcon={<AddIcon />}
-        onClick={() => handleNewScene()}
-        disabled={createSceneMutation.isPending}
-      >
-        New scene
-      </Button>
-    );
+              New scene
+            </Button>
+          )}
+        </>
+      )}
+      <Dialog open={lockAllConfirmOpen} onClose={() => setLockAllConfirmOpen(false)}>
+        <DialogTitle>Lock all scenes?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            This will lock every scene at its current version and prevent adding or deleting scenes until you unlock the outline. You can still edit existing scene content. Continue?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLockAllConfirmOpen(false)}>Cancel</Button>
+              <Button
+                variant="contained"
+                onClick={() => lockAllScenesMutation.mutate()}
+                disabled={lockAllScenesMutation.isPending || totalScenes === 0}
+              >
+            Lock All
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
 
   return (
     <ProjectDetailsLayout
       contentSx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}
       headerTitle={`Outline: ${outlineName}`}
-      headerLeftAdornment={headerLeftAdornment}
+      headerLeftAdornment={
+        <Box sx={{ display: 'flex', alignItems: 'flex-end' }}>
+          {headerLeftAdornment}
+        </Box>
+      }
       headerAction={headerAction}
     >
       <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
