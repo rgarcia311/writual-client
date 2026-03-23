@@ -248,7 +248,7 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
               title: formValues.title ?? '',
               logline: formValues.logline ?? '',
               genre: formValues.genre ?? '',
-              type: formValues.type ?? '',
+              type: formValues.type || undefined,
               poster: getImageUrlForStorage(formValues.poster ?? ''),
               sharedWith: sharedWithEmails,
               budget: budgetNum,
