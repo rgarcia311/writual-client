@@ -28,6 +28,7 @@ import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { useUserProfileStore } from '@/state/user';
 import { useCreateCharacterModalStore } from '@/state/createCharacterModal';
 import { LOCK_ALL_CHARACTERS, UNLOCK_CHARACTERS_SECTION } from 'mutations/ProjectMutations';
+import { FeatureGate } from '@/components/Auth/FeatureGate';
 
 const endpoint = GRAPHQL_ENDPOINT;
 
@@ -170,15 +171,17 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
               >
                 Lock All
               </Button>
-              <Button
-                variant="contained"
-                color="primary"
-                size="small"
-                startIcon={<AddIcon />}
-                onClick={() => setCreateOpen(true)}
-              >
-                Create Character
-              </Button>
+              <FeatureGate minTier="indie">
+                <Button
+                  variant="contained"
+                  color="primary"
+                  size="small"
+                  startIcon={<AddIcon />}
+                  onClick={() => setCreateOpen(true)}
+                >
+                  Create Character
+                </Button>
+              </FeatureGate>
             </>
           )}
           <Dialog open={lockAllConfirmOpen} onClose={() => setLockAllConfirmOpen(false)}>

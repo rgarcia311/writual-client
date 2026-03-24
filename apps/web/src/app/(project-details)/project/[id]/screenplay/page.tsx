@@ -1,5 +1,6 @@
 import { ProjectDetailsLayout } from '@/components/ProjectDetailsLayout'
 import { WritualEditor } from '@/components/ScreenplayEditor'
+import { FeatureGate } from '@/components/Auth/FeatureGate'
 
 export default async function ScreenplayPage({
   params,
@@ -20,7 +21,9 @@ export default async function ScreenplayPage({
         overflow: 'hidden',
       }}
     >
-      <WritualEditor projectId={id} />
+      <FeatureGate minTier="spec" variant="page">
+        <WritualEditor projectId={id} />
+      </FeatureGate>
     </ProjectDetailsLayout>
   )
 }

@@ -9,8 +9,10 @@ import {
   type UpdateScenePayload,
 } from "../../../../api/src/services/SceneService";
 import { toPlainObject } from "../../utils/toPlainObject";
+import { requireTierForAction } from "../../lib/tierGuard";
 
 export async function createScene(projectId: string, payload: CreateScenePayload) {
+  await requireTierForAction('indie');
   const scene = await createSceneService(projectId, payload);
   revalidatePath(`/project/${projectId}`);
   revalidatePath(`/project/${projectId}/outline`);

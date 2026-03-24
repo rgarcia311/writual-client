@@ -37,6 +37,7 @@ import { useOutlineSaveStatusStore } from '@/state/outlineSaveStatus';
 import type { OutlineFrameworkItem } from '@/state/outlineFrameworks';
 import { LOCK_ALL_SCENES_IN_OUTLINE, UNLOCK_OUTLINE_SECTION } from 'mutations/ProjectMutations';
 import { accordionFlat, getAccordionSummaryBordered, getAccordionDetailsBordered, singleLineTruncate } from 'styles';
+import { FeatureGate } from '@/components/Auth/FeatureGate';
 
 const endpoint = GRAPHQL_ENDPOINT;
 
@@ -310,19 +311,21 @@ export function OutlineContent({ projectId }: OutlineContentProps) {
           </Button>
           {allSteps.length > 0 ? (
             <>
-              <Button
-                variant="contained"
-                color="primary"
-                size="small"
-                startIcon={<AddIcon />}
-                onClick={handleNewSceneClick}
-                disabled={createSceneMutation.isPending}
-                aria-controls={newSceneMenuOpen ? 'new-scene-menu' : undefined}
-                aria-haspopup="true"
-                aria-expanded={newSceneMenuOpen ? 'true' : undefined}
-              >
-                New scene
-              </Button>
+              <FeatureGate minTier="indie">
+                <Button
+                  variant="contained"
+                  color="primary"
+                  size="small"
+                  startIcon={<AddIcon />}
+                  onClick={handleNewSceneClick}
+                  disabled={createSceneMutation.isPending}
+                  aria-controls={newSceneMenuOpen ? 'new-scene-menu' : undefined}
+                  aria-haspopup="true"
+                  aria-expanded={newSceneMenuOpen ? 'true' : undefined}
+                >
+                  New scene
+                </Button>
+              </FeatureGate>
               <Menu
                 id="new-scene-menu"
                 anchorEl={newSceneAnchorEl}
@@ -346,16 +349,18 @@ export function OutlineContent({ projectId }: OutlineContentProps) {
               </Menu>
             </>
           ) : (
-            <Button
-              variant="contained"
-              color="primary"
-              size="small"
-              startIcon={<AddIcon />}
-              onClick={() => handleNewScene()}
-              disabled={createSceneMutation.isPending}
-            >
-              New scene
-            </Button>
+            <FeatureGate minTier="indie">
+              <Button
+                variant="contained"
+                color="primary"
+                size="small"
+                startIcon={<AddIcon />}
+                onClick={() => handleNewScene()}
+                disabled={createSceneMutation.isPending}
+              >
+                New scene
+              </Button>
+            </FeatureGate>
           )}
         </>
       )}
