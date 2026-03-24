@@ -9,8 +9,10 @@ import {
   type UpdateCharacterPayload,
 } from "../../../../api/src/services/CharacterService";
 import { toPlainObject } from "../../utils/toPlainObject";
+import { requireTierForAction } from "../../lib/tierGuard";
 
 export async function createCharacter(projectId: string, payload: CreateCharacterPayload) {
+  await requireTierForAction('indie');
   const character = await createCharacterService(projectId, payload);
   revalidatePath(`/project/${projectId}`);
   revalidatePath(`/project/${projectId}/characters`);

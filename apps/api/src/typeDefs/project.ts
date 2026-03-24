@@ -1,13 +1,28 @@
 import { GraphQLJSON } from "graphql-scalars";
 import { getProjectData, getOutlineFrameworks } from "../resolvers";
-import { setProjectOutline, createOutlineFramework, updateOutlineFramework, deleteOutlineFramework, createProject, deleteProject, shareProject, updateProject, updateProjectSharedWith, createinspiration, deleteinspiration, lockAllScenesInOutline, lockAllCharacters, unlockOutlineSection, unlockCharactersSection, saveScreenplay } from "../mutations";
+import { setProjectOutline, createOutlineFramework, updateOutlineFramework, deleteOutlineFramework, createProject, deleteProject, shareProject, updateProject, updateProjectSharedWith, createinspiration, deleteinspiration, lockAllScenesInOutline, lockAllCharacters, unlockOutlineSection, unlockCharactersSection, saveScreenplay as saveScreenplayFn } from "../mutations";
+import { AppUsers } from "../db-connector";
+import { requireTier } from "../utils/tierUtils";
 export const ProjectType = `#graphql
 
     scalar JSON
 
+    type UserSettings {
+        colorMode: String!
+    }
+
+    type User {
+        uid: String!
+        name: String
+        displayName: String
+        tier: String!
+        settings: UserSettings!
+    }
+
     type Query {
         getProjectData(input: ProjectFilters): [Project]
         getOutlineFrameworks(user: String!): [OutlineFramework]
+        me(displayName: String, name: String): User
     }
 
     type Mutation {
@@ -368,6 +383,31 @@ export const resolvers = {
   Query: {
     getProjectData,
     getOutlineFrameworks,
+    me: async (
+      _root: unknown,
+      { displayName, name }: { displayName?: string; name?: string },
+      context: { uid: string | null }
+    ) => {
+      if (!context.uid) throw new Error('Unauthorized');
+      return AppUsers.findOneAndUpdate(
+        { uid: context.uid },
+        {
+          $set: {
+            // $set syncs Firebase display name on every login.
+            // NOTE: if we add custom 'pen names' in the future, wrap these in a
+            // "don't overwrite if user has customized" check before setting.
+            ...(displayName != null && { displayName }),
+            ...(name != null && { name }),
+          },
+          $setOnInsert: {
+            uid: context.uid,
+            tier: 'beta-access',
+            settings: { colorMode: 'dark' },
+          },
+        },
+        { upsert: true, new: true }
+      ).exec();
+    },
   },
   Mutation: {
     setProjectOutline,
@@ -381,7 +421,10 @@ export const resolvers = {
     updateProjectSharedWith,
     createinspiration,
     deleteinspiration,
-    saveScreenplay,
+    saveScreenplay: async (root: unknown, args: { projectId: string; content: unknown }, context: { uid: string | null }) => {
+      await requireTier(context, 'spec');
+      return saveScreenplayFn(root, args);
+    },
     lockAllScenesInOutline,
     lockAllCharacters,
     unlockOutlineSection,

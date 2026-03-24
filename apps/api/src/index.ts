@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import DataLoader from "dataloader";
 import { ApolloServer } from '@apollo/server';
 import { expressMiddleware } from '@apollo/server/express4';
@@ -9,6 +10,7 @@ import { PORT, host } from './app-config';
 import { schema } from './schemas/schema';
 import { getScenesByProjectIdsBatch } from './services/SceneService';
 import { getCharactersByProjectIdsBatch } from './services/CharacterService';
+import { adminAuth } from './lib/firebase-admin';
 
 // Required logic for integrating with Express
 const app = express();
@@ -30,11 +32,22 @@ const startServer = async () => {
     app.use(
         cors(),
         expressMiddleware(server, {
-            context: async ({ req }) => ({
-                token: (req as { headers?: { token?: string } }).headers?.token,
+            context: async ({ req }) => {
+              const authHeader = (req as any).headers?.authorization as string | undefined;
+              const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : undefined;
+              let uid: string | null = null;
+              if (token && adminAuth) {
+                try {
+                  const decoded = await adminAuth.verifyIdToken(token);
+                  uid = decoded.uid;
+                } catch { /* invalid/expired token — uid stays null */ }
+              }
+              return {
+                uid,
                 scenesLoader: new DataLoader(getScenesByProjectIdsBatch),
                 charactersLoader: new DataLoader(getCharactersByProjectIdsBatch),
-            }),
+              };
+            },
         }),
     );
 

@@ -1,4 +1,4 @@
-"use server"
+import "server-only";
 
 import admin from "firebase-admin";
 

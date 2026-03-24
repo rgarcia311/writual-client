@@ -15,6 +15,7 @@ import { OutlineFrameworkForm, type OutlineFrameworkFormValues } from '@/compone
 import { CREATE_OUTLINE_FRAMEWORK } from 'mutations/OutlineMutations';
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { useUserProfileStore } from '@/state/user';
+import { FeatureGate } from '@/components/Auth/FeatureGate';
 
 const ENDPOINT = GRAPHQL_ENDPOINT;
 
@@ -56,23 +57,27 @@ export function AppTopBar() {
   };
 
   const primaryButton = isOutlinesPage ? (
-    <Button
-      variant="contained"
-      color="primary"
-      startIcon={<AccountTreeIcon />}
-      onClick={() => setOutlineFormOpen(true)}
-    >
-      Create Outline
-    </Button>
+    <FeatureGate minTier="indie">
+      <Button
+        variant="contained"
+        color="primary"
+        startIcon={<AccountTreeIcon />}
+        onClick={() => setOutlineFormOpen(true)}
+      >
+        Create Outline
+      </Button>
+    </FeatureGate>
   ) : (
-    <Button
-      variant="contained"
-      color="primary"
-      startIcon={<AddIcon />}
-      onClick={openCreateProjectModal}
-    >
-      Create Project
-    </Button>
+    <FeatureGate minTier="spec">
+      <Button
+        variant="contained"
+        color="primary"
+        startIcon={<AddIcon />}
+        onClick={openCreateProjectModal}
+      >
+        Create Project
+      </Button>
+    </FeatureGate>
   );
 
   return (

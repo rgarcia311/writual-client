@@ -18,8 +18,11 @@ export function LandingSignIn() {
       signInWithPopup(auth, provider).then((result) => {
         const userProfile = {
           user: result.user.uid,
+          name: null,
           displayName: result.user.displayName,
           email: result.user.email,
+          tier: 'beta-access' as const,
+          settings: { colorMode: 'dark' as const },
         };
         setUserProfile(userProfile);
         result.user.getIdToken().then((idToken) => {

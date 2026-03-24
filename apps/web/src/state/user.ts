@@ -1,11 +1,18 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User } from 'firebase/auth';
+import type { Tier } from '@/types/tier';
 
-interface UserProfile {
+export interface UserSettings {
+  colorMode: 'dark' | 'light';
+}
+
+export interface UserProfile {
   user: string;
+  name: string | null;
   displayName: string | null;
   email: string | null;
+  tier: Tier;           // never null for authenticated users — defaults to 'beta-access'
+  settings: UserSettings; // never null — defaults to { colorMode: 'dark' }
 }
 interface UserState {
   userProfile: UserProfile | null;
