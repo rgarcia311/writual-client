@@ -1,21 +1,29 @@
 'use client';
 
-import { Button } from '@mui/material';
+import React from 'react';
+import { Button, CircularProgress, Typography } from '@mui/material';
 import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { verifyAndLogin } from '../../app/actions/auth';
 import { useUserProfileStore } from '@/state/user';
 import GoogleIcon from '@mui/icons-material/Google';
+import { authRequest } from '@/lib/authRequest';
+import { FINALIZE_SIGNUP } from '@/mutations/ShareMutations';
 
 export function LandingSignIn() {
   const router = useRouter();
   const setUserProfile = useUserProfileStore((s) => s.setUserProfile);
+  const [isSigningIn, setIsSigningIn] = React.useState(false);
+  const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
 
   const handleSignIn = () => {
+    setIsSigningIn(true);
+    setErrorMsg(null);
     const provider = new GoogleAuthProvider();
-    try {
-      signInWithPopup(auth, provider).then((result) => {
+
+    signInWithPopup(auth, provider)
+      .then((result) => {
         const userProfile = {
           user: result.user.uid,
           name: null,
@@ -25,45 +33,69 @@ export function LandingSignIn() {
           settings: { colorMode: 'dark' as const },
         };
         setUserProfile(userProfile);
-        result.user.getIdToken().then((idToken) => {
-          verifyAndLogin(idToken).then((verifyResult) => {
+
+        React.startTransition(async () => {
+          try {
+            const idToken = await result.user.getIdToken();
+            const verifyResult = await verifyAndLogin(idToken);
+
             if (verifyResult?.status === 'success') {
-              router.push('/projects');
+              try {
+                await authRequest(FINALIZE_SIGNUP);
+              } catch (err) {
+                console.error('Failed to finalize signup:', err);
+              }
+              router.replace('/projects');
+            } else {
+              throw new Error(verifyResult?.error ?? 'Verification failed');
             }
-            if (verifyResult?.error) {
-              console.error(
-                'Sign-in verification failed:',
-                verifyResult.error
-              );
-            }
-          });
+          } catch (err) {
+            console.error('Sign-in error:', err);
+            setErrorMsg('Sign-in failed. Please try again.');
+            setIsSigningIn(false);
+          }
         });
+      })
+      .catch((err) => {
+        // User closed the popup or another popup error
+        if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
+          console.error('Popup error:', err);
+          setErrorMsg('Sign-in failed. Please try again.');
+        }
+        setIsSigningIn(false);
       });
-    } catch (error) {
-      console.error('Error signing in:', error);
-    }
   };
 
   return (
-    <Button
-      onClick={handleSignIn}
-      startIcon={<GoogleIcon />}
-      variant="contained"
-      fullWidth
-      sx={{
-        textTransform: 'none',
-        justifyContent: 'flex-start',
-        px: 2,
-        py: 1.25,
-        borderRadius: 999,
-        backgroundColor: '#ffffff',
-        color: '#2d2d2d',
-        width: 300,
-        '&:hover': { backgroundColor: '#f5f6f7' },
-        fontSize: 16,
-      }}
-    >
-      Sign in with Google
-    </Button>
+    <>
+      <Button
+        onClick={handleSignIn}
+        disabled={isSigningIn}
+        startIcon={isSigningIn ? <CircularProgress size={18} sx={{ color: '#2d2d2d' }} /> : <GoogleIcon />}
+        variant="contained"
+        fullWidth
+        sx={{
+          textTransform: 'none',
+          justifyContent: 'flex-start',
+          px: 2,
+          py: 1.25,
+          borderRadius: 999,
+          backgroundColor: '#ffffff',
+          color: '#2d2d2d',
+          width: 300,
+          opacity: isSigningIn ? 0.5 : 1,
+          '&:hover': { backgroundColor: '#f5f6f7' },
+          '&.Mui-disabled': { backgroundColor: '#ffffff', color: '#2d2d2d' },
+          fontSize: 16,
+        }}
+      >
+        {isSigningIn ? 'Verifying account...' : 'Sign in with Google'}
+      </Button>
+      {errorMsg && (
+        <Typography variant="caption" sx={{ color: 'error.main', mt: 1 }}>
+          {errorMsg}
+        </Typography>
+      )}
+    </>
   );
 }

@@ -3,8 +3,14 @@ import { Box, Container, Paper, Typography } from '@mui/material';
 import { AppLogo } from '@/components/AppLogo';
 import { LandingSignIn } from '@/components/LandingSignIn/LandingSignIn';
 import '@fontsource/varela-round';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const cookieStore = await cookies();
+  if (cookieStore.get('user-id')) {
+    redirect('/projects');
+  }
   return (
     <Box
       sx={{

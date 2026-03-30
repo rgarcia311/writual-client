@@ -218,7 +218,6 @@ export function ProjectHeader() {
               : '/default-film-poster.png'
           }
           projectId={id}
-          sharedWith={projectData.sharedWith ?? []}
           onEditClick={() => setUpdateDialogOpen(true)}
           onDelete={id ? () => deleteProjectMutation.mutate(id) : undefined}
           progress={computeProjectProgress(projectData as any)}

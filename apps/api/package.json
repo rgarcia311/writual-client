@@ -39,6 +39,8 @@
     "mongodb": "^4.13.0",
     "mongoose": "^9.1.6",
     "mongoose-sequence": "^5.3.1",
+    "pusher": "^5.3.3",
+    "resend": "^6.9.4",
     "ts-node": "^10.9.1",
     "tsconfig-paths": "^4.2.0",
     "typescript": "5.9.3"
