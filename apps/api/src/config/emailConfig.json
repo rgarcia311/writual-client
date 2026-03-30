@@ -1,0 +1,101 @@
+{
+  "app_notifications": {
+    "project_share_invite_existing": {
+      "subject": "{{inviterName}} invited you to collaborate on \"{{projectTitle}}\"",
+      "from": "support@no-reply.writual.io",
+      "fromName": "Writual",
+      "templateName": "project-share-invite-existing",
+      "description": "Sent when a project owner invites an existing Writual user to collaborate"
+    },
+    "project_share_invite_new": {
+      "subject": "You're invited to join Writual and collaborate on \"{{projectTitle}}\"",
+      "from": "support@no-reply.writual.io",
+      "fromName": "Writual",
+      "templateName": "project-share-invite-new",
+      "description": "Sent when a project owner invites a non-user to collaborate"
+    },
+    "project_share_accepted": {
+      "subject": "{{collaboratorName}} joined \"{{projectTitle}}\"",
+      "from": "support@no-reply.writual.io",
+      "fromName": "Writual",
+      "templateName": "project-share-accepted",
+      "description": "Sent to project owner when a pending invite is claimed on signup"
+    },
+    "permission_updated": {
+      "subject": "Your access to \"{{projectTitle}}\" has been updated",
+      "from": "support@no-reply.writual.io",
+      "fromName": "Writual",
+      "templateName": "permission-updated",
+      "description": "Sent when a collaborator's permission level or aspects are changed"
+    }
+  },
+  "lifecycle": {
+    "welcome": {
+      "subject": "Welcome to Writual, {{displayName}}!",
+      "from": "support@no-reply.writual.io",
+      "fromName": "Writual",
+      "templateName": "welcome",
+      "description": "Sent on first account creation"
+    },
+    "password_reset": {
+      "subject": "Reset your Writual password",
+      "from": "support@no-reply.writual.io",
+      "fromName": "Writual",
+      "templateName": "password-reset",
+      "description": "Sent when a user requests a password reset"
+    },
+    "email_verification": {
+      "subject": "Verify your Writual email address",
+      "from": "support@no-reply.writual.io",
+      "fromName": "Writual",
+      "templateName": "email-verification",
+      "description": "Sent when a user needs to verify their email address"
+    }
+  },
+  "marketing": {
+    "feature_announcement": {
+      "subject": "New in Writual: {{featureName}}",
+      "from": "hello@writual.io",
+      "fromName": "The Writual Team",
+      "templateName": "feature-announcement",
+      "description": "Sent to announce new product features"
+    },
+    "newsletter": {
+      "subject": "{{newsletterTitle}} | Writual",
+      "from": "hello@writual.io",
+      "fromName": "The Writual Team",
+      "templateName": "newsletter",
+      "description": "Regular newsletter drops"
+    },
+    "beta_invite": {
+      "subject": "You're invited to Writual Beta",
+      "from": "hello@writual.io",
+      "fromName": "The Writual Team",
+      "templateName": "beta-invite",
+      "description": "Sent to users selected for beta access"
+    }
+  },
+  "billing": {
+    "subscription_receipt": {
+      "subject": "Your Writual subscription receipt",
+      "from": "support@no-reply.writual.io",
+      "fromName": "Writual Billing",
+      "templateName": "subscription-receipt",
+      "description": "Sent after a successful subscription payment"
+    },
+    "trial_expiring": {
+      "subject": "Your Writual trial ends in {{daysLeft}} days",
+      "from": "support@no-reply.writual.io",
+      "fromName": "Writual",
+      "templateName": "trial-expiring",
+      "description": "Sent as the trial period approaches expiration"
+    },
+    "payment_failed": {
+      "subject": "Action required: Writual payment failed",
+      "from": "support@no-reply.writual.io",
+      "fromName": "Writual Billing",
+      "templateName": "payment-failed",
+      "description": "Sent when a recurring payment fails"
+    }
+  }
+}

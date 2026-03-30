@@ -6,6 +6,18 @@ import { treatmentSchema } from "./treatment-schema";
 import { screenplaySchema } from "./screenplay-schema";
 import { feedbackSchema } from "./feedback-schema";
 
+const collaboratorSchema = new mongoose.Schema({
+  email:           { type: String, required: true },
+  uid:             { type: String, default: null },
+  status:          { type: String, enum: ['pending', 'active'], default: 'pending' },
+  permissionLevel: { type: String, enum: ['edit', 'comment'], default: 'comment' },
+  aspects:         [{ type: String, enum: ['logline', 'characters', 'outline', 'treatment', 'screenplay'] }],
+  inviteToken:     { type: String, default: null },
+  invitedAt:       { type: Date, default: Date.now },
+});
+
+collaboratorSchema.index({ inviteToken: 1 }, { sparse: true });
+
 const projectStatsSchema = new mongoose.Schema(
   {
     totalScenes: { type: Number, default: 0 },
@@ -25,6 +37,7 @@ export const projectSchema = new mongoose.Schema({
     displayName: { type: String },
     email: { type: String },
     sharedWith: { type: [String] },
+    collaborators: { type: [collaboratorSchema], default: [] },
     type: { type: String, enum: ProjectType },
     genre: { type: String },
     title: { type: String },

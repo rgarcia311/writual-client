@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { environment } from "./app-config";
-import { projectSchema, sceneSchema, characterSchema, outlineFrameworkStandaloneSchema, userSchema } from "./schemas";
+import { projectSchema, sceneSchema, characterSchema, outlineFrameworkStandaloneSchema, userSchema, messageSchema, conversationSchema } from "./schemas";
 
 const env = process.env.NODE_ENV || "development";
 
@@ -77,10 +77,18 @@ if (!mongoose.models.OutlineFrameworks) {
 if (!mongoose.models.AppUsers) {
   mongoose.model("AppUsers", userSchema);
 }
+if (!mongoose.models.Messages) {
+  mongoose.model("Messages", messageSchema);
+}
+if (!mongoose.models.Conversations) {
+  mongoose.model("Conversations", conversationSchema);
+}
 
 const Projects = mongoose.model("Projects");
 const Scenes = mongoose.model("Scenes");
 const Characters = mongoose.model("Characters");
 const OutlineFrameworks = mongoose.model("OutlineFrameworks");
 const AppUsers = mongoose.model("AppUsers");
-export { Projects, Scenes, Characters, OutlineFrameworks, AppUsers };
+const Messages = mongoose.model("Messages");
+const Conversations = mongoose.model("Conversations");
+export { Projects, Scenes, Characters, OutlineFrameworks, AppUsers, Messages, Conversations };

@@ -296,11 +296,20 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
     enabled: Boolean(projectId && user),
   }) as { data: any; isLoading: boolean }
 
-  const projectScenes: ProjectScene[] =
-    (scenesData as any)?.getProjectData?.[0]?.scenes ?? []
+  const project = (scenesData as any)?.getProjectData?.[0]
 
-  const savedScreenplayContent =
-    (scenesData as any)?.getProjectData?.[0]?.screenplay?.versions?.[0]?.content ?? null
+  const projectScenes: ProjectScene[] = project?.scenes ?? []
+
+  const savedScreenplayContent = project?.screenplay?.versions?.[0]?.content ?? null
+
+  const canEdit = React.useMemo(() => {
+    if (!project || !user) return false
+    if (project.user === user) return true
+    if (project.sharedWith?.includes(user)) return true
+    return project.collaborators?.some(
+      (c: any) => c.uid === user && c.status === 'active' && c.permissionLevel === 'edit'
+    ) ?? false
+  }, [project, user])
 
   // ── Editor ───────────────────────────────────────────────────────────────
   const editor = useEditor({
@@ -329,7 +338,14 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
     },
     autofocus: 'end',
     immediatelyRender: false,
+    editable: canEdit,
   })
+
+  // ── Sync editable state once project data resolves ───────────────────────
+  React.useEffect(() => {
+    if (!editor) return
+    editor.setEditable(canEdit)
+  }, [editor, canEdit])
 
   // ── Seed editor from saved content or outline scenes (once) ─────────────
   React.useEffect(() => {
@@ -370,6 +386,7 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
 
   // ── Autosave ─────────────────────────────────────────────────────────────
   useAutosave(editor, projectId, {
+    enabled: canEdit,
     onPending: () => setPending(true),
     onSaveStart: startSaving,
     onSaveEnd: endSaving,
@@ -463,58 +480,62 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
           </IconButton>
         </Tooltip>
 
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+        {canEdit && (
+          <>
+            <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
 
-        {/* Format buttons — each tooltip shows label + keyboard shortcut */}
-        <ToggleButtonGroup
-          value={activeType}
-          exclusive
-          onChange={handleTypeChange}
-          size="small"
-          aria-label="screenplay element type"
-        >
-          {ELEMENT_ORDER.map((type) => (
-            <Tooltip
-              key={type}
-              title={<ElementTooltipContent type={type} />}
-              arrow
-              placement="bottom"
+            {/* Format buttons — each tooltip shows label + keyboard shortcut */}
+            <ToggleButtonGroup
+              value={activeType}
+              exclusive
+              onChange={handleTypeChange}
+              size="small"
+              aria-label="screenplay element type"
             >
-              <span>
-                <ToggleButton
-                  value={type}
-                  aria-label={SCREENPLAY_ELEMENT_LABELS[type]}
-                  sx={{
-                    gap: 0.5,
-                    px: 1.25,
-                    py: 0.5,
-                    textTransform: 'none',
-                    fontSize: '0.7rem',
-                    fontWeight: activeType === type ? 700 : 400,
-                    lineHeight: 1.2,
-                    minWidth: 0,
-                  }}
+              {ELEMENT_ORDER.map((type) => (
+                <Tooltip
+                  key={type}
+                  title={<ElementTooltipContent type={type} />}
+                  arrow
+                  placement="bottom"
                 >
-                  {ELEMENT_ICONS[type]}
-                  <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
-                    {SCREENPLAY_ELEMENT_LABELS[type]}
-                  </Box>
-                </ToggleButton>
-              </span>
-            </Tooltip>
-          ))}
-        </ToggleButtonGroup>
+                  <span>
+                    <ToggleButton
+                      value={type}
+                      aria-label={SCREENPLAY_ELEMENT_LABELS[type]}
+                      sx={{
+                        gap: 0.5,
+                        px: 1.25,
+                        py: 0.5,
+                        textTransform: 'none',
+                        fontSize: '0.7rem',
+                        fontWeight: activeType === type ? 700 : 400,
+                        lineHeight: 1.2,
+                        minWidth: 0,
+                      }}
+                    >
+                      {ELEMENT_ICONS[type]}
+                      <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
+                        {SCREENPLAY_ELEMENT_LABELS[type]}
+                      </Box>
+                    </ToggleButton>
+                  </span>
+                </Tooltip>
+              ))}
+            </ToggleButtonGroup>
 
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+            <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
 
-        <Chip
-          size="small"
-          label={SCREENPLAY_ELEMENT_LABELS[activeType]}
-          icon={<ArticleIcon />}
-          variant="outlined"
-          color="primary"
-          sx={{ fontFamily: 'monospace', fontSize: '0.7rem', display: { xs: 'none', md: 'flex' } }}
-        />
+            <Chip
+              size="small"
+              label={SCREENPLAY_ELEMENT_LABELS[activeType]}
+              icon={<ArticleIcon />}
+              variant="outlined"
+              color="primary"
+              sx={{ fontFamily: 'monospace', fontSize: '0.7rem', display: { xs: 'none', md: 'flex' } }}
+            />
+          </>
+        )}
 
         <Box sx={{ flex: 1, minWidth: 8 }} />
 

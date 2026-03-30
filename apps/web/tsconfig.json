@@ -55,12 +55,21 @@
       ], 
       "@hooks/*": [
         "hooks/*"
-      ], 
+      ],
+      "@/hooks/*": [
+        "hooks/*"
+      ],
       "@mutations/*": [
         "mutations/*"
-      ], 
+      ],
+      "@/mutations/*": [
+        "mutations/*"
+      ],
       "@/lib/*": [
         "lib/*"
+      ],
+      "@/app/*": [
+        "app/*"
       ]
     },
     "plugins": [

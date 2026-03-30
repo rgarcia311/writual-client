@@ -34,3 +34,9 @@ export async function verifyAndLogin(idToken) {
     return { success: false, error: "Unauthorized" };
   }
 }
+
+export async function logout() {
+  const cookieStore = await cookies();
+  cookieStore.delete("firebase-token");
+  cookieStore.delete("user-id");
+}

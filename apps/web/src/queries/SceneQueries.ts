@@ -6,6 +6,12 @@ export const PROJECT_SCENES_QUERY = gql`
       _id
       outlineName
       user
+      sharedWith
+      collaborators {
+        uid
+        permissionLevel
+        status
+      }
       outlineSectionLocked
       stats {
         totalScenes

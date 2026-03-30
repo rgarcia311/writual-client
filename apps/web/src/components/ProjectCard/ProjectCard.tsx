@@ -7,33 +7,18 @@ import CardMedia from '@mui/material/CardMedia';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
-import Button from '@mui/material/Button';
-import Popover from '@mui/material/Popover';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
-import TextField from '@mui/material/TextField';
 import Box from '@mui/material/Box';
-import List from '@mui/material/List';
-import ListItem from '@mui/material/ListItem';
-import ListItemText from '@mui/material/ListItemText';
 import EditIcon from '@mui/icons-material/Edit';
 import ShareIcon from '@mui/icons-material/Share';
 import DeleteIcon from '@mui/icons-material/Delete';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { useTheme } from '@mui/material/styles';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { request } from 'graphql-request';
-import { UPDATE_PROJECT_SHARED_WITH } from 'mutations/ProjectMutations';
-
-import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { toTitleCase } from 'utils/stringFormatting';
 import { multiLineTruncate } from 'styles';
-
-const endpoint = GRAPHQL_ENDPOINT;
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-function isValidEmail(email: string): boolean {
-  return EMAIL_REGEX.test(email.trim());
-}
+import { ShareProjectModal } from '@/components/ShareProjectModal/ShareProjectModal';
+import type { Collaborator } from '@/interfaces/collaborator';
 
 interface ProgressItem {
   label: string;
@@ -59,7 +44,7 @@ interface ProjectCardProps {
   enableCardShadow?: boolean;
   onDelete?: () => void;
   projectId?: string;
-  sharedWith?: string[];
+  collaborators?: Collaborator[];
   /** When set, clicking the card (not Share/Delete) navigates to this path */
   to?: string;
   /** When true, show full project summary: image, title, author, genre, logline, type, budget, similar projects (and edit). Used in project header. */
@@ -110,7 +95,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   enableCardShadow = true,
   onDelete,
   projectId,
-  sharedWith: sharedWithProp = [],
+  collaborators = [],
   to,
   headerOnly = false,
   onEditClick,
@@ -126,8 +111,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 }) => {
   const router = useRouter();
   const theme = useTheme();
-  const queryClient = useQueryClient();
-  const [shareAnchorEl, setShareAnchorEl] = React.useState<HTMLElement | null>(null);
+  const [shareModalOpen, setShareModalOpen] = React.useState(false);
   const [actionsAnchorEl, setActionsAnchorEl] = React.useState<HTMLElement | null>(null);
   const [imageError, setImageError] = React.useState(false);
 
@@ -143,49 +127,6 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 
   const hasActions = Boolean(onEditClick || onDelete || projectId);
   const actionsMenuOpen = Boolean(actionsAnchorEl);
-  const [newEmail, setNewEmail] = React.useState('');
-  const [emailError, setEmailError] = React.useState('');
-
-  const sharedWith = Array.isArray(sharedWithProp) ? sharedWithProp : [];
-
-  const updateSharedWithMutation = useMutation({
-    mutationFn: (sharedWith: string[]) =>
-      request(endpoint, UPDATE_PROJECT_SHARED_WITH, { projectId, sharedWith }),
-    onSuccess: () => {
-      if (projectId) {
-        queryClient.invalidateQueries({ queryKey: ['project', projectId] });
-        queryClient.invalidateQueries({ queryKey: ['projects'] });
-      }
-    },
-  });
-
-  const doAddShareEmail = () => {
-    const trimmed = newEmail.trim();
-    if (!trimmed) return;
-    if (!isValidEmail(trimmed)) {
-      setEmailError('Enter a valid email address.');
-      return;
-    }
-    if (sharedWith.includes(trimmed)) {
-      setEmailError('Already shared with this email.');
-      return;
-    }
-    setEmailError('');
-    setNewEmail('');
-    updateSharedWithMutation.mutate([...sharedWith, trimmed]);
-  };
-
-  const handleAddShareEmail = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    doAddShareEmail();
-  };
-
-  const handleRemoveShareEmail = (e: React.MouseEvent, email: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    updateSharedWithMutation.mutate(sharedWith.filter((e) => e !== email));
-  };
 
   const imageSrc = (coverImage?.trim() && !imageError) ? coverImage : '/default-film-poster.png';
 
@@ -250,7 +191,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
                     e.preventDefault();
                     e.stopPropagation();
                     setActionsAnchorEl(null);
-                    setShareAnchorEl(actionsAnchorEl);
+                    setShareModalOpen(true);
                   }}
                 >
                   <ShareIcon fontSize="small" style={{ marginRight: 8 }} />
@@ -287,75 +228,13 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
           </>
         )}
         {projectId && (
-          <Popover
-            open={Boolean(shareAnchorEl)}
-            anchorEl={shareAnchorEl}
-            onClose={() => {
-              setShareAnchorEl(null);
-              setEmailError('');
-              setNewEmail('');
-            }}
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Box sx={{ p: 2, minWidth: 320, maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
-              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                Shared with
-              </Typography>
-              {sharedWith.length === 0 ? (
-                <Typography variant="body2" color="text.secondary">
-                  Not shared with anyone yet. (coming soon..)
-                </Typography>
-              ) : (
-                <List dense sx={{ py: 0, maxHeight: 200, overflow: 'auto' }}>
-                  {sharedWith.map((email) => (
-                    <ListItem
-                      key={email}
-                      secondaryAction={
-                        <Tooltip title="Remove from shared list">
-                          <IconButton
-                            edge="end"
-                            size="small"
-                            aria-label={`Remove ${email}`}
-                            onClick={(ev) => handleRemoveShareEmail(ev, email)}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      }
-                    >
-                      <ListItemText primary={email} primaryTypographyProps={{ variant: 'body2' }} />
-                    </ListItem>
-                  ))}
-                </List>
-              )}
-              <Box sx={{ display: 'flex', gap: 1, mt: 2, alignItems: 'stretch' }}>
-                <TextField
-                  size="small"
-                  placeholder="Add email"
-                  value={newEmail}
-                  onChange={(e) => {
-                    setNewEmail(e.target.value);
-                    setEmailError('');
-                  }}
-                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), doAddShareEmail())}
-                  error={Boolean(emailError)}
-                  helperText={emailError}
-                  fullWidth
-                  sx={{ '& .MuiInputBase-root': { height: 40 } }}
-                />
-                <Button
-                  variant="contained"
-                  size="small"
-                  disabled
-                  sx={{ minHeight: 40, height: 40 }}
-                >
-                  Add
-                </Button>
-              </Box>
-            </Box>
-          </Popover>
+          <ShareProjectModal
+            open={shareModalOpen}
+            onClose={() => setShareModalOpen(false)}
+            projectId={projectId}
+            projectTitle={title}
+            collaborators={collaborators}
+          />
         )}
       </Box>
       <CardMedia

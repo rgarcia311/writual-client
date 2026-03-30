@@ -8,6 +8,11 @@ import Brightness7Icon from '@mui/icons-material/Brightness7';
 import LogoutIcon from '@mui/icons-material/Logout';
 import ManageSearchIcon from '@mui/icons-material/ManageSearch';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { signOut } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import { logout } from '@/app/actions/auth';
+import { useUserProfileStore } from '@/state/user';
 import { useThemeToggleOptional } from '@/themes/ThemeToggleContext';
 
 export interface SettingsPopoverProps {
@@ -30,9 +35,15 @@ export function SettingsPopover({ standalone = false }: SettingsPopoverProps) {
     setAnchorEl(null);
   };
 
-  const handleSignOut = () => {
+  const router = useRouter();
+  const setUserProfile = useUserProfileStore((s) => s.setUserProfile);
+
+  const handleSignOut = async () => {
     handleClose();
-    // Placeholder: wire to auth when implemented
+    await signOut(auth);
+    setUserProfile(null);
+    await logout();
+    router.replace('/');
   };
 
   return (

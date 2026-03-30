@@ -51,7 +51,7 @@ const lightThemeOptions = {
         main: '#F5F7F2' //'#20325A',
       },
       background: {
-        default: '#F5F7F2',
+        default: "#F5F2E8", //'#F5F7F2',
         paper: '#FFFFFF', 
       },
       warning: {
