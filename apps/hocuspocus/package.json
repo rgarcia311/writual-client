@@ -5,7 +5,6 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "nodemon --exec ts-node src/index.ts",
-    "prebuild": "npm install",
     "build": "tsc",
     "start": "node dist/index.js",
     "lint": "echo \"No lint configured\""
