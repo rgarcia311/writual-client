@@ -3,6 +3,8 @@
 import * as React from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
+import Collaboration from '@tiptap/extension-collaboration'
+import CollaborationCursor from '@tiptap/extension-collaboration-cursor'
 import { useQuery } from '@tanstack/react-query'
 import { request } from 'graphql-request'
 import {
@@ -16,8 +18,6 @@ import {
   ListItemText,
   Paper,
   Tooltip,
-  ToggleButton,
-  ToggleButtonGroup,
   Typography,
   useTheme,
 } from '@mui/material'
@@ -26,7 +26,6 @@ import LocalMoviesIcon from '@mui/icons-material/LocalMovies'
 import MenuOpenIcon from '@mui/icons-material/MenuOpen'
 import MenuIcon from '@mui/icons-material/Menu'
 import PrintIcon from '@mui/icons-material/Print'
-import ArticleIcon from '@mui/icons-material/Article'
 import PersonIcon from '@mui/icons-material/Person'
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline'
 import FormatQuoteIcon from '@mui/icons-material/FormatQuote'
@@ -38,12 +37,19 @@ import {
   SCREENPLAY_ELEMENT_LABELS,
   type ScreenplayElementType,
 } from './ScreenplayExtension'
+import { CollabHistory } from './CollabHistory'
+import { BlockAltsToolbar } from './BlockAltsToolbar'
+import { ScreenplayToolbar } from './ScreenplayToolbar'
 import { PROJECT_SCENES_QUERY } from '@/queries/SceneQueries'
 import { PROJECT_SCENES_QUERY_KEY } from 'hooks'
 import { useAutosave } from '@hooks/useAutosave'
+import { useCollaboration } from '@hooks/useCollaboration'
 import { useUserProfileStore } from '@/state/user'
 import { useScreenplaySaveStatusStore } from '@/state/screenplaySaveStatus'
+import { useScreenplayEditorStore } from '@/state/screenplayEditor'
 import { GRAPHQL_ENDPOINT } from '@/lib/config'
+import type { HocuspocusProvider } from '@hocuspocus/provider'
+import type * as Y from 'yjs'
 import './Screenplay.css'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -61,7 +67,7 @@ interface ProjectScene {
 
 // ─── Element icon map ─────────────────────────────────────────────────────────
 
-const ELEMENT_ICONS: Record<ScreenplayElementType, React.ReactNode> = {
+export const ELEMENT_ICONS: Record<ScreenplayElementType, React.ReactNode> = {
   slugline:      <LocalMoviesIcon sx={{ fontSize: 14 }} />,
   action:        <NotesIcon sx={{ fontSize: 14 }} />,
   character:     <PersonIcon sx={{ fontSize: 14 }} />,
@@ -70,7 +76,7 @@ const ELEMENT_ICONS: Record<ScreenplayElementType, React.ReactNode> = {
   transition:    <FastForwardIcon sx={{ fontSize: 14 }} />,
 }
 
-const ELEMENT_ORDER: ScreenplayElementType[] = [
+export const ELEMENT_ORDER: ScreenplayElementType[] = [
   'slugline',
   'action',
   'character',
@@ -84,7 +90,7 @@ const ELEMENT_ORDER: ScreenplayElementType[] = [
  * Tab cycles: action(1) → slugline(2) → character(3) → parenthetical(4) → dialogue(5)
  * Enter: character→dialogue · parenthetical→dialogue · dialogue→action · slugline→action
  */
-const ELEMENT_SHORTCUTS: Record<ScreenplayElementType, string> = {
+export const ELEMENT_SHORTCUTS: Record<ScreenplayElementType, string> = {
   slugline:      'Tab ×2 from Action',
   action:        'Tab ×1  ·  Enter after Dialogue or Scene Heading',
   character:     'Tab ×3 from Action',
@@ -95,7 +101,7 @@ const ELEMENT_SHORTCUTS: Record<ScreenplayElementType, string> = {
 
 // ─── Tooltip content component ────────────────────────────────────────────────
 
-function ElementTooltipContent({ type }: { type: ScreenplayElementType }) {
+export function ElementTooltipContent({ type }: { type: ScreenplayElementType }) {
   return (
     <Box sx={{ p: 0.25 }}>
       <Typography variant="caption" fontWeight={700} display="block">
@@ -110,17 +116,15 @@ function ElementTooltipContent({ type }: { type: ScreenplayElementType }) {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function countWords(doc: Record<string, unknown>): number {
+function countWordsFromDoc(doc: import('@tiptap/pm/model').Node): number {
   let count = 0
-  const recurse = (nodes: Array<Record<string, unknown>>) => {
-    for (const node of nodes) {
-      if (node.type === 'text' && typeof node.text === 'string') {
-        count += (node.text as string).trim().split(/\s+/).filter(Boolean).length
-      }
-      if (node.content) recurse(node.content as Array<Record<string, unknown>>)
+  doc.descendants((node) => {
+    if (node.isTextblock) {
+      const text = node.textContent.trim()
+      if (text) count += text.split(/\s+/).filter(Boolean).length
+      return false
     }
-  }
-  recurse((doc?.content as Array<Record<string, unknown>>) ?? [])
+  })
   return count
 }
 
@@ -155,11 +159,6 @@ function buildDocFromScenes(scenes: ProjectScene[]): Record<string, unknown> {
 
 // ─── Print utility ────────────────────────────────────────────────────────────
 
-/**
- * Open a popup containing only the screenplay HTML and trigger the print
- * dialog. Uses @page for proper 8.5"×11" paper with standard screenplay
- * margins — no app chrome, sidebar, or nav bars appear in the printout.
- */
 function printScreenplay(html: string) {
   const win = window.open('', '_blank', 'width=900,height=700,scrollbars=yes')
   if (!win) {
@@ -177,7 +176,6 @@ function printScreenplay(html: string) {
 <style>
   @page {
     size: 8.5in 11in;
-    /* Standard screenplay margins: 1.5" left, 1" all others */
     margin: 1in 1in 1in 1.5in;
   }
   * { box-sizing: border-box; }
@@ -199,8 +197,6 @@ function printScreenplay(html: string) {
     page-break-inside: avoid;
   }
   .script-block:last-child { margin-bottom: 0; }
-
-  /* Scene Heading — full width, bold, uppercase */
   .script-block[data-element-type="slugline"] {
     text-transform: uppercase;
     font-weight: 700;
@@ -210,8 +206,6 @@ function printScreenplay(html: string) {
     page-break-after: avoid;
   }
   .script-block[data-element-type="slugline"]:first-child { margin-top: 0; }
-
-  /* Character — 3.5" from paper left; @page left margin is 1.5" → 2.0" indent */
   .script-block[data-element-type="character"] {
     margin-left: 2.0in;
     text-transform: uppercase;
@@ -219,8 +213,6 @@ function printScreenplay(html: string) {
     break-after: avoid;
     page-break-after: avoid;
   }
-
-  /* Parenthetical — 3.0" from paper left → 1.5" indent */
   .script-block[data-element-type="parenthetical"] {
     margin-left: 1.5in;
     margin-right: 1.5in;
@@ -230,8 +222,6 @@ function printScreenplay(html: string) {
     page-break-before: avoid;
     page-break-after: avoid;
   }
-
-  /* Dialogue — 2.5" from paper left → 1.0" indent; 3.5" wide → 1.5" right */
   .script-block[data-element-type="dialogue"] {
     margin-left: 1.0in;
     margin-right: 1.5in;
@@ -239,8 +229,6 @@ function printScreenplay(html: string) {
     break-before: avoid;
     page-break-before: avoid;
   }
-
-  /* Transition — right-aligned, uppercase */
   .script-block[data-element-type="transition"] {
     text-align: right;
     text-transform: uppercase;
@@ -254,7 +242,6 @@ function printScreenplay(html: string) {
 
   win.document.close()
 
-  // Let the Google Font load before printing so Courier Prime renders correctly
   if (win.document.fonts?.ready) {
     win.document.fonts.ready.then(() => { win.focus(); win.print(); win.close() })
   } else {
@@ -268,23 +255,9 @@ interface WritualEditorProps {
   projectId?: string
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Outer Component — data fetch + permission gate ───────────────────────────
 
 export function WritualEditor({ projectId }: WritualEditorProps) {
-  const theme = useTheme()
-  const [navigatorOpen, setNavigatorOpen] = React.useState(true)
-  const [activeType, setActiveType] = React.useState<ScreenplayElementType>('action')
-  const [wordCount, setWordCount] = React.useState(0)
-
-  // Seed editor content exactly once after scenes load
-  const seededRef = React.useRef(false)
-
-  // ── Save status ──────────────────────────────────────────────────────────
-  const { savingCount, lastSavedAt, hasPendingChanges, setPending, startSaving, endSaving } = useScreenplaySaveStatusStore()
-  const isSavingOrPending = hasPendingChanges || savingCount > 0
-  const showSaved = !isSavingOrPending && lastSavedAt != null
-
-  // ── Fetch project scenes + saved screenplay from the outline ─────────────
   const user = useUserProfileStore((s) => s.userProfile?.user)
 
   const { data: scenesData, isLoading: scenesLoading } = useQuery({
@@ -297,9 +270,7 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
   }) as { data: any; isLoading: boolean }
 
   const project = (scenesData as any)?.getProjectData?.[0]
-
   const projectScenes: ProjectScene[] = project?.scenes ?? []
-
   const savedScreenplayContent = project?.screenplay?.versions?.[0]?.content ?? null
 
   const canEdit = React.useMemo(() => {
@@ -311,9 +282,98 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
     ) ?? false
   }, [project, user])
 
-  // ── Editor ───────────────────────────────────────────────────────────────
-  const editor = useEditor({
-    extensions: [
+  if (scenesLoading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+        <CircularProgress />
+      </Box>
+    )
+  }
+
+  return (
+    <CollabGate
+      projectId={projectId}
+      canEdit={canEdit}
+      projectScenes={projectScenes}
+      savedScreenplayContent={savedScreenplayContent}
+    />
+  )
+}
+
+// ─── Middle Layer — collab resource gate ───────────────────────────────────────
+
+interface CollabGateProps {
+  projectId?: string
+  canEdit: boolean
+  projectScenes: ProjectScene[]
+  savedScreenplayContent: unknown
+}
+
+function CollabGate({ projectId, canEdit, projectScenes, savedScreenplayContent }: CollabGateProps) {
+  const { ydoc, provider } = useCollaboration(projectId)
+
+  if (projectId && (!ydoc || !provider)) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+        <CircularProgress size={28} />
+      </Box>
+    )
+  }
+
+  return (
+    <ScreenplayEditorCore
+      projectId={projectId}
+      canEdit={canEdit}
+      projectScenes={projectScenes}
+      savedScreenplayContent={savedScreenplayContent}
+      ydoc={ydoc}
+      provider={provider}
+    />
+  )
+}
+
+// ─── Inner Component — Tiptap editor with stable extensions ───────────────────
+
+interface ScreenplayEditorCoreProps {
+  projectId?: string
+  canEdit: boolean
+  projectScenes: ProjectScene[]
+  savedScreenplayContent: unknown
+  ydoc: Y.Doc | null
+  provider: HocuspocusProvider | null
+}
+
+function ScreenplayEditorCore({
+  projectId,
+  canEdit,
+  projectScenes,
+  savedScreenplayContent,
+  ydoc,
+  provider,
+}: ScreenplayEditorCoreProps) {
+  const theme = useTheme()
+  const [navigatorOpen, setNavigatorOpen] = React.useState(true)
+  const [wordCount, setWordCount] = React.useState(0)
+
+  const { setActiveType, setCanEdit, setElementTypeFnRef } = useScreenplayEditorStore()
+  const collabStatus = useScreenplayEditorStore((s) => s.collabStatus)
+  const connectedUsers = useScreenplayEditorStore((s) => s.connectedUsers)
+
+  const seededRef = React.useRef(false)
+
+  const user = useUserProfileStore((s) => s.userProfile?.user)
+
+  // ── Save status ──────────────────────────────────────────────────────────
+  const { savingCount, lastSavedAt, hasPendingChanges, setPending, startSaving, endSaving } = useScreenplaySaveStatusStore()
+  const isSavingOrPending = hasPendingChanges || savingCount > 0
+  const showSaved = !isSavingOrPending && lastSavedAt != null
+
+  // ── Collaboration state ─────────────────────────────────────────────────
+  const collabActive = ydoc != null && provider != null
+
+  // ── Extensions — stable from first render ───────────────────────────────
+  const extensions = React.useMemo(() => {
+    const base: ReturnType<typeof StarterKit.configure>[] = [
       StarterKit.configure({
         paragraph: false,
         heading: false,
@@ -329,32 +389,106 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
         horizontalRule: false,
         hardBreak: false,
         trailingNode: false,
+        undoRedo: collabActive ? false : undefined,
       }),
-      ScriptBlock,
-    ],
-    content: {
-      type: 'doc',
-      content: [{ type: 'scriptBlock', attrs: { elementType: 'action' }, content: [] }],
-    },
+      ScriptBlock as any,
+    ]
+
+    if (collabActive) {
+      base.push(Collaboration.configure({ document: ydoc }) as any)
+
+      if (canEdit) {
+        base.push(
+          CollaborationCursor.configure({ provider }) as any,
+          CollabHistory as any,
+        )
+      }
+    }
+
+    return base
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ── Editor ───────────────────────────────────────────────────────────────
+  const editor = useEditor({
+    extensions,
+    content: collabActive
+      ? undefined
+      : {
+          type: 'doc',
+          content: [{ type: 'scriptBlock', attrs: { elementType: 'action' }, content: [] }],
+        },
     autofocus: 'end',
     immediatelyRender: false,
     editable: canEdit,
   })
 
-  // ── Sync editable state once project data resolves ───────────────────────
+  // ── Sync editable state ──────────────────────────────────────────────────
   React.useEffect(() => {
     if (!editor) return
     editor.setEditable(canEdit)
   }, [editor, canEdit])
 
-  // ── Seed editor from saved content or outline scenes (once) ─────────────
+  // ── Sync canEdit to store ─────────────────────────────────────────────────
   React.useEffect(() => {
-    if (!editor || seededRef.current || scenesLoading) return
+    setCanEdit(canEdit)
+  }, [canEdit, setCanEdit])
+
+  // ── Register element-type command with store; clear on unmount ────────────
+  React.useEffect(() => {
+    if (!editor) return
+    setElementTypeFnRef((type) => editor.chain().focus().setElementType(type).run())
+    return () => setElementTypeFnRef(null)
+  }, [editor, setElementTypeFnRef])
+
+  // ── Seed legacy content into empty Yjs doc on first sync ─────────────────
+  React.useEffect(() => {
+    if (!editor || !provider || !collabActive || seededRef.current) return
+
+    const handleSynced = () => {
+      if (seededRef.current) return
+      seededRef.current = true
+
+      if (editor.isEmpty) {
+        const legacyContent = savedScreenplayContent || (
+          projectScenes.length
+            ? buildDocFromScenes(projectScenes)
+            : {
+                type: 'doc',
+                content: [
+                  {
+                    type: 'scriptBlock',
+                    attrs: { elementType: 'slugline' },
+                    content: [{ type: 'text', text: 'INT. YOUR SCENE - DAY' }],
+                  },
+                  {
+                    type: 'scriptBlock',
+                    attrs: { elementType: 'action' },
+                    content: [
+                      {
+                        type: 'text',
+                        text: 'Add scenes in the Outline tab to pre-populate scene headings here.',
+                      },
+                    ],
+                  },
+                ],
+              }
+        )
+        editor.commands.setContent(legacyContent)
+      }
+    }
+
+    provider.on('synced', handleSynced)
+    return () => { provider.off('synced', handleSynced) }
+  }, [editor, provider, collabActive, savedScreenplayContent, projectScenes])
+
+  // ── Non-collab seeding (standalone mode) ─────────────────────────────────
+  React.useEffect(() => {
+    if (!editor || seededRef.current || collabActive) return
     seededRef.current = true
 
-    // Prefer previously-saved TipTap JSON over rebuilding from outline scenes
     if (savedScreenplayContent) {
-      editor.commands.setContent(savedScreenplayContent)
+      queueMicrotask(() => editor.commands.setContent(savedScreenplayContent))
       return
     }
 
@@ -381,45 +515,51 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
           ],
         }
 
-    editor.commands.setContent(doc)
-  }, [editor, projectScenes, scenesLoading, savedScreenplayContent])
+    queueMicrotask(() => editor.commands.setContent(doc))
+  }, [editor, projectScenes, savedScreenplayContent, collabActive])
 
-  // ── Autosave ─────────────────────────────────────────────────────────────
+  // ── Autosave (disabled when collab is active) ────────────────────────────
   useAutosave(editor, projectId, {
-    enabled: canEdit,
+    enabled: canEdit && !collabActive,
     onPending: () => setPending(true),
     onSaveStart: startSaving,
     onSaveEnd: endSaving,
   })
 
-  // ── Sync active type + word count ────────────────────────────────────────
+  // ── Sync active element type on selection/content change ─────────────────
   React.useEffect(() => {
     if (!editor) return
-    const sync = () => {
+    const syncType = () => {
       const { $from } = editor.state.selection
+      let found = false
       for (let depth = $from.depth; depth >= 0; depth--) {
         const node = $from.node(depth)
         if (node.type.name === 'scriptBlock') {
           setActiveType((node.attrs.elementType as ScreenplayElementType) ?? 'action')
+          found = true
           break
         }
       }
-      setWordCount(countWords(editor.getJSON()))
+      if (!found) setActiveType('action')
     }
-    editor.on('selectionUpdate', sync)
-    editor.on('update', sync)
-    sync()
-    return () => { editor.off('selectionUpdate', sync); editor.off('update', sync) }
-  }, [editor])
+    editor.on('selectionUpdate', syncType)
+    editor.on('update', syncType)
+    syncType()
+    return () => { editor.off('selectionUpdate', syncType); editor.off('update', syncType) }
+  }, [editor, setActiveType])
 
-  // ── Toolbar type change ──────────────────────────────────────────────────
-  const handleTypeChange = React.useCallback(
-    (_: React.MouseEvent, newType: ScreenplayElementType | null) => {
-      if (!newType || !editor) return
-      editor.chain().focus().setElementType(newType).run()
-    },
-    [editor]
-  )
+  // ── Debounced word count ─────────────────────────────────────────────────
+  React.useEffect(() => {
+    if (!editor) return
+    let timer: ReturnType<typeof setTimeout>
+    const syncWordCount = () => {
+      clearTimeout(timer)
+      timer = setTimeout(() => setWordCount(countWordsFromDoc(editor.state.doc)), 500)
+    }
+    editor.on('update', syncWordCount)
+    syncWordCount()
+    return () => { editor.off('update', syncWordCount); clearTimeout(timer) }
+  }, [editor, setWordCount])
 
   // ── Navigate to scene by heading text ────────────────────────────────────
   const navigateToHeading = React.useCallback(
@@ -480,62 +620,9 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
           </IconButton>
         </Tooltip>
 
-        {canEdit && (
-          <>
-            <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
 
-            {/* Format buttons — each tooltip shows label + keyboard shortcut */}
-            <ToggleButtonGroup
-              value={activeType}
-              exclusive
-              onChange={handleTypeChange}
-              size="small"
-              aria-label="screenplay element type"
-            >
-              {ELEMENT_ORDER.map((type) => (
-                <Tooltip
-                  key={type}
-                  title={<ElementTooltipContent type={type} />}
-                  arrow
-                  placement="bottom"
-                >
-                  <span>
-                    <ToggleButton
-                      value={type}
-                      aria-label={SCREENPLAY_ELEMENT_LABELS[type]}
-                      sx={{
-                        gap: 0.5,
-                        px: 1.25,
-                        py: 0.5,
-                        textTransform: 'none',
-                        fontSize: '0.7rem',
-                        fontWeight: activeType === type ? 700 : 400,
-                        lineHeight: 1.2,
-                        minWidth: 0,
-                      }}
-                    >
-                      {ELEMENT_ICONS[type]}
-                      <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
-                        {SCREENPLAY_ELEMENT_LABELS[type]}
-                      </Box>
-                    </ToggleButton>
-                  </span>
-                </Tooltip>
-              ))}
-            </ToggleButtonGroup>
-
-            <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-
-            <Chip
-              size="small"
-              label={SCREENPLAY_ELEMENT_LABELS[activeType]}
-              icon={<ArticleIcon />}
-              variant="outlined"
-              color="primary"
-              sx={{ fontFamily: 'monospace', fontSize: '0.7rem', display: { xs: 'none', md: 'flex' } }}
-            />
-          </>
-        )}
+        <ScreenplayToolbar />
 
         <Box sx={{ flex: 1, minWidth: 8 }} />
 
@@ -547,7 +634,19 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
           {wordCount.toLocaleString()} words · ~{pages}p
         </Typography>
 
-        {isSavingOrPending && (
+        {/* ── Collab status indicators ──────────────────────────────────── */}
+        {collabActive && collabStatus === 'connecting' && (
+          <Chip label="Syncing..." size="small" color="warning" variant="outlined" sx={{ height: 22, fontSize: '0.65rem' }} />
+        )}
+        {collabActive && collabStatus === 'disconnected' && (
+          <Chip label="Offline" size="small" color="error" variant="outlined" sx={{ height: 22, fontSize: '0.65rem' }} />
+        )}
+        {collabActive && collabStatus === 'connected' && connectedUsers.length > 1 && (
+          <Chip label={`${connectedUsers.length} online`} size="small" color="success" variant="outlined" sx={{ height: 22, fontSize: '0.65rem' }} />
+        )}
+
+        {/* ── Save status indicators (solo mode only) ──────────────────── */}
+        {!collabActive && isSavingOrPending && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }} aria-label="Saving">
             <CloudDoneIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
             <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
@@ -555,7 +654,7 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
             </Typography>
           </Box>
         )}
-        {showSaved && (
+        {!collabActive && showSaved && (
           <Box sx={{ display: 'flex', alignItems: 'center' }} aria-label="Saved">
             <CloudDoneIcon sx={{ fontSize: 18, color: 'success.main' }} />
           </Box>
@@ -612,11 +711,7 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
             </Box>
 
             <Box sx={{ flex: 1, overflowY: 'auto' }}>
-              {scenesLoading ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
-                  <CircularProgress size={20} />
-                </Box>
-              ) : projectScenes.length === 0 ? (
+              {projectScenes.length === 0 ? (
                 <Box sx={{ px: 2, py: 3, textAlign: 'center' }}>
                   <Typography variant="caption" color="text.disabled">
                     No scenes in your outline yet.
@@ -696,6 +791,7 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
         >
           <Box className="screenplay-page">
             <EditorContent editor={editor} />
+            <BlockAltsToolbar editor={editor} canEdit={canEdit} userId={user} />
           </Box>
         </Box>
       </Box>

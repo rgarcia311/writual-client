@@ -2,7 +2,7 @@ import { GraphQLJSON } from "graphql-scalars";
 import { getProjectData, getOutlineFrameworks } from "../resolvers";
 import { setProjectOutline, createOutlineFramework, updateOutlineFramework, deleteOutlineFramework, createProject, deleteProject, shareProject, updateProject, updateProjectSharedWith, createinspiration, deleteinspiration, lockAllScenesInOutline, lockAllCharacters, unlockOutlineSection, unlockCharactersSection, saveScreenplay as saveScreenplayFn } from "../mutations";
 import mongoose from "mongoose";
-import { AppUsers, Projects, Messages, Conversations } from "../db-connector";
+import { AppUsers, Projects, Messages, Conversations } from "@writual/db";
 import { requireTier } from "../utils/tierUtils";
 import { pusher } from "../services/pusher";
 import { inviteCollaborators, updateCollaborator, removeCollaborator, claimInvite, finalizeSignup } from "../resolvers/collaboratorResolvers";

@@ -11,7 +11,7 @@ export default function proxy(request) {
   }
 
   // Define which routes you want to protect
-  const protectedRoutes = ["/projects", "/project"];
+  const protectedRoutes = ["/projects", "/project", "/screenplay"];
   const isProtectedRoute = protectedRoutes.some((route) =>
     pathname.startsWith(route)
   );
@@ -25,5 +25,5 @@ export default function proxy(request) {
 }
 
 export const config = {
-  matcher: ["/", "/projects", "/project/:id*"],
+  matcher: ["/", "/projects", "/project/:id*", "/screenplay"],
 };

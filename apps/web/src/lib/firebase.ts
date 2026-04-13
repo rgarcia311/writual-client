@@ -9,9 +9,8 @@
  *   NEXT_PUBLIC_FIREBASE_APP_ID
  */
 
-// lib/firebase.js
-import { initializeApp, getApps } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
+import { getAuth, type Auth } from "firebase/auth";
 
 export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -23,6 +22,18 @@ export const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-export const auth = getAuth(app);
+let _app: FirebaseApp | undefined;
+let _auth: Auth | undefined;
+
+/**
+ * Lazily initializes Firebase and returns the Auth instance.
+ * Avoids calling initializeApp at module-evaluation time, which crashes
+ * during Next.js static prerendering when env vars are unavailable.
+ */
+export function getFirebaseAuth(): Auth {
+  if (!_auth) {
+    _app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+    _auth = getAuth(_app);
+  }
+  return _auth;
+}

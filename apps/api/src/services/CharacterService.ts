@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { Projects, Characters } from "../db-connector";
+import { Projects, Characters } from "@writual/db";
 import { toObjectId, nowIso, isTransactionNotSupportedError } from "../utils/mongoUtils";
 
 /** Single character detail (version) entry. */

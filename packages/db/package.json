@@ -1,0 +1,19 @@
+{
+  "name": "@writual/db",
+  "private": true,
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "lint": "echo \"No lint configured\""
+  },
+  "dependencies": {
+    "mongoose": "^9.1.6",
+    "mongoose-sequence": "^5.3.1",
+    "@writual/mongo-env": "*"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}

@@ -11,7 +11,7 @@ import { PORT, host } from './app-config';
 import { schema } from './schemas/schema';
 import { getScenesByProjectIdsBatch } from './services/SceneService';
 import { getCharactersByProjectIdsBatch } from './services/CharacterService';
-import { Projects, AppUsers, Conversations } from './db-connector';
+import { Projects, AppUsers, Conversations } from '@writual/db';
 import { verifyUser } from './lib/verifyUser';
 import { pusher } from './services/pusher';
 

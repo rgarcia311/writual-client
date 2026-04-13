@@ -3,7 +3,7 @@
 import React from 'react';
 import { Button, CircularProgress, Typography } from '@mui/material';
 import { useRouter } from 'next/navigation';
-import { auth } from '@/lib/firebase';
+import { getFirebaseAuth } from '@/lib/firebase';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { verifyAndLogin } from '../../app/actions/auth';
 import { useUserProfileStore } from '@/state/user';
@@ -22,7 +22,7 @@ export function LandingSignIn() {
     setErrorMsg(null);
     const provider = new GoogleAuthProvider();
 
-    signInWithPopup(auth, provider)
+    signInWithPopup(getFirebaseAuth(), provider)
       .then((result) => {
         const userProfile = {
           user: result.user.uid,

@@ -1,5 +1,5 @@
-import { AppUsers } from '../db-connector';
-import { TIER_RANK, type Tier } from '../constants/tier';
+import { AppUsers } from '@writual/db';
+import { TIER_RANK, normalizeTier, type Tier } from '@writual/tier-logic';
 
 export async function requireTier(
   context: { uid: string | null },
@@ -7,7 +7,7 @@ export async function requireTier(
 ): Promise<void> {
   if (!context.uid) throw new Error('Unauthorized');
   const user = await AppUsers.findOne({ uid: context.uid }).lean().exec();
-  const tier = ((user as any)?.tier ?? 'spec') as Tier;
+  const tier = normalizeTier((user as any)?.tier);
   if (TIER_RANK[tier] < TIER_RANK[minTier]) {
     throw new Error(`Requires ${minTier} tier or higher`);
   }

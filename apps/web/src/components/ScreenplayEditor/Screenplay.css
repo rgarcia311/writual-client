@@ -38,13 +38,25 @@
 
 /* ── Page sheet ───────────────────────────────────────────────────────────── */
 .screenplay-page {
+  --sp-margin-top: 96px;
+  --sp-margin-right: 96px;
+  --sp-margin-bottom: 96px;
+  --sp-margin-left: 144px;
+  --sp-text-area-width: 576px;
+
+  --sp-dialogue-indent: 96px;
+  --sp-dialogue-right-pad: 144px;
+  --sp-parenthetical-indent: 144px;
+  --sp-parenthetical-right-pad: 240px;
+  --sp-character-indent: 192px;
+
   /* Fixed paper width — always 8.5" regardless of viewport */
-  width: 816px;
+  width: calc(var(--sp-text-area-width) + var(--sp-margin-left) + var(--sp-margin-right));
   min-height: 1056px;
   margin: 0 auto;
 
   /* Paper margins: top right bottom left */
-  padding: 96px 96px 96px 144px;
+  padding: var(--sp-margin-top) var(--sp-margin-right) var(--sp-margin-bottom) var(--sp-margin-left);
 
   background-color: #ffffff;
   box-shadow:
@@ -92,7 +104,7 @@
   position: relative;
   z-index: 1;
   outline: none;
-  min-height: 864px; /* 1056 - 96 (top) - 96 (bottom) */
+  min-height: calc(1056px - var(--sp-margin-top) - var(--sp-margin-bottom));
 }
 
 /* ── Base script-block reset ─────────────────────────────────────────────── */
@@ -161,9 +173,13 @@
 /*
  * Left edge: 3.5" from paper  →  2.0" indent from text area  →  192 px.
  * Always UPPERCASE.  No bottom margin — dialogue follows immediately.
+ * display:flex lets the block-alts indicator sit to the right of the name.
  */
 .script-block[data-element-type='character'] {
-  padding-left: 192px;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  padding-left: var(--sp-character-indent);
   padding-right: 0;
   text-transform: uppercase;
   margin-bottom: 0;
@@ -180,9 +196,8 @@
  * Width ≈ 2.0" = 192 px of usable space.
  */
 .script-block[data-element-type='parenthetical'] {
-  padding-left: 144px;
-  /* Dialogue ends at 576px (6"). 576 - 144(left) - 192(content) = 240 right */
-  padding-right: 240px;
+  padding-left: var(--sp-parenthetical-indent);
+  padding-right: var(--sp-parenthetical-right-pad);
   margin-bottom: 0;
   /* Attached to surrounding dialogue */
   break-before: avoid;
@@ -199,12 +214,27 @@
  * Right padding: 576 - 96(left) - 336(width) = 144 px.
  */
 .script-block[data-element-type='dialogue'] {
-  padding-left: 96px;
-  padding-right: 144px;
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  padding-left: var(--sp-dialogue-indent);
+  padding-right: var(--sp-dialogue-right-pad);
   margin-bottom: 12pt;
   /* Keep dialogue block intact if possible */
   break-before: avoid;
   page-break-before: avoid;
+}
+
+.script-block[data-element-type='character'] [data-node-view-content] {
+  order: 1;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.script-block[data-element-type='dialogue'] [data-node-view-content] {
+  order: 1;
+  min-width: 0;
+  flex: 0 0 100%;
 }
 
 /* ── TRANSITION ──────────────────────────────────────────────────────────── */
@@ -251,4 +281,96 @@
   body > * {
     display: none !important;
   }
+}
+
+/* =============================================================================
+   Block Alts — Gutter Indicator
+   =============================================================================
+   The screenplay page already has position: relative and left padding of 144px
+   (1.5"). The gutter icon is absolutely positioned at left: -30px relative to
+   each .script-block (which has position: relative via NodeViewWrapper style).
+   Ensure the page container is overflow: visible so the gutter is not clipped.
+   ============================================================================= */
+
+/* Allow gutter icons to bleed into the left margin without clipping */
+.screenplay-page {
+  overflow: visible;
+}
+
+/* ── Block Alts indicator (default: left gutter) ─────────────────────────── */
+.script-block-alts-indicator {
+  position: absolute;
+  left: -30px;
+  top: 2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0.5;
+  transition: opacity 0.15s ease;
+  pointer-events: auto;
+  z-index: 2;
+  text-transform: none;
+  vertical-align: middle;
+}
+
+.script-block:hover .script-block-alts-indicator,
+.script-block:focus-within .script-block-alts-indicator,
+.script-block-alts-indicator:hover,
+.script-block-alts-indicator.popover-open {
+  opacity: 1;
+}
+
+/* Character: inline to the right of the name. Dialogue: below the text, right-aligned. */
+.script-block[data-element-type='character'] .script-block-alts-indicator {
+  position: static;
+  left: auto;
+  top: auto;
+  margin-left: 8px;
+  order: 2;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.script-block[data-element-type='dialogue'] .script-block-alts-indicator {
+  position: absolute;
+  left: calc(100% - var(--sp-dialogue-right-pad) + 8px);
+  top: auto;
+  bottom: 2px;
+  margin: 0;
+  z-index: 2;
+}
+/* :focus-within ensures touch/keyboard users see the indicator when typing.
+   .popover-open locks visibility while the switcher is open. */
+
+/* =============================================================================
+   Collaboration Cursors — Remote user carets and labels
+   ============================================================================= */
+
+.collaboration-cursor__caret {
+  position: relative;
+  margin-left: -1px;
+  margin-right: -1px;
+  border-left: 2px solid;
+  border-color: currentColor;
+  word-break: normal;
+  pointer-events: none;
+}
+
+.collaboration-cursor__label {
+  position: absolute;
+  top: -1.4em;
+  left: -1px;
+  font-size: 10px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-style: normal;
+  font-weight: 600;
+  line-height: normal;
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px 3px 3px 0;
+  color: #fff;
+  background-color: currentColor;
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: none;
+  opacity: 0.9;
 }

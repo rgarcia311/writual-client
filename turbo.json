@@ -7,7 +7,7 @@
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
     "@writual/web#build": {
-      "dependsOn": [],
+      "dependsOn": ["^build"],
       "env": [
         "NEXT_PUBLIC_GRAPHQL_ENDPOINT",
         "NEXT_PUBLIC_FIREBASE_API_KEY",
@@ -24,8 +24,25 @@
       "outputs": [".next/**", "!.next/cache/**"]
     },
     "@writual/api#build": {
-      "dependsOn": [],
+      "dependsOn": ["^build"],
       "env": ["MONGODB_CONNECTION_URI", "PORT"],
+      "outputs": ["dist/**"]
+    },
+    "@writual/hocuspocus#build": {
+      "dependsOn": ["^build"],
+      "env": [
+        "MONGODB_CONNECTION_URI",
+        "MONGODB_DB_NAME",
+        "PORT",
+        "FIREBASE_PROJECT_ID",
+        "FIREBASE_CLIENT_EMAIL",
+        "FIREBASE_PRIVATE_KEY",
+        "FRONTEND_ORIGIN",
+        "ALLOW_INSECURE_NO_AUTH",
+        "APP_USERS_COLLECTION",
+        "PROJECTS_COLLECTION",
+        "SERVICE_NAME"
+      ],
       "outputs": ["dist/**"]
     },
     "dev": {

@@ -4,6 +4,7 @@ import * as React from 'react';
 import Accordion from '@mui/material/Accordion';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
+import Box from '@mui/material/Box';
 import Breadcrumbs from '@mui/material/Breadcrumbs';
 import Link from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
@@ -64,7 +65,7 @@ const defaultProjectData: Project = {
   inspiration: []
 };
 
-export function ProjectHeader() {
+export function ProjectHeader({ accordionAdornment }: { accordionAdornment?: React.ReactNode }) {
   const params = useParams();
   const pathname = usePathname();
   const router = useRouter();
@@ -169,9 +170,9 @@ export function ProjectHeader() {
         expandIcon={<ExpandMoreIcon />}
         aria-controls="project-header-content"
         id="project-header-header"
-        sx={{ p: 0, minHeight: 56, '& .MuiAccordionSummary-content': { my: 1.5 } }}
+        sx={{ p: 0, minHeight: 56, '& .MuiAccordionSummary-content': { my: 1.5, display: 'flex', alignItems: 'center', gap: 2, width: '100%' } }}
       >
-        <Breadcrumbs aria-label="breadcrumb" sx={{...projectStyles.tableTopButtons }}>
+        <Breadcrumbs aria-label="breadcrumb" sx={{...projectStyles.tableTopButtons, minWidth: 'auto' }}>
           <Link 
             underline="hover" 
             color="inherit" 
@@ -198,6 +199,14 @@ export function ProjectHeader() {
             {currentPageLabel ?? projectTitle}
           </Typography>
         </Breadcrumbs>
+        {accordionAdornment && (
+          <Box
+            onClick={(e) => e.stopPropagation()}
+            sx={{ display: 'flex', alignItems: 'center' }}
+          >
+            {accordionAdornment}
+          </Box>
+        )}
       </AccordionSummary>
       <AccordionDetails sx={{ pt: 0, p: 0, pb: 2 }}>
         <ProjectCard
