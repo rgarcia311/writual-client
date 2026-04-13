@@ -8,7 +8,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
-import { auth } from '@/lib/firebase';
+import { getFirebaseAuth } from '@/lib/firebase';
 import { authRequest } from '@/lib/authRequest';
 import { CLAIM_INVITE } from '@/mutations/ShareMutations';
 
@@ -26,7 +26,7 @@ export default function InvitePage() {
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(getFirebaseAuth(), async (user) => {
       if (!user) {
         // Not authenticated — redirect to login preserving the full invite URL
         const redirectTo = encodeURIComponent(`/invite?token=${token}`);

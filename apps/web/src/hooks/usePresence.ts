@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import PusherClient, { type PresenceChannel } from 'pusher-js';
-import { auth } from '@/lib/firebase';
+import { getFirebaseAuth } from '@/lib/firebase';
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { useUserProfileStore } from '@/state/user';
 
@@ -55,7 +55,7 @@ export function usePresence(projectId: string | null): UsePresenceReturn {
         endpoint: `${GRAPHQL_ENDPOINT}/api/pusher/auth`,
         customHandler: async ({ socketId, channelName }, callback) => {
           try {
-            const token = await auth.currentUser?.getIdToken();
+            const token = await getFirebaseAuth().currentUser?.getIdToken();
             const res = await fetch(`${GRAPHQL_ENDPOINT}/api/pusher/auth`, {
               method: 'POST',
               headers: {

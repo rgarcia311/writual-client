@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import PusherClient from 'pusher-js';
 import { type InfiniteData, useQueryClient } from '@tanstack/react-query';
-import { auth } from '@/lib/firebase';
+import { getFirebaseAuth } from '@/lib/firebase';
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import type { ChatMessage, ConversationThread } from '@/interfaces/chat';
 
@@ -15,7 +15,7 @@ function createPusherClient() {
       endpoint: `${GRAPHQL_ENDPOINT}/api/pusher/auth`,
       customHandler: async ({ socketId, channelName }, callback) => {
         try {
-          const token = await auth.currentUser?.getIdToken();
+          const token = await getFirebaseAuth().currentUser?.getIdToken();
           const res = await fetch(`${GRAPHQL_ENDPOINT}/api/pusher/auth`, {
             method: 'POST',
             headers: {

@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { request } from 'graphql-request';
-import { auth } from '@/lib/firebase';
+import { getFirebaseAuth } from '@/lib/firebase';
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { ME_QUERY } from '@/queries/UserQueries';
 import { useUserProfileStore } from '@/state/user';
@@ -22,7 +22,7 @@ export function ClientOnlyMuiLayout({ children }: { children: React.ReactNode })
   React.useEffect(() => {
     setMounted(true);
 
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(getFirebaseAuth(), async (firebaseUser) => {
       if (!firebaseUser) {
         setUserProfile(null);
         return;

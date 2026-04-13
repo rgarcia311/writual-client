@@ -10,7 +10,7 @@ import ManageSearchIcon from '@mui/icons-material/ManageSearch';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { getFirebaseAuth } from '@/lib/firebase';
 import { logout } from '@/app/actions/auth';
 import { useUserProfileStore } from '@/state/user';
 import { useThemeToggleOptional } from '@/themes/ThemeToggleContext';
@@ -40,7 +40,7 @@ export function SettingsPopover({ standalone = false }: SettingsPopoverProps) {
 
   const handleSignOut = async () => {
     handleClose();
-    await signOut(auth);
+    await signOut(getFirebaseAuth());
     setUserProfile(null);
     await logout();
     router.replace('/');
