@@ -1,15 +1,8 @@
 import mongoose from "mongoose";
-import { environment } from "./app-config";
+import { resolveMongoUri } from "@writual/mongo-env";
 import { projectSchema, sceneSchema, characterSchema, outlineFrameworkStandaloneSchema, userSchema, messageSchema, conversationSchema } from "./schemas";
 
-const env = process.env.NODE_ENV || "development";
-
-const uri =
-  process.env.NODE_ENV === "production"
-    ? process.env.MONGODB_CONNECTION_URI!
-    : (environment as Record<string, { dbString: string }>)[env]?.dbString ?? "mongodb://localhost:27017/writual";
-
-if (!uri) throw new Error("MONGODB_CONNECTION_URI is not defined");
+const uri = resolveMongoUri();
 
 // Global cache prevents redundant connections across module reloads
 // (Next.js server actions and hot-reload can re-execute this module).

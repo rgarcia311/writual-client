@@ -1,4 +1,5 @@
 export { WritualEditor } from './WritualEditor'
+export { ScreenplayToolbar } from './ScreenplayToolbar'
 export {
   ScriptBlock,
   extractSluglines,

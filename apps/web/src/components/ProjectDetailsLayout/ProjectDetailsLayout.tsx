@@ -17,6 +17,8 @@ interface ProjectDetailsLayoutProps {
   headerAction?: React.ReactNode;
   /** Optional content after the title on the left (e.g. saving/saved indicator) */
   headerLeftAdornment?: React.ReactNode;
+  /** Optional content to slot into the ProjectHeader accordion summary row after breadcrumbs */
+  accordionAdornment?: React.ReactNode;
 }
 
 export function ProjectDetailsLayout({
@@ -25,6 +27,7 @@ export function ProjectDetailsLayout({
   headerTitle,
   headerAction,
   headerLeftAdornment,
+  accordionAdornment,
 }: ProjectDetailsLayoutProps) {
   const showHeader =
     headerTitle !== undefined || headerAction !== undefined || headerLeftAdornment !== undefined;
@@ -35,7 +38,7 @@ export function ProjectDetailsLayout({
       disableGutters
       sx={{ display: 'flex', flexDirection: 'column', flex: 1, padding: 2, height: '100%', width: '100%', minWidth: 0, overflow: 'hidden' }}
     >
-      <ProjectHeader />
+      <ProjectHeader accordionAdornment={accordionAdornment} />
       <Container
         maxWidth={false}
         disableGutters
