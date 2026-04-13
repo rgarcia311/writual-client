@@ -1,4 +1,4 @@
-import { AppUsers } from '../db-connector';
+import { AppUsers } from '@writual/db';
 import { TIER_RANK, normalizeTier, type Tier } from '@writual/tier-logic';
 
 export async function requireTier(

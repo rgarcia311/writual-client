@@ -17,9 +17,6 @@
     "url": "https://github.com/writual/writual/issues"
   },
   "scripts": {
-    "deploy": "firebase deploy --only apphosting",
-    "deploy:web": "firebase deploy --only apphosting:writual",
-    "deploy:api": "firebase deploy --only apphosting:writual-api --debug",
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",

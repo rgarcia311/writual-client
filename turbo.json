@@ -7,7 +7,6 @@
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
     "@writual/web#build": {
-      "dependsOn": [],
       "env": [
         "NEXT_PUBLIC_GRAPHQL_ENDPOINT",
         "NEXT_PUBLIC_FIREBASE_API_KEY",
@@ -24,20 +23,19 @@
       "outputs": [".next/**", "!.next/cache/**"]
     },
     "@writual/tier-logic#build": {
-      "dependsOn": [],
       "outputs": ["dist/**"]
     },
     "@writual/mongo-env#build": {
-      "dependsOn": [],
+      "outputs": ["dist/**"]
+    },
+    "@writual/db#build": {
       "outputs": ["dist/**"]
     },
     "@writual/api#build": {
-      "dependsOn": ["@writual/tier-logic#build", "@writual/mongo-env#build"],
       "env": ["MONGODB_CONNECTION_URI", "PORT"],
       "outputs": ["dist/**"]
     },
     "@writual/hocuspocus#build": {
-      "dependsOn": ["@writual/tier-logic#build", "@writual/mongo-env#build"],
       "env": [
         "MONGODB_CONNECTION_URI",
         "MONGODB_DB_NAME",

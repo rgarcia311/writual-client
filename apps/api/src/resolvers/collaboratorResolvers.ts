@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import mongoose from 'mongoose';
 import { GraphQLError } from 'graphql';
-import { Projects, AppUsers } from '../db-connector';
+import { Projects, AppUsers } from '@writual/db';
 import { adminAuth } from '../lib/firebase-admin';
 import { sendEmail } from '../services/emailService';
 

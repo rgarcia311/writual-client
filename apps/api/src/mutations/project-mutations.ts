@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import mongoose from "mongoose";
-import { Projects, Scenes, OutlineFrameworks } from "../db-connector";
+import { Projects, Scenes, OutlineFrameworks } from "@writual/db";
 import {
     insertData,
     deleteData,

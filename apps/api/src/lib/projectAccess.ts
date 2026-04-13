@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { GraphQLError } from 'graphql';
-import { Projects } from '../db-connector';
+import { Projects } from '@writual/db';
 
 /**
  * Throws FORBIDDEN if the caller does not have write (edit) access to the project.

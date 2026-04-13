@@ -1,4 +1,4 @@
-import { Projects, OutlineFrameworks } from "../db-connector";
+import { Projects, OutlineFrameworks } from "@writual/db";
 import { getData } from "../helpers";
 
 //Create one resolve for data that takes filters for stripping specific parts of project data

@@ -3,7 +3,7 @@
 import { cookies } from 'next/headers';
 import { adminAuth } from '@/lib/firebase-admin';
 import { TIER_RANK, type Tier } from '@/types/tier';
-import { connectToDatabase, AppUsers } from '../../../api/src/db-connector';
+import { connectToDatabase, AppUsers } from '@writual/db';
 
 export async function requireTierForAction(minTier: Tier): Promise<void> {
   const jar = await cookies();

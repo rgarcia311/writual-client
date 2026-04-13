@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { Projects, Scenes } from "../db-connector";
+import { Projects, Scenes } from "@writual/db";
 import { toObjectId, nowIso, isTransactionNotSupportedError } from "../utils/mongoUtils";
 
 /** Payload for creating a new scene (no number; order comes from project.sceneOrder). */
