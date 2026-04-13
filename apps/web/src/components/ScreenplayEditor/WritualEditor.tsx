@@ -4,7 +4,7 @@ import * as React from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Collaboration from '@tiptap/extension-collaboration'
-import CollaborationCursor from '@tiptap/extension-collaboration-cursor'
+import { CollaborationCursor } from './CollaborationCursorExtension'
 import { useQuery } from '@tanstack/react-query'
 import { request } from 'graphql-request'
 import {
@@ -37,7 +37,6 @@ import {
   SCREENPLAY_ELEMENT_LABELS,
   type ScreenplayElementType,
 } from './ScreenplayExtension'
-import { CollabHistory } from './CollabHistory'
 import { BlockAltsToolbar } from './BlockAltsToolbar'
 import { ScreenplayToolbar } from './ScreenplayToolbar'
 import { PROJECT_SCENES_QUERY } from '@/queries/SceneQueries'
@@ -400,7 +399,6 @@ function ScreenplayEditorCore({
       if (canEdit) {
         base.push(
           CollaborationCursor.configure({ provider }) as any,
-          CollabHistory as any,
         )
       }
     }
