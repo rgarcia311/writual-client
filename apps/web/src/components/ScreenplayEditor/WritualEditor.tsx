@@ -309,9 +309,9 @@ interface CollabGateProps {
 }
 
 function CollabGate({ projectId, canEdit, projectScenes, savedScreenplayContent }: CollabGateProps) {
-  const { ydoc, provider } = useCollaboration(projectId)
+  const { ydoc, provider, failed } = useCollaboration(projectId)
 
-  if (projectId && (!ydoc || !provider)) {
+  if (projectId && !failed && (!ydoc || !provider)) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
         <CircularProgress size={28} />
@@ -321,12 +321,13 @@ function CollabGate({ projectId, canEdit, projectScenes, savedScreenplayContent 
 
   return (
     <ScreenplayEditorCore
+      key={`${projectId}-${failed ? 'solo' : 'collab'}`}
       projectId={projectId}
       canEdit={canEdit}
       projectScenes={projectScenes}
       savedScreenplayContent={savedScreenplayContent}
-      ydoc={ydoc}
-      provider={provider}
+      ydoc={failed ? null : ydoc}
+      provider={failed ? null : provider}
     />
   )
 }

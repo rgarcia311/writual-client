@@ -22,6 +22,7 @@ import { computeProjectProgress } from '../../utils/progress';
 import { ProjectType } from '@/enums/ProjectEnums';
 import { UPDATE_PROJECT, DELETE_PROJECT } from 'mutations/ProjectMutations';
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
+import { authRequest } from '@/lib/authRequest';
 import { useUserProfileStore } from '@/state/user';
 
 const endpoint = GRAPHQL_ENDPOINT;
@@ -77,7 +78,7 @@ export function ProjectHeader({ accordionAdornment }: { accordionAdornment?: Rea
 
   const updateProjectMutation = useMutation({
     mutationFn: async (variables: Record<string, unknown>) => {
-      await request(GRAPHQL_ENDPOINT, UPDATE_PROJECT, variables as Record<string, string>);
+      await authRequest(UPDATE_PROJECT, variables);
     },
     onSuccess: async () => {
       if (id) {
@@ -91,7 +92,7 @@ export function ProjectHeader({ accordionAdornment }: { accordionAdornment?: Rea
 
   const deleteProjectMutation = useMutation({
     mutationFn: (deleteProjectId: string) =>
-      request(GRAPHQL_ENDPOINT, DELETE_PROJECT, { deleteProjectId }),
+      authRequest(DELETE_PROJECT, { deleteProjectId }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['projects'] });
       router.push('/projects');
