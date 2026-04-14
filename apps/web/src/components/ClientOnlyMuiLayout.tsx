@@ -1,12 +1,13 @@
 'use client';
 
 import * as React from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onIdTokenChanged } from 'firebase/auth';
 import { request } from 'graphql-request';
 import { getFirebaseAuth } from '@/lib/firebase';
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { ME_QUERY } from '@/queries/UserQueries';
 import { useUserProfileStore } from '@/state/user';
+import { verifyAndLogin } from '@/app/actions/auth';
 
 /**
  * Renders children only after mount. Use in root layout to avoid MUI/Emotion
@@ -22,13 +23,15 @@ export function ClientOnlyMuiLayout({ children }: { children: React.ReactNode })
   React.useEffect(() => {
     setMounted(true);
 
-    const unsubscribe = onAuthStateChanged(getFirebaseAuth(), async (firebaseUser) => {
+    const unsubscribe = onIdTokenChanged(getFirebaseAuth(), async (firebaseUser) => {
       if (!firebaseUser) {
         setUserProfile(null);
         return;
       }
 
       const idToken = await firebaseUser.getIdToken();
+
+      verifyAndLogin(idToken).catch(() => {});
 
       // Set immediately — full beta-access optimistically, no flicker
       setUserProfile({
