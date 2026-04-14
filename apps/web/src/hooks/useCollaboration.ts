@@ -24,19 +24,9 @@ function pickColor(userId: string): string {
 export interface CollabResources {
   ydoc: Y.Doc | null
   provider: HocuspocusProvider | null
+  failed: boolean
 }
 
-/**
- * Manages the Yjs document and Hocuspocus provider lifecycle.
- *
- * Both Viewers and Editors connect so Viewers receive live document
- * updates. The caller controls `editable` on the editor independently.
- *
- * Instantiation happens inside a useEffect (not a useState lazy
- * initializer) to stay Strict-Mode-safe: React 18 will mount → unmount
- * → remount, and the cleanup correctly destroys the old instances while
- * the second mount creates fresh ones.
- */
 export function useCollaboration(
   projectId: string | undefined,
 ): CollabResources {
@@ -47,6 +37,7 @@ export function useCollaboration(
   const [resources, setResources] = useState<CollabResources>({
     ydoc: null,
     provider: null,
+    failed: false,
   })
 
   useEffect(() => {
@@ -54,6 +45,8 @@ export function useCollaboration(
       setCollabStatus('idle')
       return
     }
+
+    let isFailed = false
 
     const ydoc = new Y.Doc()
     const provider = new HocuspocusProvider({
@@ -88,16 +81,33 @@ export function useCollaboration(
     provider.on('status', handleStatus)
     provider.on('awarenessUpdate', handleAwareness)
 
-    setResources({ ydoc, provider })
-
-    return () => {
-      provider.off('status', handleStatus)
-      provider.off('awarenessUpdate', handleAwareness)
-      provider.destroy()
-      ydoc.destroy()
-      setResources({ ydoc: null, provider: null })
+    provider.on('authenticationFailed', () => {
+      console.warn('[collab] Authentication failed — falling back to solo mode')
+      isFailed = true
+      setResources({ ydoc: null, provider: null, failed: true })
       setCollabStatus('idle')
       setConnectedUsers([])
+
+      setTimeout(() => {
+        provider.off('status', handleStatus)
+        provider.off('awarenessUpdate', handleAwareness)
+        provider.destroy()
+        ydoc.destroy()
+      }, 0)
+    })
+
+    setResources({ ydoc, provider, failed: false })
+
+    return () => {
+      if (!isFailed) {
+        provider.off('status', handleStatus)
+        provider.off('awarenessUpdate', handleAwareness)
+        provider.destroy()
+        ydoc.destroy()
+        setResources({ ydoc: null, provider: null, failed: false })
+        setCollabStatus('idle')
+        setConnectedUsers([])
+      }
     }
   }, [projectId, userProfile?.user, setCollabStatus, setConnectedUsers])
 

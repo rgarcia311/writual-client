@@ -2,11 +2,14 @@ import { GraphQLJSON } from "graphql-scalars";
 import { getProjectData, getOutlineFrameworks } from "../resolvers";
 import { setProjectOutline, createOutlineFramework, updateOutlineFramework, deleteOutlineFramework, createProject, deleteProject, shareProject, updateProject, updateProjectSharedWith, createinspiration, deleteinspiration, lockAllScenesInOutline, lockAllCharacters, unlockOutlineSection, unlockCharactersSection, saveScreenplay as saveScreenplayFn } from "../mutations";
 import mongoose from "mongoose";
-import { AppUsers, Projects, Messages, Conversations } from "@writual/db";
+import { AppUsers, Projects, Scenes, Characters, Messages, Conversations } from "@writual/db";
 import { requireTier } from "../utils/tierUtils";
 import { pusher } from "../services/pusher";
 import { inviteCollaborators, updateCollaborator, removeCollaborator, claimInvite, finalizeSignup } from "../resolvers/collaboratorResolvers";
 import { verifyProjectWriteAccess } from "../lib/projectAccess";
+import { GraphQLError } from "graphql";
+import { createScene as createSceneService, updateScene as updateSceneService, deleteScene as deleteSceneService } from "../services/SceneService";
+import { createCharacter as createCharacterService, updateCharacter as updateCharacterService, deleteCharacter as deleteCharacterService } from "../services/CharacterService";
 export const ProjectType = `#graphql
 
     scalar JSON
@@ -119,6 +122,12 @@ export const ProjectType = `#graphql
         markAsRead(conversationId: ID!): Boolean
         createGroupConversation(projectId: ID!, participantUids: [String!]!, name: String!): ConversationThread
         leaveConversation(conversationId: ID!): Boolean
+        createScene(projectId: String!, input: CreateSceneInput!): Scene
+        updateScene(sceneId: String!, input: UpdateSceneInput!): Scene
+        deleteScene(sceneId: String!): DeleteResult
+        createCharacter(projectId: String!, input: CreateCharacterInput!): Character
+        updateCharacter(characterId: String!, input: UpdateCharacterInput!): Character
+        deleteCharacter(characterId: String!): DeleteResult
         inviteCollaborators(projectId: ID!, invitations: [InvitationInput!]!): Project
         updateCollaborator(projectId: ID!, collaboratorId: ID!, permissionLevel: String, aspects: [String!]): Project
         removeCollaborator(projectId: ID!, collaboratorId: ID!): Project
@@ -308,6 +317,21 @@ export const ProjectType = `#graphql
         versions: [SceneContentInput]
     }
 
+    input CreateSceneInput {
+        activeVersion: Int
+        lockedVersion: Int
+        newVersion: Boolean
+        newScene: Boolean
+        versions: [SceneContentInput]
+    }
+
+    input UpdateSceneInput {
+        activeVersion: Int
+        lockedVersion: Int
+        newVersion: Boolean
+        versions: [SceneContentInput]
+    }
+
     type Character {
         _id: String
         projectId: String
@@ -342,6 +366,36 @@ export const ProjectType = `#graphql
         name: String
         imageUrl: String
         details: [CharacterDetailsInput]
+    }
+
+    input CreateCharacterInput {
+        imageUrl: String
+        activeVersion: Int
+        lockedVersion: Int
+        details: [CharacterDetailInput]
+    }
+
+    input UpdateCharacterInput {
+        imageUrl: String
+        newVersion: Boolean
+        activeVersion: Int
+        lockedVersion: Int
+        details: [CharacterDetailInput]
+    }
+
+    input CharacterDetailInput {
+        version: Int
+        bio: String
+        name: String
+        age: Int
+        gender: String
+        need: String
+        want: String
+    }
+
+    type DeleteResult {
+        deleted: Boolean!
+        projectId: String
     }
 
     enum ProjectType {
@@ -761,6 +815,48 @@ export const resolvers = {
     lockAllCharacters,
     unlockOutlineSection,
     unlockCharactersSection,
+    createScene: async (_root: unknown, args: { projectId: string; input: any }, context: { uid: string | null }) => {
+      if (!context.uid) throw new GraphQLError('Unauthorized', { extensions: { code: 'UNAUTHENTICATED' } });
+      await requireTier(context, 'indie');
+      await verifyProjectWriteAccess(args.projectId, context.uid);
+      return createSceneService(args.projectId, args.input);
+    },
+    updateScene: async (_root: unknown, args: { sceneId: string; input: any }, context: { uid: string | null }) => {
+      if (!context.uid) throw new GraphQLError('Unauthorized', { extensions: { code: 'UNAUTHENTICATED' } });
+      const scene = await Scenes.findById(args.sceneId).lean().exec();
+      if (!scene) throw new GraphQLError('Scene not found', { extensions: { code: 'NOT_FOUND' } });
+      await verifyProjectWriteAccess((scene as any).projectId.toString(), context.uid);
+      return updateSceneService(args.sceneId, args.input);
+    },
+    deleteScene: async (_root: unknown, args: { sceneId: string }, context: { uid: string | null }) => {
+      if (!context.uid) throw new GraphQLError('Unauthorized', { extensions: { code: 'UNAUTHENTICATED' } });
+      const scene = await Scenes.findById(args.sceneId).lean().exec();
+      if (!scene) throw new GraphQLError('Scene not found', { extensions: { code: 'NOT_FOUND' } });
+      await verifyProjectWriteAccess((scene as any).projectId.toString(), context.uid);
+      const result = await deleteSceneService(args.sceneId);
+      return { deleted: result.deleted, projectId: result.projectId ?? null };
+    },
+    createCharacter: async (_root: unknown, args: { projectId: string; input: any }, context: { uid: string | null }) => {
+      if (!context.uid) throw new GraphQLError('Unauthorized', { extensions: { code: 'UNAUTHENTICATED' } });
+      await requireTier(context, 'indie');
+      await verifyProjectWriteAccess(args.projectId, context.uid);
+      return createCharacterService(args.projectId, args.input);
+    },
+    updateCharacter: async (_root: unknown, args: { characterId: string; input: any }, context: { uid: string | null }) => {
+      if (!context.uid) throw new GraphQLError('Unauthorized', { extensions: { code: 'UNAUTHENTICATED' } });
+      const character = await Characters.findById(args.characterId).lean().exec();
+      if (!character) throw new GraphQLError('Character not found', { extensions: { code: 'NOT_FOUND' } });
+      await verifyProjectWriteAccess((character as any).projectId.toString(), context.uid);
+      return updateCharacterService(args.characterId, args.input);
+    },
+    deleteCharacter: async (_root: unknown, args: { characterId: string }, context: { uid: string | null }) => {
+      if (!context.uid) throw new GraphQLError('Unauthorized', { extensions: { code: 'UNAUTHENTICATED' } });
+      const character = await Characters.findById(args.characterId).lean().exec();
+      if (!character) throw new GraphQLError('Character not found', { extensions: { code: 'NOT_FOUND' } });
+      await verifyProjectWriteAccess((character as any).projectId.toString(), context.uid);
+      const result = await deleteCharacterService(args.characterId);
+      return { deleted: result.deleted, projectId: result.projectId ?? null };
+    },
     inviteCollaborators,
     updateCollaborator,
     removeCollaborator,

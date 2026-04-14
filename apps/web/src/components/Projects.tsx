@@ -1,41 +1,83 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useCallback } from 'react';
 import { Box } from '@mui/system';
 import { Tabs, Tab } from '@mui/material';
 import { ProjectCard, ProjectCardSkeleton } from './ProjectCard';
+import { CreateProject } from './CreateProject';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { request } from 'graphql-request';
 import { PROJECTS_QUERY } from '../queries';
-import { DELETE_PROJECT } from 'mutations/ProjectMutations';
-import { GRAPHQL_ENDPOINT } from '@/lib/config';
+import { UPDATE_PROJECT, DELETE_PROJECT } from 'mutations/ProjectMutations';
+import { authRequest } from '@/lib/authRequest';
 import { useUserProfileStore } from '@/state/user';
 import { useCreateProjectModalStore } from '@/state/createProjectModal';
 import { computeProjectProgress } from '../utils/progress';
 
-const endpoint = GRAPHQL_ENDPOINT;
-
 export const Projects = () => {
-    const router = useRouter();
     const queryClient = useQueryClient();
     const userId = useUserProfileStore((s) => s.userProfile?.user);
     const pendingNewProject = useCreateProjectModalStore((s) => s.pendingNewProject);
 
+    const [editingProject, setEditingProject] = useState<any>(null);
+
     const { data }: any = useQuery({
         queryKey: ['projects', userId],
-        queryFn: async () => request(endpoint, PROJECTS_QUERY, userId ? { input: { user: userId } } : undefined),
+        queryFn: async () => authRequest(PROJECTS_QUERY, userId ? { input: { user: userId } } : undefined),
         enabled: userId != null,
     });
 
     const deleteProjectMutation = useMutation({
         mutationFn: (deleteProjectId: string) =>
-          request(endpoint, DELETE_PROJECT, { deleteProjectId }),
+          authRequest(DELETE_PROJECT, { deleteProjectId }),
         onSuccess: async () => {
           await queryClient.invalidateQueries({ queryKey: ['projects'] });
           await queryClient.refetchQueries({ queryKey: ['projects'] });
         },
     });
+
+    const updateProjectMutation = useMutation({
+        mutationFn: async (variables: Record<string, unknown>) => {
+          await authRequest(UPDATE_PROJECT, variables);
+        },
+        onSuccess: async () => {
+          setEditingProject(null);
+          await queryClient.invalidateQueries({ queryKey: ['projects'] });
+          await queryClient.refetchQueries({ queryKey: ['projects'] });
+        },
+    });
+
+    const handleUpdateProject = useCallback(
+        (formValues: Record<string, unknown>) => {
+          const projectId = editingProject?._id;
+          const userProfileState = useUserProfileStore.getState();
+          const user = userProfileState.userProfile?.user;
+          const displayName = userProfileState.userProfile?.displayName;
+          const email = userProfileState.userProfile?.email ?? '';
+          if (!projectId || !user) return;
+          const similarProjects = Array.isArray(formValues.similarProjects)
+            ? formValues.similarProjects
+            : typeof formValues.similarProjects === 'string'
+              ? (formValues.similarProjects as string).split(',').map((s) => s.trim()).filter(Boolean)
+              : [];
+          updateProjectMutation.mutate({
+            _id: projectId,
+            title: formValues.title,
+            type: formValues.type,
+            user,
+            displayName,
+            email,
+            logline: formValues.logline,
+            genre: formValues.genre,
+            poster: formValues.poster,
+            outlineName: formValues.outlineName,
+            sharedWith: formValues.sharedWith,
+            budget: formValues.budget != null && formValues.budget !== '' ? Number(formValues.budget) : undefined,
+            similarProjects,
+            timePeriod: formValues.timePeriod ?? undefined,
+          });
+        },
+        [editingProject, updateProjectMutation]
+    );
 
     const [activeTab, setActiveTab] = useState(0);
 
@@ -55,7 +97,7 @@ export const Projects = () => {
             projectId={project._id}
             projectTypeLabel={project.type}
             to={project._id ? `/project/${project._id}` : undefined}
-            onEditClick={project._id ? () => router.push(`/project/${project._id}`) : undefined}
+            onEditClick={project._id ? () => setEditingProject(project) : undefined}
             hideBudgetAndSimilarProjects
             progress={computeProjectProgress(project)}
         />
@@ -91,6 +133,15 @@ export const Projects = () => {
                     {sharedProjects.map((project) => renderCard(project, false))}
                 </Box>
             </Box>
+
+            {editingProject && (
+                <CreateProject
+                    setAddProject={(open) => { if (!open) setEditingProject(null); }}
+                    handleAddProject={() => {}}
+                    initialData={{ ...editingProject, _id: editingProject._id }}
+                    handleUpdateProject={handleUpdateProject}
+                />
+            )}
         </Box>
     )
 }
