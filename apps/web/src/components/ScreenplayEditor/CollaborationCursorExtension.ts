@@ -48,7 +48,9 @@ export const CollaborationCursor = Extension.create<CollaborationCursorOptions>(
     const awareness = provider?.awareness
     if (!provider || !awareness) return []
 
-    awareness.setLocalStateField('user', this.options.user)
+    if (this.options.user.name != null && this.options.user.color != null) {
+      awareness.setLocalStateField('user', this.options.user)
+    }
 
     const awarenessToArray = (states: Map<number, Record<string, unknown>>) =>
       Array.from(states.entries()).map(([key, value]) => ({
