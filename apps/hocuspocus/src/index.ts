@@ -446,7 +446,7 @@ async function main(): Promise<void> {
   // Listen
   // -----------------------------------------------------------------------
 
-  const port = Number(process.env.PORT || 8080);
+  const port = Number(process.env.HOCUSPOCUS_PORT || process.env.PORT || 8787);
   httpServer.listen({ port, host: '0.0.0.0' }, () => {
     console.info(`[hocuspocus] Listening on 0.0.0.0:${port}`);
   });
