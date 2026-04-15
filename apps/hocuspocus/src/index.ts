@@ -155,6 +155,13 @@ const LOCALHOST_PREFIXES = [
   'https://127.0.0.1:',
 ];
 
+function normalizeOrigin(origin: string): string {
+  return origin
+    .trim()
+    .replace(/\/$/, '')
+    .replace(/^(https?:\/\/)www\./, '$1');
+}
+
 function isAllowedOrigin(
   requestOrigin: string | undefined,
   nodeEnv: string | undefined,
@@ -163,11 +170,14 @@ function isAllowedOrigin(
   if (!requestOrigin) return false;
 
   if (nodeEnv === 'production') {
-    return !!frontendOrigin && requestOrigin === frontendOrigin;
+    return (
+      !!frontendOrigin &&
+      normalizeOrigin(requestOrigin) === normalizeOrigin(frontendOrigin)
+    );
   }
 
   if (frontendOrigin) {
-    return requestOrigin === frontendOrigin;
+    return normalizeOrigin(requestOrigin) === normalizeOrigin(frontendOrigin);
   }
 
   return LOCALHOST_PREFIXES.some((prefix) => requestOrigin.startsWith(prefix));
@@ -254,6 +264,8 @@ async function main(): Promise<void> {
     console.error('[mongo] Connection failed', err);
     process.exit(1);
   }
+
+  console.info(`[config] FRONTEND_ORIGIN="${process.env.FRONTEND_ORIGIN ?? '(not set)'}"`);
 
   const db = process.env.MONGODB_DB_NAME
     ? client.db(process.env.MONGODB_DB_NAME)
@@ -433,6 +445,10 @@ async function main(): Promise<void> {
         process.env.FRONTEND_ORIGIN,
       )
     ) {
+      console.warn(
+        `[ws] Rejected upgrade — origin="${request.headers.origin}" expected="${process.env.FRONTEND_ORIGIN}"`,
+      );
+      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
       socket.destroy();
       return;
     }
