@@ -31,12 +31,16 @@ import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline'
 import FormatQuoteIcon from '@mui/icons-material/FormatQuote'
 import NotesIcon from '@mui/icons-material/Notes'
 import FastForwardIcon from '@mui/icons-material/FastForward'
+import ZoomInIcon from '@mui/icons-material/ZoomIn'
+import ZoomOutIcon from '@mui/icons-material/ZoomOut'
+import FitScreenIcon from '@mui/icons-material/FitScreen'
 
 import {
   ScriptBlock,
   SCREENPLAY_ELEMENT_LABELS,
   type ScreenplayElementType,
 } from './ScreenplayExtension'
+import { PageBreakExtension } from './PageBreakPlugin'
 import { BlockAltsToolbar } from './BlockAltsToolbar'
 import { ScreenplayToolbar } from './ScreenplayToolbar'
 import { PROJECT_SCENES_QUERY } from '@/queries/SceneQueries'
@@ -50,6 +54,14 @@ import { GRAPHQL_ENDPOINT } from '@/lib/config'
 import type { HocuspocusProvider } from '@hocuspocus/provider'
 import type * as Y from 'yjs'
 import './Screenplay.css'
+import {
+  SCREENPLAY_PAPER_HEIGHT_PX,
+  SCREENPLAY_PAPER_WIDTH_PX,
+} from './screenplayPaperLayout'
+
+const SCREENPLAY_ZOOM_MIN = 0.5
+const SCREENPLAY_ZOOM_MAX = 2
+const SCREENPLAY_ZOOM_STEP = 0.1
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -158,12 +170,36 @@ function buildDocFromScenes(scenes: ProjectScene[]): Record<string, unknown> {
 
 // ─── Print utility ────────────────────────────────────────────────────────────
 
+/**
+ * TipTap output is schema-bound, but the print popup uses document.write with
+ * interpolated HTML. Strip executable vectors and plugin-only UI (page labels).
+ */
+function sanitizeScreenplayHtmlForPrint(html: string): string {
+  if (typeof DOMParser === 'undefined') return html
+  const doc = new DOMParser().parseFromString(`<div id="__sanitize_root">${html}</div>`, 'text/html')
+  const root = doc.getElementById('__sanitize_root')
+  if (!root) return html
+  root.querySelectorAll('script, iframe, object, embed').forEach((n) => n.remove())
+  root.querySelectorAll('.screenplay-page-number').forEach((n) => n.remove())
+  root.querySelectorAll('*').forEach((el) => {
+    Array.from(el.attributes).forEach((a) => {
+      const lower = a.name.toLowerCase()
+      if (lower.startsWith('on') || lower === 'srcdoc' || lower === 'formaction') {
+        el.removeAttribute(a.name)
+      }
+    })
+  })
+  return root.innerHTML
+}
+
 function printScreenplay(html: string) {
   const win = window.open('', '_blank', 'width=900,height=700,scrollbars=yes')
   if (!win) {
     console.warn('Popup blocked — please allow popups for this site to print.')
     return
   }
+
+  const safeHtml = sanitizeScreenplayHtmlForPrint(html)
 
   win.document.write(`<!DOCTYPE html>
 <html lang="en">
@@ -174,9 +210,11 @@ function printScreenplay(html: string) {
 <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
 <style>
   @page {
-    size: 8.5in 11in;
-    margin: 1in 1in 1in 1.5in;
+    size: letter;
+    margin: 1in 1in 1in 1.5in; /* Standard WGA 1.5" left binding margin */
   }
+  /* Note: Chromium/WebKit do not render @page margin boxes; page numbers in print
+     would require pre-split HTML or a print engine that supports margin boxes. */
   * { box-sizing: border-box; }
   body {
     font-family: 'Courier Prime', 'Courier New', Courier, monospace;
@@ -188,33 +226,54 @@ function printScreenplay(html: string) {
     padding: 0;
   }
   .script-block {
-    margin: 0 0 12pt 0;
+    margin: 0;
     padding: 0;
     white-space: pre-wrap;
     word-wrap: break-word;
     break-inside: avoid;
     page-break-inside: avoid;
+    line-height: 12pt; /* Force exact typewriter line-height */
+    font-size: 12pt;
+  }
+  /* Enforce Screenplay Widow/Orphan Rules */
+  .script-block[data-element-type="action"],
+  .script-block[data-element-type="dialogue"] {
+    orphans: 2;
+    widows: 2;
+  }
+  /* Never strand a preceding element at the bottom of a page */
+  .script-block[data-element-type="character"],
+  .script-block[data-element-type="transition"],
+  .script-block[data-element-type="slugline"] {
+    break-after: avoid;
+    page-break-after: avoid;
   }
   .script-block:last-child { margin-bottom: 0; }
+  .script-block p { margin: 0; padding: 0; }
   .script-block[data-element-type="slugline"] {
     text-transform: uppercase;
     font-weight: 700;
-    margin-top: 24pt;
+    margin-top: 12pt;
     margin-bottom: 12pt;
+    margin-right: -36pt;
     break-after: avoid;
     page-break-after: avoid;
   }
   .script-block[data-element-type="slugline"]:first-child { margin-top: 0; }
+  .script-block[data-element-type="action"] {
+    margin-bottom: 12pt;
+    margin-right: -36pt;
+  }
   .script-block[data-element-type="character"] {
-    margin-left: 2.0in;
+    margin-left: 2.2in;
     text-transform: uppercase;
     margin-bottom: 0;
     break-after: avoid;
     page-break-after: avoid;
   }
   .script-block[data-element-type="parenthetical"] {
-    margin-left: 1.5in;
-    margin-right: 1.5in;
+    margin-left: 1.6in;
+    margin-right: 1.9in;
     margin-bottom: 0;
     break-before: avoid;
     break-after: avoid;
@@ -236,7 +295,7 @@ function printScreenplay(html: string) {
   }
 </style>
 </head>
-<body>${html}</body>
+<body>${safeHtml}</body>
 </html>`)
 
   win.document.close()
@@ -354,6 +413,67 @@ function ScreenplayEditorCore({
   const theme = useTheme()
   const [navigatorOpen, setNavigatorOpen] = React.useState(true)
   const [wordCount, setWordCount] = React.useState(0)
+  const [zoom, setZoom] = React.useState(1)
+
+  const workspaceRef = React.useRef<HTMLDivElement | null>(null)
+  const stageRef = React.useRef<HTMLDivElement | null>(null)
+  const pageRef = React.useRef<HTMLDivElement | null>(null)
+  const paperLayoutRef = React.useRef({
+    width: SCREENPLAY_PAPER_WIDTH_PX,
+    height: SCREENPLAY_PAPER_HEIGHT_PX,
+  })
+  const zoomRef = React.useRef(zoom)
+  zoomRef.current = zoom
+
+  const applyStageDimensions = React.useCallback(() => {
+    const stage = stageRef.current
+    if (!stage) return
+    const z = zoomRef.current
+    const { width, height } = paperLayoutRef.current
+    stage.style.width = `${width * z}px`
+    stage.style.height = `${height * z}px`
+  }, [])
+
+  React.useLayoutEffect(() => {
+    applyStageDimensions()
+  }, [zoom, applyStageDimensions])
+
+  React.useEffect(() => {
+    const page = pageRef.current
+    if (!page) return
+    const ro = new ResizeObserver(() => {
+      paperLayoutRef.current = {
+        width: SCREENPLAY_PAPER_WIDTH_PX,
+        height: page.offsetHeight,
+      }
+      applyStageDimensions()
+    })
+    ro.observe(page)
+    return () => {
+      ro.disconnect()
+    }
+  }, [applyStageDimensions])
+
+  React.useEffect(() => {
+    const el = workspaceRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return
+      e.preventDefault()
+      const delta = e.deltaY > 0 ? -SCREENPLAY_ZOOM_STEP : SCREENPLAY_ZOOM_STEP
+      setZoom((z) => {
+        const next = Math.min(
+          SCREENPLAY_ZOOM_MAX,
+          Math.max(SCREENPLAY_ZOOM_MIN, Math.round((z + delta) * 100) / 100),
+        )
+        return next
+      })
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => {
+      el.removeEventListener('wheel', onWheel)
+    }
+  }, [])
 
   const { setActiveType, setCanEdit, setElementTypeFnRef } = useScreenplayEditorStore()
   const collabStatus = useScreenplayEditorStore((s) => s.collabStatus)
@@ -392,6 +512,7 @@ function ScreenplayEditorCore({
         undoRedo: collabActive ? false : undefined,
       }),
       ScriptBlock as any,
+      PageBreakExtension,
     ]
 
     if (collabActive) {
@@ -661,6 +782,61 @@ function ScreenplayEditorCore({
 
         <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
 
+        <Tooltip title="Zoom out (Ctrl/Cmd + scroll)">
+          <span>
+            <IconButton
+              size="small"
+              onClick={() =>
+                setZoom((z) =>
+                  Math.max(SCREENPLAY_ZOOM_MIN, Math.round((z - SCREENPLAY_ZOOM_STEP) * 100) / 100),
+                )
+              }
+              disabled={zoom <= SCREENPLAY_ZOOM_MIN}
+              aria-label="zoom out screenplay"
+            >
+              <ZoomOutIcon fontSize="small" />
+            </IconButton>
+          </span>
+        </Tooltip>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ fontFamily: 'monospace', minWidth: 36, textAlign: 'center' }}
+          aria-live="polite"
+        >
+          {Math.round(zoom * 100)}%
+        </Typography>
+        <Tooltip title="Zoom in (Ctrl/Cmd + scroll)">
+          <span>
+            <IconButton
+              size="small"
+              onClick={() =>
+                setZoom((z) =>
+                  Math.min(SCREENPLAY_ZOOM_MAX, Math.round((z + SCREENPLAY_ZOOM_STEP) * 100) / 100),
+                )
+              }
+              disabled={zoom >= SCREENPLAY_ZOOM_MAX}
+              aria-label="zoom in screenplay"
+            >
+              <ZoomInIcon fontSize="small" />
+            </IconButton>
+          </span>
+        </Tooltip>
+        <Tooltip title="Reset zoom to 100%">
+          <span>
+            <IconButton
+              size="small"
+              onClick={() => setZoom(1)}
+              disabled={zoom === 1}
+              aria-label="reset screenplay zoom"
+            >
+              <FitScreenIcon fontSize="small" />
+            </IconButton>
+          </span>
+        </Tooltip>
+
+        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+
         <Tooltip title="Print screenplay — opens a clean print dialog with correct 8.5″×11″ formatting">
           <IconButton size="small" onClick={handlePrint} aria-label="print screenplay">
             <PrintIcon fontSize="small" />
@@ -778,6 +954,7 @@ function ScreenplayEditorCore({
 
         {/* ── SCREENPLAY WORKSPACE ─────────────────────────────────────── */}
         <Box
+          ref={workspaceRef}
           className="screenplay-workspace"
           sx={{
             flex: 1,
@@ -788,9 +965,28 @@ function ScreenplayEditorCore({
             px: 3,
           }}
         >
-          <Box className="screenplay-page">
-            <EditorContent editor={editor} />
-            <BlockAltsToolbar editor={editor} canEdit={canEdit} userId={user} />
+          <Box
+            ref={stageRef}
+            sx={{
+              position: 'relative',
+              margin: '0 auto',
+              flexShrink: 0,
+            }}
+          >
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                transform: `scale(${zoom})`,
+                transformOrigin: 'top left',
+              }}
+            >
+              <Box ref={pageRef} className="screenplay-page">
+                <EditorContent editor={editor} />
+                <BlockAltsToolbar editor={editor} canEdit={canEdit} userId={user} />
+              </Box>
+            </Box>
           </Box>
         </Box>
       </Box>

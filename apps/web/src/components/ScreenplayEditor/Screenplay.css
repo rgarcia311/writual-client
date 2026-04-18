@@ -6,7 +6,11 @@
    -----------------
    All measurements follow the WGA / Final Draft standard for US Letter paper.
 
-   Paper:       8.5" × 11"  →  816px × 1056px  (at 96 dpi)
+   Paper:       8.5" wide; height = width × 1.29  →  816px × 1053px (matches physical aspect)
+   On-screen:   The page shell is transparent (desk). A ::before mask repeats white
+                bands of --sp-paper-height with --sp-inter-page-gap desk between them.
+                ProseMirror + script blocks use opaque white so collapsed margins never
+                reveal the mask; page-break gaps span full bleed so desk shows at breaks.
    Margins:     1.5" left   →  144px
                 1.0" right  →   96px
                 1.0" top    →   96px
@@ -16,8 +20,8 @@
    Element offsets from left edge of paper  →  indent from text-area left:
      Slugline / Action   1.5"    144px      →   0px
      Dialogue            2.5"    240px      →  96px  (width 3.5" = 336px)
-     Parenthetical       3.0"    288px      → 144px
-     Character           3.5"    336px      → 192px
+     Parenthetical       3.1"    298px      → 154px  (width 2.5" ≈ 240px)
+     Character           3.7"    355px      → 211px
      Transition          6.0"    576px      → right-aligned
 
    ============================================================================= */
@@ -38,6 +42,9 @@
 
 /* ── Page sheet ───────────────────────────────────────────────────────────── */
 .screenplay-page {
+  --sp-paper-width: 816px; /* 8.5" @ 96dpi — matches screenplayPaperLayout.ts */
+  /* Must match SCREENPLAY_PAPER_HEIGHT_PX in screenplayPaperLayout.ts (integer, no calc drift) */
+  --sp-paper-height: 1053px;
   --sp-margin-top: 96px;
   --sp-margin-right: 96px;
   --sp-margin-bottom: 96px;
@@ -46,23 +53,30 @@
 
   --sp-dialogue-indent: 96px;
   --sp-dialogue-right-pad: 144px;
-  --sp-parenthetical-indent: 144px;
-  --sp-parenthetical-right-pad: 240px;
-  --sp-character-indent: 192px;
+  --sp-parenthetical-indent: 154px;
+  --sp-parenthetical-right-pad: 230px;
+  --sp-character-indent: 211px;
+
+  /* Vertical rhythm (12pt body, line-height 1) */
+  --sp-line-single: 12pt;
+  --sp-line-double: 24pt;
+  /* Visible inter-page gap height (screen); matches .page-break-gap__gap */
+  --sp-inter-page-gap: 48px;
+  /* Page numbers: 0.5″ from top of paper (96dpi) */
+  --sp-page-num-top: 48px;
 
   /* Fixed paper width — always 8.5" regardless of viewport */
-  width: calc(var(--sp-text-area-width) + var(--sp-margin-left) + var(--sp-margin-right));
-  min-height: 1056px;
+  width: var(--sp-paper-width);
+  min-height: var(--sp-paper-height);
   margin: 0 auto;
 
   /* Paper margins: top right bottom left */
   padding: var(--sp-margin-top) var(--sp-margin-right) var(--sp-margin-bottom) var(--sp-margin-left);
 
-  background-color: #ffffff;
-  box-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.12),
-    0 8px 32px rgba(0, 0, 0, 0.18);
-  border-radius: 2px;
+  /* Desk: transparent shell; white “paper” + 48px gaps come from ::before + script blocks */
+  background-color: transparent;
+  isolation: isolate;
+  z-index: 0;
 
   /* Screenplay typography */
   font-family: 'Courier Prime', 'Courier New', Courier, monospace;
@@ -72,39 +86,149 @@
 
   position: relative;
   box-sizing: border-box;
+  overflow: visible; /* gutter icons bleed into margin */
 }
 
-/*
- * Visual page-break ruler
- * -----------------------
- * A subtle horizontal line at every 1056 px marks where the physical
- * page boundary would fall.  We use a repeating gradient so the ruler
- * scrolls with the content and works for scripts of any length.
- */
+/* Repeating “sheet + desk gap” mask (1053px + 48px). Sits behind ProseMirror; does not
+   receive pointer events. Real breaks still come from PageBreakPlugin widgets. */
 .screenplay-page::before {
   content: '';
   position: absolute;
   inset: 0;
+  z-index: 0;
   pointer-events: none;
   background-image: repeating-linear-gradient(
     to bottom,
-    transparent 0px,
-    transparent calc(1056px - 2px),
-    rgba(150, 150, 150, 0.55) calc(1056px - 2px),
-    rgba(150, 150, 150, 0.55) 1056px
+    #ffffff 0,
+    #ffffff var(--sp-paper-height),
+    transparent var(--sp-paper-height),
+    transparent calc(var(--sp-paper-height) + var(--sp-inter-page-gap))
   );
-  background-size: 100% 1056px;
-  background-position: top left;
-  z-index: 0;
-  border-radius: 2px;
 }
 
-/* Ensure editor content sits above the ruler overlay */
+/* ProseMirror container — no z-index stacking needed now that the fixed
+   page-break ruler has been replaced by dynamic spacer elements. */
 .screenplay-page .ProseMirror {
   position: relative;
   z-index: 1;
   outline: none;
-  min-height: calc(1056px - var(--sp-margin-top) - var(--sp-margin-bottom));
+  min-height: calc(var(--sp-paper-height) - var(--sp-margin-top) - var(--sp-margin-bottom));
+  /* Opaque column: hides the repeating mask in collapsed inter-block margins (editor only). */
+  background-color: #ffffff;
+}
+
+/* ── Page-break gap (widget decoration) ───────────────────────────────────── */
+/*
+ * The PageBreakPlugin injects Decoration.widget() elements — actual <div>s —
+ * between blocks (or inline within long blocks) wherever a page break falls.
+ * Each widget has four children: remainder, bottom-margin, gap, top-margin.
+ * Box-shadows on the margin divs create the "stacked paper" illusion.
+ */
+.page-break-gap {
+  min-height: var(--sp-line-single); /* Allows the dynamic remainder div to expand the parent */
+  position: relative;
+  /* Bleed into the page's left/right padding so the gap spans full paper width */
+  width: calc(100% + var(--sp-margin-left) + var(--sp-margin-right));
+  margin-left: calc(-1 * var(--sp-margin-left));
+  pointer-events: none;
+  user-select: none;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Inline widgets inside padded blocks (dialogue, parenthetical, character)
+   need extra compensation for the block's own padding-left / padding-right.
+   They also participate in flex layout — force a full-width line break. */
+.script-block .page-break-gap {
+  margin-left: calc(-1 * var(--sp-margin-left) - var(--inline-pad-left, 0px));
+  width: calc(
+    100% + var(--sp-margin-left) + var(--sp-margin-right) + var(--inline-pad-left, 0px) +
+      var(--inline-pad-right, 0px)
+  );
+  /* Prevent flex containers (character/dialogue) from treating this as a flex item */
+  flex: 0 0 100%;
+}
+
+/* White remainder space at bottom of previous page */
+.page-break-gap__remainder {
+  background: #ffffff;
+}
+
+/* Bottom margin of previous page — white with downward shadow (paper edge) */
+.page-break-gap__bottom-margin {
+  height: 96px;
+  background: #ffffff;
+  position: relative;
+  z-index: 11;
+  box-shadow:
+    0 4px 6px -4px rgba(0, 0, 0, 0.2),
+    0 6px 18px -6px rgba(0, 0, 0, 0.12);
+}
+
+/* Visible grey gap between pages */
+.page-break-gap__gap {
+  height: var(--sp-inter-page-gap); /* 48px; must match SCREENPLAY_INTER_PAGE_GAP_PX */
+  /* background-color is correctly set inline via the plugin for dark-mode support */
+
+  /* Span the full bleed width of .page-break-gap (already widened into side margins) */
+  width: 100%;
+  margin-left: 0;
+
+  position: relative;
+  z-index: 10;
+
+  /* Inner shadow mimicking the physical paper edge */
+  box-shadow:
+    inset 0px 6px 6px -4px rgba(0, 0, 0, 0.15),
+    inset 0px -6px 6px -4px rgba(0, 0, 0, 0.15);
+}
+
+/* Top margin of next page — white with upward shadow (paper edge) */
+.page-break-gap__top-margin {
+  height: 96px;
+  background: #ffffff;
+  position: relative;
+  z-index: 11;
+  box-shadow:
+    0 -4px 6px -4px rgba(0, 0, 0, 0.2),
+    0 -6px 18px -6px rgba(0, 0, 0, 0.12);
+}
+
+/* Page number — top-right corner, 0.5″ from top of the new page */
+.page-break-gap__page-number {
+  position: absolute;
+  right: var(--sp-margin-right, 96px);
+  top: 48px;
+  font-family: 'Courier Prime', 'Courier New', Courier, monospace;
+  font-size: 12pt;
+  line-height: 1;
+  color: #000;
+}
+
+/* (MORE) — centred in the dialogue column, at bottom of previous page */
+.page-break-gap__more {
+  position: absolute;
+  bottom: 12px;
+  left: calc(var(--sp-margin-left, 144px) + var(--sp-dialogue-indent, 96px));
+  width: 336px;
+  text-align: center;
+  font-family: 'Courier Prime', 'Courier New', Courier, monospace;
+  font-size: 12pt;
+  line-height: 1;
+  color: #000;
+}
+
+/* (CONT'D) — at the character indent, bottom of the top margin zone */
+.page-break-gap__contd {
+  position: absolute;
+  left: calc(var(--sp-margin-left, 144px) + var(--sp-character-indent, 211px));
+  bottom: 12px;
+  font-family: 'Courier Prime', 'Courier New', Courier, monospace;
+  font-size: 12pt;
+  line-height: 1;
+  text-transform: uppercase;
+  color: #000;
 }
 
 /* ── Base script-block reset ─────────────────────────────────────────────── */
@@ -113,8 +237,10 @@
   padding: 0;
   white-space: pre-wrap;
   word-wrap: break-word;
-  /* Reserve one blank line between most elements */
-  margin-bottom: 12pt;
+  /* Opaque fill so the desk / repeating mask never shows through collapsed margins */
+  background-color: #ffffff;
+  /* Spacing is driven per element-type + adjacency (see below) */
+  margin-bottom: 0;
   /* Prevent awkward mid-element page breaks when printing */
   break-inside: avoid;
   page-break-inside: avoid;
@@ -125,10 +251,20 @@
 }
 
 /* Provide a visible placeholder when a block is empty and focused */
-.script-block.ProseMirror-selectednode::after,
-.script-block:empty::after,
+.script-block.ProseMirror-selectednode:not([data-page-label])::after,
+.script-block:empty:not([data-page-label])::after,
 .script-block p:empty::after {
   content: '';
+}
+
+.script-block p {
+  margin: 0;
+  padding: 0;
+}
+
+/* First block after a page-break widget sits flush at the top of the new page */
+.page-break-gap + .script-block {
+  margin-top: 0 !important;
 }
 
 /* ── SCENE HEADING (Slugline) ────────────────────────────────────────────── */
@@ -143,8 +279,9 @@
   padding-right: 0;
   text-transform: uppercase;
   font-weight: 700;
-  margin-top: 24pt; /* two blank lines above */
-  margin-bottom: 12pt; /* one blank line below */
+  margin-top: var(--sp-line-single); /* scene break: single space above */
+  margin-bottom: var(--sp-line-single); /* single space before following action */
+  margin-right: -36px;
 }
 
 /* First slugline needs no extra top margin */
@@ -166,12 +303,13 @@
 .script-block[data-element-type='action'] {
   padding-left: 0;
   padding-right: 0;
-  margin-bottom: 12pt;
+  margin-bottom: var(--sp-line-single);
+  margin-right: -36px;
 }
 
 /* ── CHARACTER CUE ───────────────────────────────────────────────────────── */
 /*
- * Left edge: 3.5" from paper  →  2.0" indent from text area  →  192 px.
+ * Left edge: 3.7" from paper  →  2.2" indent from text area  →  211 px.
  * Always UPPERCASE.  No bottom margin — dialogue follows immediately.
  * display:flex lets the block-alts indicator sit to the right of the name.
  */
@@ -190,10 +328,9 @@
 
 /* ── PARENTHETICAL ───────────────────────────────────────────────────────── */
 /*
- * Left edge: 3.0" from paper  →  1.5" indent from text area  →  144 px.
- * Right constraint mirrors left for a centered appearance within the
- * dialogue column (dialogue ends at 6.0").
- * Width ≈ 2.0" = 192 px of usable space.
+ * Left edge: 3.1" from paper  →  1.6" indent from text area  →  154 px.
+ * Right constraint keeps width at ≈ 2.5" = 240 px of usable space,
+ * centered within the dialogue column.
  */
 .script-block[data-element-type='parenthetical'] {
   padding-left: var(--sp-parenthetical-indent);
@@ -219,10 +356,28 @@
   flex-wrap: wrap;
   padding-left: var(--sp-dialogue-indent);
   padding-right: var(--sp-dialogue-right-pad);
-  margin-bottom: 12pt;
+  margin-bottom: var(--sp-line-single);
   /* Keep dialogue block intact if possible */
   break-before: avoid;
   page-break-before: avoid;
+}
+
+/* Page numbers: data-page-label comes from PageBreakPlugin node decorations */
+.script-block.page-break-before[data-page-label]::after {
+  content: attr(data-page-label);
+  position: absolute;
+  right: 0;
+  font-size: 12pt;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+  z-index: 3;
+  top: calc(
+    -1 * var(--break-margin)
+    + var(--remainder-before-break, 0px)
+    + var(--sp-margin-top)
+    + var(--sp-page-num-top)
+  );
 }
 
 .script-block[data-element-type='character'] [data-node-view-content] {
@@ -247,8 +402,8 @@
   padding-right: 0;
   text-align: right;
   text-transform: uppercase;
-  margin-top: 12pt;
-  margin-bottom: 12pt;
+  margin-top: var(--sp-line-single);
+  margin-bottom: var(--sp-line-single);
 }
 
 /* ── Cursor / selection appearance ──────────────────────────────────────── */
@@ -281,6 +436,10 @@
   body > * {
     display: none !important;
   }
+
+  .page-break-gap__gap {
+    display: none !important;
+  }
 }
 
 /* =============================================================================
@@ -291,11 +450,6 @@
    each .script-block (which has position: relative via NodeViewWrapper style).
    Ensure the page container is overflow: visible so the gutter is not clipped.
    ============================================================================= */
-
-/* Allow gutter icons to bleed into the left margin without clipping */
-.screenplay-page {
-  overflow: visible;
-}
 
 /* ── Block Alts indicator (default: left gutter) ─────────────────────────── */
 .script-block-alts-indicator {
