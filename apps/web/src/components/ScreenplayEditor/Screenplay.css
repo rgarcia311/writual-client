@@ -7,7 +7,7 @@
    All measurements follow the WGA / Final Draft standard for US Letter paper.
 
    Paper:       8.5" wide; height = width × 1.29  →  816px × 1053px (matches physical aspect)
-   On-screen:   The page shell is transparent (desk). A ::before mask repeats white
+   On-screen:   The page shell is transparent (white desk). A ::before mask repeats white
                 bands of --sp-paper-height with --sp-inter-page-gap desk between them.
                 ProseMirror + script blocks use opaque white so collapsed margins never
                 reveal the mask; page-break gaps span full bleed so desk shows at breaks.
@@ -29,13 +29,15 @@
 /* ── Google Fonts ─────────────────────────────────────────────────────────── */
 @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 
-/* ── Workspace (scrollable grey surround) ────────────────────────────────── */
+/* ── Workspace (scrollable white desk) ───────────────────────────────────── */
 .screenplay-workspace {
   flex: 1;
   overflow-y: auto;
   overflow-x: auto;
-  background-color: #d0d0d0;
-  padding: 40px 24px;
+  background-color: #ffffff;
+  /* Reserve scrollbar width so padded content width matches the toolbar column */
+  scrollbar-gutter: stable;
+  /* Vertical padding is set on the workspace Box in WritualEditor.tsx */
   /* Smooth momentum scrolling on iOS */
   -webkit-overflow-scrolling: touch;
 }
@@ -60,8 +62,8 @@
   /* Vertical rhythm (12pt body, line-height 1) */
   --sp-line-single: 12pt;
   --sp-line-double: 24pt;
-  /* Visible inter-page gap height (screen); matches .page-break-gap__gap */
-  --sp-inter-page-gap: 48px;
+  /* Visible inter-page gap height (screen); matches SCREENPLAY_INTER_PAGE_GAP_PX */
+  --sp-inter-page-gap: 28px;
   /* Page numbers: 0.5″ from top of paper (96dpi) */
   --sp-page-num-top: 48px;
 
@@ -73,7 +75,7 @@
   /* Paper margins: top right bottom left */
   padding: var(--sp-margin-top) var(--sp-margin-right) var(--sp-margin-bottom) var(--sp-margin-left);
 
-  /* Desk: transparent shell; white “paper” + 48px gaps come from ::before + script blocks */
+  /* Desk: transparent shell; white “paper” + inter-page gaps come from ::before + script blocks */
   background-color: transparent;
   isolation: isolate;
   z-index: 0;
@@ -87,9 +89,15 @@
   position: relative;
   box-sizing: border-box;
   overflow: visible; /* gutter icons bleed into margin */
+  /* Stacked-paper rim — same blur/spread/opacity on all four edges */
+  box-shadow:
+    3px 0 12px -6px rgba(0, 0, 0, 0.2),
+    -3px 0 12px -6px rgba(0, 0, 0, 0.2),
+    0 -3px 12px -6px rgba(0, 0, 0, 0.2),
+    0 3px 12px -6px rgba(0, 0, 0, 0.2);
 }
 
-/* Repeating “sheet + desk gap” mask (1056px + 48px). Sits behind ProseMirror; does not
+/* Repeating “sheet + desk gap” mask (1056px + --sp-inter-page-gap). Sits behind ProseMirror; does not
    receive pointer events. Real breaks still come from PageBreakPlugin widgets. */
 .screenplay-page::before {
   content: '';
@@ -121,8 +129,8 @@
 /*
  * The PageBreakPlugin injects Decoration.widget() elements — actual <div>s —
  * between blocks (or inline within long blocks) wherever a page break falls.
- * Each widget has four children: remainder, bottom-margin, gap, top-margin.
- * Box-shadows on the margin divs create the "stacked paper" illusion.
+ * Each widget: sheet-trailing (remainder + bottom-margin), gap, sheet-leading (top-margin).
+ * Trailing sheet: light bottom drop shadow only. Leading sheet: none. Gap stays white between sheets.
  */
 .page-break-gap {
   min-height: var(--sp-line-single); /* Allows the dynamic remainder div to expand the parent */
@@ -137,49 +145,60 @@
   flex-direction: column;
 }
 
+/* Previous page tail */
+.page-break-gap__sheet-trailing {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+  background-color: #ffffff;
+  box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.15);
+}
+
+/* Next page head */
+.page-break-gap__sheet-leading {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  box-sizing: border-box;
+  background-color: #ffffff;
+  box-shadow: none;
+}
+
 /* White remainder space at bottom of previous page */
 .page-break-gap__remainder {
   background: #ffffff;
 }
 
-/* Bottom margin of previous page — white with downward shadow (paper edge) */
+/* Bottom margin of previous page */
 .page-break-gap__bottom-margin {
   height: 96px;
   background: #ffffff;
   position: relative;
-  z-index: 11;
-  box-shadow:
-    0 4px 6px -4px rgba(0, 0, 0, 0.2),
-    0 6px 18px -6px rgba(0, 0, 0, 0.12);
 }
 
-/* Visible grey gap between pages */
+/* Inter-page gap — white desk between sheets (z-index below sheet wrappers so rim shadows read) */
 .page-break-gap__gap {
-  height: var(--sp-inter-page-gap); /* 48px; must match SCREENPLAY_INTER_PAGE_GAP_PX */
-  /* background-color is correctly set inline via the plugin for dark-mode support */
+  height: var(--sp-inter-page-gap); /* must match SCREENPLAY_INTER_PAGE_GAP_PX */
+  background-color: #ffffff;
 
   /* Span the full bleed width of .page-break-gap (already widened into side margins) */
   width: 100%;
   margin-left: 0;
 
   position: relative;
-  z-index: 10;
-
-  /* Inner shadow mimicking the physical paper edge */
-  box-shadow:
-    inset 0px 6px 6px -4px rgba(0, 0, 0, 0.15),
-    inset 0px -6px 6px -4px rgba(0, 0, 0, 0.15);
+  z-index: 0;
+  flex-shrink: 0;
+  box-shadow: none;
 }
 
-/* Top margin of next page — white with upward shadow (paper edge) */
+/* Top margin of next page */
 .page-break-gap__top-margin {
   height: 96px;
   background: #ffffff;
   position: relative;
-  z-index: 11;
-  box-shadow:
-    0 -4px 6px -4px rgba(0, 0, 0, 0.2),
-    0 -6px 18px -6px rgba(0, 0, 0, 0.12);
 }
 
 /* Page number — top-right corner, 0.5″ from top of the new page */

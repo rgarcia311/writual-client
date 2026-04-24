@@ -4,6 +4,17 @@
  */
 export const SCREENPLAY_PAPER_WIDTH_PX = 576 + 144 + 96 // 816 — 6" text + 1.5" + 1" side margins
 
+/**
+ * Horizontal inset inside the editor column (toolbar + scroll inner).
+ * Right is slightly larger so lateral `box-shadow` survives the scrollport edge / scrollbar.
+ */
+export const SCREENPLAY_SCROLL_GUTTER_LEFT_PX = 28
+export const SCREENPLAY_SCROLL_GUTTER_RIGHT_PX = 36
+
+/** Editor column: paper width + horizontal gutters */
+export const SCREENPLAY_EDITOR_COLUMN_WIDTH_PX =
+  SCREENPLAY_PAPER_WIDTH_PX + SCREENPLAY_SCROLL_GUTTER_LEFT_PX + SCREENPLAY_SCROLL_GUTTER_RIGHT_PX
+
 /** 11 inches at 96dpi = 1056px */
 export const SCREENPLAY_PAPER_HEIGHT_PX = 1056
 
@@ -24,8 +35,8 @@ export const SCREENPLAY_GUTTER_BLEED_PX = 36
 export const SCREENPLAY_CONTENT_HEIGHT_PX =
   SCREENPLAY_PAPER_HEIGHT_PX - SCREENPLAY_MARGIN_TOP_PX - SCREENPLAY_MARGIN_BOTTOM_PX
 
-/** Visible grey gap between sheets on screen — must match `.page-break-gap__gap` */
-export const SCREENPLAY_INTER_PAGE_GAP_PX = 48
+/** Inter-page gap height on screen — must match `.page-break-gap__gap` / `--sp-inter-page-gap` */
+export const SCREENPLAY_INTER_PAGE_GAP_PX = 28
 
 /** 12pt Courier at 96dpi — inline break search in PageBreakPlugin */
 export const SCREENPLAY_LINE_HEIGHT_PX = 16

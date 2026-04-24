@@ -1,0 +1,45 @@
+---
+alwaysApply: true
+---
+# Multi-Agent Architecture & Audit Protocol
+
+Whenever you are asked to build a feature, fix a bug, or modify the codebase, you MUST follow this strict two-phase sequence.
+
+## Mandatory `.plan.md` document structure
+
+Every plan file submitted to the Gemini audit **must** use this exact section order and headings so the API can audit against real codebase state—not a blind description.
+
+1. **`## Goal`** — What are we trying to achieve? Short, unambiguous outcome statement.
+
+2. **`## Current Context`** — **Mandatory.** Before you write **`## Proposed Changes`**, you MUST read the repository and **copy/paste the exact, current code** from every file you intend to modify (and from any closely related files the audit must understand, e.g. types, parents, or call sites you will touch).
+
+   - Use fenced code blocks. Immediately **above** each fence, use a markdown subheading with the file path relative to repo root, e.g. `### apps/web/src/components/Example.tsx`.
+   - Paste **verbatim** excerpts: do not paraphrase, summarize, or invent code. Include enough surrounding lines that imports, types, and boundaries are clear.
+   - If the plan later adds or removes a file from scope, **update `## Current Context`** in the same revision so it always matches the files referenced in **`## Proposed Changes`**.
+   - A plan missing **`## Current Context`**, or with only prose/summaries instead of real snippets, is **invalid**: do not run the audit until it is fixed.
+
+3. **`## Proposed Changes`** — The detailed, step-by-step architectural and implementation plan (what to change, in what order, edge cases, risks). This section comes **after** **`## Current Context`** so Gemini always sees ground truth before the proposal.
+
+Optional sections (e.g. testing notes) must appear **after** these three unless the audit script documentation says otherwise.
+
+## Phase 1: Planning & Gemini Audit Loop
+
+1. **NO IMMEDIATE CODING:** You are strictly forbidden from modifying any source code (`.ts`, `.tsx`, `.css`, etc.) until Phase 1 is complete and the audit script stdout contains **`GEMINI AUDIT STATUS: APPROVED`** or **`GEMINI AUDIT STATUS: APPROVED WITH STIPULATIONS`**.
+2. **WRITE THE PLAN:** You must first generate a comprehensive implementation plan and save it to a markdown file ending in `.plan.md` (e.g., `auth_flow.plan.md`). The plan **must** follow the **Mandatory `.plan.md` document structure** above: **`## Goal`**, then **`## Current Context`** (exact snippets from all files in scope), then **`## Proposed Changes`**.
+3. **SINGLE-FILE RULE:** You must maintain only ONE active plan file for a feature (e.g., `feature_name.plan.md`). When revisions are required based on audit feedback, you must OVERWRITE this single file. Do not create new files or append version numbers. This keeps audit payloads focused and avoids unbounded plan growth.
+4. **RUN THE AUDIT:** Immediately after writing the `.plan.md` file, you MUST notify the user and then synchronously execute the audit script via the shell:
+   - First, state to the user: **"I will now run the Gemini audit script. If you have shell command confirmations enabled, please approve it."**
+   - Then execute: `bash .cursor/hooks/gemini_auditor.sh <path_to_plan.md>`
+5. **Output parsing & branching:** You must read the stdout of the script and branch on the status line:
+   - **`GEMINI AUDIT STATUS: APPROVED`** — Immediately proceed to Phase 2 (Implementation). Do NOT stop to ask the user for confirmation.
+   - **`GEMINI AUDIT STATUS: APPROVED WITH STIPULATIONS`** — Immediately proceed to Phase 2 (Implementation). You MUST integrate every stipulation listed in the feedback into the final code. Do NOT rewrite or version the `.plan.md` file.
+   - **`GEMINI AUDIT STATUS: REJECTED`** — Read ALL of the feedback printed below the status line. Revise the plan by OVERWRITING the same `.plan.md` file, then re-run the audit script. Repeat until the audit yields APPROVED or APPROVED WITH STIPULATIONS.
+   - **`GEMINI AUDIT STATUS: ERROR`** or empty/unexpected output — Retry the execution ONE time. If it fails again, stop and ask the user for help.
+6. **DO NOT SNOOP:** Do NOT manually use terminal tools (like `sleep`, `tail`, `cat`, `grep`, or `ps`) to inspect audit logs. The script output to stdout is your sole source of truth.
+7. **TERMINAL HYGIENE:** When executing `gemini_auditor.sh`, if the terminal appears unresponsive or a previous command timed out, you MUST forcefully kill the current terminal and open a fresh terminal session before running the script. Do not attempt to run the script in a hung terminal.
+
+## Phase 2: Implementation
+
+1. You may ONLY proceed to this phase when the audit script stdout contains `GEMINI AUDIT STATUS: APPROVED` or `GEMINI AUDIT STATUS: APPROVED WITH STIPULATIONS`.
+2. **AUTOMATIC EXECUTION:** Upon receiving either status, you MUST immediately begin writing and executing the code changes described in the plan. Do NOT stop to ask the user if they want to proceed. Do NOT wait for confirmation. Transition instantly from planning to coding.
+3. **Stipulations:** If the status is **APPROVED WITH STIPULATIONS**, you MUST integrate every stipulation listed in the audit feedback into the final code, and you MUST NOT rewrite or version the `.plan.md` file.

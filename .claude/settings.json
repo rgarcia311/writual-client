@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"window\\\\.fetch\\\\|http:\\\\/\\\\/127\\\\|http:\\\\/\\\\/localhost.*7243\\\\|telemetry\\\\|tracking\\\\|analytics\\\\|agent.*log\" /Users/dane/Development/writual-client/apps/web/src /Users/dane/Development/writual-client/apps/api/src --include=*.ts --include=*.tsx)",
+      "Bash(npx --yes madge --circular --extensions ts,tsx apps/web/src)",
+      "Bash(grep -r \"query\\\\s*me\\\\|query.*Me\\\\|getMe\\\\|fetchMe\\\\|GET_ME\" /Users/dane/Development/writual-client/apps --include=*.ts --include=*.tsx)",
+      "Bash(ls -la \"/Users/dane/Development/writual-client/apps/web/src/app/\\(project-details\\)/project/[id]/screenplay/\")",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(ls -la /Users/dane/Development/writual-client/apps/web/src/app/\\\\\\(project-details\\\\\\)/project/)",
+      "Bash(find /Users/dane/Development/writual-client/apps/web/src -type f -name *userProfile* -o -name *user*store*)",
+      "Bash(npx tsc:*)",
+      "Bash(node -e \"const r = require\\(''''@tiptap/react''''\\); console.log\\(Object.keys\\(r\\).filter\\(k => k.toLowerCase\\(\\).includes\\(''''bubble''''\\)\\)\\)\")",
+      "Bash(node -e \"const p = require\\(''/Users/dane/Development/writual-client/node_modules/@tiptap/react/package.json''\\); const exports = p.exports; console.log\\(JSON.stringify\\(exports[''./menus''], null, 2\\)\\)\")",
+      "Bash(grep -rn export.*ResolvedPos /Users/dane/Development/writual-client/node_modules/@tiptap/pm/)"
+    ]
+  }
+}

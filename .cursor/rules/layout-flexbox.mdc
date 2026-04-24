@@ -1,0 +1,43 @@
+---
+description: Use flexbox for layout instead of CSS grid
+globs: "**/*.tsx,**/*.css,**/*.scss"
+alwaysApply: false
+---
+
+# Layout: Prefer Flexbox Over Grid
+
+Use **flexbox** for layout. Do not use CSS grid (`display: grid`, `gridTemplateColumns`, `gridTemplateRows`, etc.) unless there is a clear requirement that only grid can satisfy (e.g. strict 2D alignment that flexbox cannot express simply).
+
+## In code
+
+- Use `display: 'flex'` with `flexDirection`, `flexWrap`, `justifyContent`, `alignItems`, `gap`, and flex grow/shrink on children.
+- In MUI `sx` or style objects, avoid `display: 'grid'`, `gridTemplateColumns`, `gridTemplateRows`, `gridTemplateAreas`, and related grid properties.
+
+## Examples
+
+```tsx
+// Prefer: flexbox
+<Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+  {items.map(...)}
+</Box>
+
+// Avoid: grid (unless grid is explicitly required)
+<Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2 }}>
+  {items.map(...)}
+</Box>
+```
+
+```tsx
+// Prefer: flex for responsive columns
+<Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2 }}>
+
+// Avoid: grid for the same
+<Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' } }}>
+```
+
+## When grid is acceptable
+
+- Complex 2D layouts where rows and columns must align in both dimensions and flexbox would be awkward (e.g. dashboard with named areas).
+- Design explicitly calls for grid (e.g. "use CSS grid for this section").
+
+Default to flexbox; use grid only when justified.

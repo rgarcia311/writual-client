@@ -8,14 +8,19 @@ import { Decoration, DecorationSet } from 'prosemirror-view'
 
 import {
   SCREENPLAY_CONTENT_HEIGHT_PX,
+  SCREENPLAY_INTER_PAGE_GAP_PX,
   SCREENPLAY_LINE_HEIGHT_PX,
+  SCREENPLAY_MARGIN_BOTTOM_PX,
+  SCREENPLAY_MARGIN_TOP_PX,
 } from './screenplayPaperLayout'
 
 /* ── Layout constants ──────────────────────────────────────────────────────── */
 
 const CONTENT_HEIGHT = SCREENPLAY_CONTENT_HEIGHT_PX
 const MIN_LINES_PX = SCREENPLAY_LINE_HEIGHT_PX * 2
-const WIDGET_HEIGHT = 240 // 96 top margin + 48 gap + 96 bottom margin
+/** Bottom margin band + inter-page gap + top margin band (see PageBreakPlugin DOM). */
+const WIDGET_HEIGHT =
+  SCREENPLAY_MARGIN_BOTTOM_PX + SCREENPLAY_INTER_PAGE_GAP_PX + SCREENPLAY_MARGIN_TOP_PX
 
 /* ── Plugin key & meta ─────────────────────────────────────────────────────── */
 
@@ -42,14 +47,6 @@ function collectScriptBlocks(doc: PMNode): BlockEntry[] {
   return out
 }
 
-/* ── Workspace fill colour ─────────────────────────────────────────────────── */
-
-function workspaceFillFromEl(el: Element | null): string {
-  if (!el) return '#d0d0d0'
-  const bg = getComputedStyle(el).backgroundColor
-  return bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent' ? bg : '#d0d0d0'
-}
-
 /** Map post-`transform: scale()` visual pixels to layout CSS px (`getBoundingClientRect` / `offsetHeight`). */
 function layoutScaleFromEditorDom(dom: HTMLElement): number {
   const h = dom.offsetHeight
@@ -73,7 +70,6 @@ function yLayoutInPm(el: HTMLElement, pmRect: DOMRect, scale: number): { top: nu
 interface GapOpts {
   remainder: number
   pageNumber: number
-  workspaceBg: string
 }
 
 function createGapElement(opts: GapOpts): HTMLElement {
@@ -90,7 +86,7 @@ function createGapElement(opts: GapOpts): HTMLElement {
 
   const gap = document.createElement('div')
   gap.className = 'page-break-gap__gap'
-  gap.style.backgroundColor = opts.workspaceBg
+  gap.style.backgroundColor = '#ffffff'
 
   const topMargin = document.createElement('div')
   topMargin.className = 'page-break-gap__top-margin'
@@ -102,7 +98,15 @@ function createGapElement(opts: GapOpts): HTMLElement {
     topMargin.appendChild(num)
   }
 
-  wrapper.append(rem, botMargin, gap, topMargin)
+  const trailingSheet = document.createElement('div')
+  trailingSheet.className = 'page-break-gap__sheet-trailing'
+  trailingSheet.append(rem, botMargin)
+
+  const leadingSheet = document.createElement('div')
+  leadingSheet.className = 'page-break-gap__sheet-leading'
+  leadingSheet.appendChild(topMargin)
+
+  wrapper.append(trailingSheet, gap, leadingSheet)
   return wrapper
 }
 
@@ -150,9 +154,6 @@ export const PageBreakExtension = Extension.create({
         function computeDecorations(): DecorationSet {
           const state = editorView.state
           const doc = state.doc
-          const workspace = editorView.dom.closest('.screenplay-workspace')
-          const workspaceBg = workspaceFillFromEl(workspace)
-
           const blocks = collectScriptBlocks(doc)
           if (blocks.length === 0) return DecorationSet.empty
 
@@ -240,7 +241,6 @@ export const PageBreakExtension = Extension.create({
                   createGapElement({
                     remainder,
                     pageNumber: pageIndex + 1,
-                    workspaceBg,
                   }),
                   {
                     side: -1,

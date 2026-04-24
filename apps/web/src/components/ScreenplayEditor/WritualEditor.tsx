@@ -11,7 +11,6 @@ import {
   Box,
   Chip,
   CircularProgress,
-  Divider,
   IconButton,
   List,
   ListItemButton,
@@ -21,19 +20,14 @@ import {
   Typography,
   useTheme,
 } from '@mui/material'
-import CloudDoneIcon from '@mui/icons-material/CloudDone'
 import LocalMoviesIcon from '@mui/icons-material/LocalMovies'
 import MenuOpenIcon from '@mui/icons-material/MenuOpen'
 import MenuIcon from '@mui/icons-material/Menu'
-import PrintIcon from '@mui/icons-material/Print'
 import PersonIcon from '@mui/icons-material/Person'
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline'
 import FormatQuoteIcon from '@mui/icons-material/FormatQuote'
 import NotesIcon from '@mui/icons-material/Notes'
 import FastForwardIcon from '@mui/icons-material/FastForward'
-import ZoomInIcon from '@mui/icons-material/ZoomIn'
-import ZoomOutIcon from '@mui/icons-material/ZoomOut'
-import FitScreenIcon from '@mui/icons-material/FitScreen'
 
 import {
   ScriptBlock,
@@ -43,7 +37,12 @@ import {
 import { PageBreakExtension } from './PageBreakPlugin'
 import { printScreenplayHidden } from './screenplayPdfPrint'
 import { BlockAltsToolbar } from './BlockAltsToolbar'
-import { ScreenplayToolbar } from './ScreenplayToolbar'
+import {
+  ScreenplayDocumentToolbar,
+  SCREENPLAY_ZOOM_MAX,
+  SCREENPLAY_ZOOM_MIN,
+  SCREENPLAY_ZOOM_STEP,
+} from './ScreenplayDocumentToolbar'
 import { PROJECT_SCENES_QUERY } from '@/queries/SceneQueries'
 import { PROJECT_SCENES_QUERY_KEY } from 'hooks'
 import { useAutosave } from '@hooks/useAutosave'
@@ -51,18 +50,18 @@ import { useCollaboration } from '@hooks/useCollaboration'
 import { useUserProfileStore } from '@/state/user'
 import { useScreenplaySaveStatusStore } from '@/state/screenplaySaveStatus'
 import { useScreenplayEditorStore } from '@/state/screenplayEditor'
+import { useScreenplayHeaderChromeStore } from '@/state/screenplayHeaderChrome'
 import { GRAPHQL_ENDPOINT } from '@/lib/config'
 import type { HocuspocusProvider } from '@hocuspocus/provider'
 import type * as Y from 'yjs'
 import './Screenplay.css'
 import {
+  SCREENPLAY_EDITOR_COLUMN_WIDTH_PX,
   SCREENPLAY_PAPER_HEIGHT_PX,
   SCREENPLAY_PAPER_WIDTH_PX,
+  SCREENPLAY_SCROLL_GUTTER_LEFT_PX,
+  SCREENPLAY_SCROLL_GUTTER_RIGHT_PX,
 } from './screenplayPaperLayout'
-
-const SCREENPLAY_ZOOM_MIN = 0.5
-const SCREENPLAY_ZOOM_MAX = 2
-const SCREENPLAY_ZOOM_STEP = 0.1
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -127,22 +126,6 @@ export function ElementTooltipContent({ type }: { type: ScreenplayElementType })
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function countWordsFromDoc(doc: import('@tiptap/pm/model').Node): number {
-  let count = 0
-  doc.descendants((node) => {
-    if (node.isTextblock) {
-      const text = node.textContent.trim()
-      if (text) count += text.split(/\s+/).filter(Boolean).length
-      return false
-    }
-  })
-  return count
-}
-
-function estimatePages(wordCount: number): number {
-  return Math.max(1, Math.round(wordCount / 180))
-}
 
 function getSceneHeading(scene: ProjectScene): string {
   const idx = Math.max(0, (scene.activeVersion ?? 1) - 1)
@@ -274,12 +257,13 @@ function ScreenplayEditorCore({
 }: ScreenplayEditorCoreProps) {
   const theme = useTheme()
   const [navigatorOpen, setNavigatorOpen] = React.useState(true)
-  const [wordCount, setWordCount] = React.useState(0)
   const [zoom, setZoom] = React.useState(1)
 
   const workspaceRef = React.useRef<HTMLDivElement | null>(null)
   const stageRef = React.useRef<HTMLDivElement | null>(null)
   const pageRef = React.useRef<HTMLDivElement | null>(null)
+  const toolbarScaleStageRef = React.useRef<HTMLDivElement | null>(null)
+  const toolbarScaleInnerRef = React.useRef<HTMLDivElement | null>(null)
   const paperLayoutRef = React.useRef({
     width: SCREENPLAY_PAPER_WIDTH_PX,
     height: SCREENPLAY_PAPER_HEIGHT_PX,
@@ -299,6 +283,31 @@ function ScreenplayEditorCore({
   React.useLayoutEffect(() => {
     applyStageDimensions()
   }, [zoom, applyStageDimensions])
+
+  const syncToolbarScaleLayout = React.useCallback(() => {
+    const stage = toolbarScaleStageRef.current
+    const inner = toolbarScaleInnerRef.current
+    if (!stage || !inner) return
+    const z = zoomRef.current
+    stage.style.width = `${SCREENPLAY_PAPER_WIDTH_PX * z}px`
+    stage.style.height = `${inner.offsetHeight * z}px`
+  }, [])
+
+  React.useLayoutEffect(() => {
+    syncToolbarScaleLayout()
+  }, [zoom, syncToolbarScaleLayout])
+
+  React.useEffect(() => {
+    const inner = toolbarScaleInnerRef.current
+    if (!inner) return
+    const ro = new ResizeObserver(() => {
+      syncToolbarScaleLayout()
+    })
+    ro.observe(inner)
+    return () => {
+      ro.disconnect()
+    }
+  }, [syncToolbarScaleLayout])
 
   React.useEffect(() => {
     const page = pageRef.current
@@ -338,8 +347,6 @@ function ScreenplayEditorCore({
   }, [])
 
   const { setActiveType, setCanEdit, setElementTypeFnRef } = useScreenplayEditorStore()
-  const collabStatus = useScreenplayEditorStore((s) => s.collabStatus)
-  const connectedUsers = useScreenplayEditorStore((s) => s.connectedUsers)
 
   const seededRef = React.useRef(false)
 
@@ -530,19 +537,6 @@ function ScreenplayEditorCore({
     return () => { editor.off('selectionUpdate', syncType); editor.off('update', syncType) }
   }, [editor, setActiveType])
 
-  // ── Debounced word count ─────────────────────────────────────────────────
-  React.useEffect(() => {
-    if (!editor) return
-    let timer: ReturnType<typeof setTimeout>
-    const syncWordCount = () => {
-      clearTimeout(timer)
-      timer = setTimeout(() => setWordCount(countWordsFromDoc(editor.state.doc)), 500)
-    }
-    editor.on('update', syncWordCount)
-    syncWordCount()
-    return () => { editor.off('update', syncWordCount); clearTimeout(timer) }
-  }, [editor, setWordCount])
-
   // ── Navigate to scene by heading text ────────────────────────────────────
   const navigateToHeading = React.useCallback(
     (heading: string) => {
@@ -565,146 +559,38 @@ function ScreenplayEditorCore({
     [editor]
   )
 
-  // ── Print (jsPDF + hidden iframe — see `screenplayPdfPrint.ts`) ───────────
-  const handlePrint = React.useCallback(() => {
-    if (editor) void printScreenplayHidden(editor)
-  }, [editor])
+  const setHeaderChrome = useScreenplayHeaderChromeStore((s) => s.setChrome)
+  React.useEffect(() => {
+    setHeaderChrome({
+      zoom,
+      collabActive,
+      handlers: editor
+        ? {
+            zoomOut: () =>
+              setZoom((z) =>
+                Math.max(SCREENPLAY_ZOOM_MIN, Math.round((z - SCREENPLAY_ZOOM_STEP) * 100) / 100),
+              ),
+            zoomIn: () =>
+              setZoom((z) =>
+                Math.min(SCREENPLAY_ZOOM_MAX, Math.round((z + SCREENPLAY_ZOOM_STEP) * 100) / 100),
+              ),
+            zoomReset: () => setZoom(1),
+            print: () => void printScreenplayHidden(editor),
+          }
+        : null,
+    })
+    return () => {
+      setHeaderChrome({ handlers: null, collabActive: false, zoom: 1 })
+    }
+  }, [zoom, collabActive, editor, setHeaderChrome])
 
   // ── Derived ──────────────────────────────────────────────────────────────
-  const pages = estimatePages(wordCount)
   const sceneCount = projectScenes.length
 
   if (!editor) return null
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', minHeight: 0 }}>
-
-      {/* ── TOOLBAR ─────────────────────────────────────────────────────── */}
-      <Paper
-        className="screenplay-toolbar"
-        elevation={0}
-        square
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1,
-          px: 1.5,
-          py: 0.75,
-          borderBottom: `1px solid ${theme.palette.divider}`,
-          flexShrink: 0,
-          flexWrap: 'wrap',
-          minHeight: 48,
-        }}
-      >
-        <Tooltip title={navigatorOpen ? 'Hide scene panel' : 'Show scene panel'}>
-          <IconButton size="small" onClick={() => setNavigatorOpen((v) => !v)} aria-label="toggle scene panel">
-            {navigatorOpen ? <MenuOpenIcon fontSize="small" /> : <MenuIcon fontSize="small" />}
-          </IconButton>
-        </Tooltip>
-
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-
-        <ScreenplayToolbar />
-
-        <Box sx={{ flex: 1, minWidth: 8 }} />
-
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{ display: { xs: 'none', sm: 'block' }, fontFamily: 'monospace', whiteSpace: 'nowrap' }}
-        >
-          {wordCount.toLocaleString()} words · ~{pages}p
-        </Typography>
-
-        {/* ── Collab status indicators ──────────────────────────────────── */}
-        {collabActive && collabStatus === 'connecting' && (
-          <Chip label="Syncing..." size="small" color="warning" variant="outlined" sx={{ height: 22, fontSize: '0.65rem' }} />
-        )}
-        {collabActive && collabStatus === 'disconnected' && (
-          <Chip label="Offline" size="small" color="error" variant="outlined" sx={{ height: 22, fontSize: '0.65rem' }} />
-        )}
-        {collabActive && collabStatus === 'connected' && connectedUsers.length > 1 && (
-          <Chip label={`${connectedUsers.length} online`} size="small" color="success" variant="outlined" sx={{ height: 22, fontSize: '0.65rem' }} />
-        )}
-
-        {/* ── Save status indicators (solo mode only) ──────────────────── */}
-        {!collabActive && isSavingOrPending && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }} aria-label="Saving">
-            <CloudDoneIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
-            <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
-              ...saving
-            </Typography>
-          </Box>
-        )}
-        {!collabActive && showSaved && (
-          <Box sx={{ display: 'flex', alignItems: 'center' }} aria-label="Saved">
-            <CloudDoneIcon sx={{ fontSize: 18, color: 'success.main' }} />
-          </Box>
-        )}
-
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-
-        <Tooltip title="Zoom out (Ctrl/Cmd + scroll)">
-          <span>
-            <IconButton
-              size="small"
-              onClick={() =>
-                setZoom((z) =>
-                  Math.max(SCREENPLAY_ZOOM_MIN, Math.round((z - SCREENPLAY_ZOOM_STEP) * 100) / 100),
-                )
-              }
-              disabled={zoom <= SCREENPLAY_ZOOM_MIN}
-              aria-label="zoom out screenplay"
-            >
-              <ZoomOutIcon fontSize="small" />
-            </IconButton>
-          </span>
-        </Tooltip>
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{ fontFamily: 'monospace', minWidth: 36, textAlign: 'center' }}
-          aria-live="polite"
-        >
-          {Math.round(zoom * 100)}%
-        </Typography>
-        <Tooltip title="Zoom in (Ctrl/Cmd + scroll)">
-          <span>
-            <IconButton
-              size="small"
-              onClick={() =>
-                setZoom((z) =>
-                  Math.min(SCREENPLAY_ZOOM_MAX, Math.round((z + SCREENPLAY_ZOOM_STEP) * 100) / 100),
-                )
-              }
-              disabled={zoom >= SCREENPLAY_ZOOM_MAX}
-              aria-label="zoom in screenplay"
-            >
-              <ZoomInIcon fontSize="small" />
-            </IconButton>
-          </span>
-        </Tooltip>
-        <Tooltip title="Reset zoom to 100%">
-          <span>
-            <IconButton
-              size="small"
-              onClick={() => setZoom(1)}
-              disabled={zoom === 1}
-              aria-label="reset screenplay zoom"
-            >
-              <FitScreenIcon fontSize="small" />
-            </IconButton>
-          </span>
-        </Tooltip>
-
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-
-        <Tooltip title="Print screenplay — generates a Letter PDF and opens the system print dialog">
-          <IconButton size="small" onClick={handlePrint} aria-label="print screenplay">
-            <PrintIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      </Paper>
 
       {/* ── BODY ────────────────────────────────────────────────────────── */}
       <Box sx={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
@@ -744,7 +630,13 @@ function ScreenplayEditorCore({
               >
                 Scenes
               </Typography>
-              <Chip label={sceneCount} size="small" sx={{ ml: 'auto', height: 18, fontSize: '0.65rem' }} />
+              <Box sx={{ flex: 1, minWidth: 0 }} />
+              <Chip label={sceneCount} size="small" sx={{ height: 18, fontSize: '0.65rem' }} />
+              <Tooltip title="Hide scene panel">
+                <IconButton size="small" onClick={() => setNavigatorOpen(false)} aria-label="toggle scene panel">
+                  <MenuOpenIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
             </Box>
 
             <Box sx={{ flex: 1, overflowY: 'auto' }}>
@@ -814,39 +706,133 @@ function ScreenplayEditorCore({
           </Paper>
         )}
 
-        {/* ── SCREENPLAY WORKSPACE ─────────────────────────────────────── */}
+        {/* ── SCREENPLAY WORKSPACE: toolbar fixed above scroll; only the page scrolls ─ */}
         <Box
-          ref={workspaceRef}
-          className="screenplay-workspace"
           sx={{
             flex: 1,
-            overflowY: 'auto',
-            overflowX: 'auto',
-            backgroundColor: theme.palette.mode === 'dark' ? '#2a2a2a' : '#d0d0d0',
-            py: 5,
+            minHeight: 0,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'stretch',
+            backgroundColor: '#ffffff',
             px: 3,
+            pb: 5,
+            pt: 0,
           }}
         >
           <Box
-            ref={stageRef}
             sx={{
-              position: 'relative',
-              margin: '0 auto',
-              flexShrink: 0,
+              mt: 5,
+              flex: 1,
+              minHeight: 0,
+              width: '100%',
+              maxWidth: SCREENPLAY_EDITOR_COLUMN_WIDTH_PX,
+              alignSelf: 'center',
+              minWidth: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'stretch',
             }}
           >
+            {!navigatorOpen && (
+              <Box
+                sx={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  pl: `${SCREENPLAY_SCROLL_GUTTER_LEFT_PX}px`,
+                  pr: `${SCREENPLAY_SCROLL_GUTTER_RIGHT_PX}px`,
+                  mb: 1,
+                  flexShrink: 0,
+                  minWidth: 0,
+                }}
+              >
+                <Tooltip title="Show scene panel">
+                  <IconButton size="small" onClick={() => setNavigatorOpen(true)} aria-label="toggle scene panel">
+                    <MenuIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            )}
             <Box
               sx={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                transform: `scale(${zoom})`,
-                transformOrigin: 'top left',
+                width: '100%',
+                boxSizing: 'border-box',
+                pl: `${SCREENPLAY_SCROLL_GUTTER_LEFT_PX}px`,
+                pr: `${SCREENPLAY_SCROLL_GUTTER_RIGHT_PX}px`,
+                flexShrink: 0,
+                minWidth: 0,
               }}
             >
-              <Box ref={pageRef} className="screenplay-page" data-zoom={zoom}>
-                <EditorContent editor={editor} />
-                <BlockAltsToolbar editor={editor} canEdit={canEdit} userId={user} />
+              <Box
+                ref={toolbarScaleStageRef}
+                sx={{
+                  margin: '0 auto',
+                  flexShrink: 0,
+                  /* Don't clip: overflow:hidden cuts off the element toolbar's rounded top corners after scale() */
+                  overflow: 'visible',
+                }}
+              >
+                <Box
+                  ref={toolbarScaleInnerRef}
+                  sx={{
+                    width: `${SCREENPLAY_PAPER_WIDTH_PX}px`,
+                    transform: `scale(${zoom})`,
+                    transformOrigin: 'top left',
+                  }}
+                >
+                  <ScreenplayDocumentToolbar
+                    collabActive={collabActive}
+                    isSavingOrPending={isSavingOrPending}
+                    showSaved={showSaved}
+                  />
+                </Box>
+              </Box>
+            </Box>
+            <Box
+              ref={workspaceRef}
+              className="screenplay-workspace"
+              sx={{
+                flex: 1,
+                minHeight: 0,
+                width: '100%',
+                overflowY: 'auto',
+                overflowX: 'auto',
+                backgroundColor: '#ffffff',
+                WebkitOverflowScrolling: 'touch',
+              }}
+            >
+              <Box
+                sx={{
+                  pb: 5,
+                  boxSizing: 'border-box',
+                  pl: `${SCREENPLAY_SCROLL_GUTTER_LEFT_PX}px`,
+                  pr: `${SCREENPLAY_SCROLL_GUTTER_RIGHT_PX}px`,
+                }}
+              >
+                <Box
+                  ref={stageRef}
+                  sx={{
+                    position: 'relative',
+                    margin: '0 auto',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      transform: `scale(${zoom})`,
+                      transformOrigin: 'top left',
+                    }}
+                  >
+                    <Box ref={pageRef} className="screenplay-page" data-zoom={zoom}>
+                      <EditorContent editor={editor} />
+                      <BlockAltsToolbar editor={editor} canEdit={canEdit} userId={user} />
+                    </Box>
+                  </Box>
+                </Box>
               </Box>
             </Box>
           </Box>
