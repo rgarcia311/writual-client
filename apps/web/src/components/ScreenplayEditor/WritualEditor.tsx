@@ -41,6 +41,7 @@ import {
   type ScreenplayElementType,
 } from './ScreenplayExtension'
 import { PageBreakExtension } from './PageBreakPlugin'
+import { printScreenplayHidden } from './screenplayPdfPrint'
 import { BlockAltsToolbar } from './BlockAltsToolbar'
 import { ScreenplayToolbar } from './ScreenplayToolbar'
 import { PROJECT_SCENES_QUERY } from '@/queries/SceneQueries'
@@ -166,145 +167,6 @@ function buildDocFromScenes(scenes: ProjectScene[]): Record<string, unknown> {
     ]
   })
   return { type: 'doc', content: blocks }
-}
-
-// ─── Print utility ────────────────────────────────────────────────────────────
-
-/**
- * TipTap output is schema-bound, but the print popup uses document.write with
- * interpolated HTML. Strip executable vectors and plugin-only UI (page labels).
- */
-function sanitizeScreenplayHtmlForPrint(html: string): string {
-  if (typeof DOMParser === 'undefined') return html
-  const doc = new DOMParser().parseFromString(`<div id="__sanitize_root">${html}</div>`, 'text/html')
-  const root = doc.getElementById('__sanitize_root')
-  if (!root) return html
-  root.querySelectorAll('script, iframe, object, embed').forEach((n) => n.remove())
-  root.querySelectorAll('.screenplay-page-number').forEach((n) => n.remove())
-  root.querySelectorAll('*').forEach((el) => {
-    Array.from(el.attributes).forEach((a) => {
-      const lower = a.name.toLowerCase()
-      if (lower.startsWith('on') || lower === 'srcdoc' || lower === 'formaction') {
-        el.removeAttribute(a.name)
-      }
-    })
-  })
-  return root.innerHTML
-}
-
-function printScreenplay(html: string) {
-  const win = window.open('', '_blank', 'width=900,height=700,scrollbars=yes')
-  if (!win) {
-    console.warn('Popup blocked — please allow popups for this site to print.')
-    return
-  }
-
-  const safeHtml = sanitizeScreenplayHtmlForPrint(html)
-
-  win.document.write(`<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>Screenplay</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
-<style>
-  @page {
-    size: letter;
-    margin: 1in 1in 1in 1.5in; /* Standard WGA 1.5" left binding margin */
-  }
-  /* Note: Chromium/WebKit do not render @page margin boxes; page numbers in print
-     would require pre-split HTML or a print engine that supports margin boxes. */
-  * { box-sizing: border-box; }
-  body {
-    font-family: 'Courier Prime', 'Courier New', Courier, monospace;
-    font-size: 12pt;
-    line-height: 1.0;
-    color: #000;
-    background: #fff;
-    margin: 0;
-    padding: 0;
-  }
-  .script-block {
-    margin: 0;
-    padding: 0;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    break-inside: avoid;
-    page-break-inside: avoid;
-    line-height: 12pt; /* Force exact typewriter line-height */
-    font-size: 12pt;
-  }
-  /* Enforce Screenplay Widow/Orphan Rules */
-  .script-block[data-element-type="action"],
-  .script-block[data-element-type="dialogue"] {
-    orphans: 2;
-    widows: 2;
-  }
-  /* Never strand a preceding element at the bottom of a page */
-  .script-block[data-element-type="character"],
-  .script-block[data-element-type="transition"],
-  .script-block[data-element-type="slugline"] {
-    break-after: avoid;
-    page-break-after: avoid;
-  }
-  .script-block:last-child { margin-bottom: 0; }
-  .script-block p { margin: 0; padding: 0; }
-  .script-block[data-element-type="slugline"] {
-    text-transform: uppercase;
-    font-weight: 700;
-    margin-top: 12pt;
-    margin-bottom: 12pt;
-    margin-right: -36pt;
-    break-after: avoid;
-    page-break-after: avoid;
-  }
-  .script-block[data-element-type="slugline"]:first-child { margin-top: 0; }
-  .script-block[data-element-type="action"] {
-    margin-bottom: 12pt;
-    margin-right: -36pt;
-  }
-  .script-block[data-element-type="character"] {
-    margin-left: 2.2in;
-    text-transform: uppercase;
-    margin-bottom: 0;
-    break-after: avoid;
-    page-break-after: avoid;
-  }
-  .script-block[data-element-type="parenthetical"] {
-    margin-left: 1.6in;
-    margin-right: 1.9in;
-    margin-bottom: 0;
-    break-before: avoid;
-    break-after: avoid;
-    page-break-before: avoid;
-    page-break-after: avoid;
-  }
-  .script-block[data-element-type="dialogue"] {
-    margin-left: 1.0in;
-    margin-right: 1.5in;
-    margin-bottom: 12pt;
-    break-before: avoid;
-    page-break-before: avoid;
-  }
-  .script-block[data-element-type="transition"] {
-    text-align: right;
-    text-transform: uppercase;
-    margin-top: 12pt;
-    margin-bottom: 12pt;
-  }
-</style>
-</head>
-<body>${safeHtml}</body>
-</html>`)
-
-  win.document.close()
-
-  if (win.document.fonts?.ready) {
-    win.document.fonts.ready.then(() => { win.focus(); win.print(); win.close() })
-  } else {
-    setTimeout(() => { win.focus(); win.print(); win.close() }, 800)
-  }
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -703,9 +565,9 @@ function ScreenplayEditorCore({
     [editor]
   )
 
-  // ── Print ────────────────────────────────────────────────────────────────
+  // ── Print (jsPDF + hidden iframe — see `screenplayPdfPrint.ts`) ───────────
   const handlePrint = React.useCallback(() => {
-    if (editor) printScreenplay(editor.getHTML())
+    if (editor) void printScreenplayHidden(editor)
   }, [editor])
 
   // ── Derived ──────────────────────────────────────────────────────────────
@@ -837,7 +699,7 @@ function ScreenplayEditorCore({
 
         <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
 
-        <Tooltip title="Print screenplay — opens a clean print dialog with correct 8.5″×11″ formatting">
+        <Tooltip title="Print screenplay — generates a Letter PDF and opens the system print dialog">
           <IconButton size="small" onClick={handlePrint} aria-label="print screenplay">
             <PrintIcon fontSize="small" />
           </IconButton>

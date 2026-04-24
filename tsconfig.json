@@ -78,5 +78,5 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/dev/types/**/*.ts"
-, "src/app/projects/page.tsx.old"  ]
+, "src/app/projects/page.tsx.old", "apps/web/src/components/ScreenplayEditor/screenplayPrintStyles.ts.old"  ]
 }
