@@ -982,7 +982,7 @@ function ScreenplayEditorCore({
                 transformOrigin: 'top left',
               }}
             >
-              <Box ref={pageRef} className="screenplay-page">
+              <Box ref={pageRef} className="screenplay-page" data-zoom={zoom}>
                 <EditorContent editor={editor} />
                 <BlockAltsToolbar editor={editor} canEdit={canEdit} userId={user} />
               </Box>

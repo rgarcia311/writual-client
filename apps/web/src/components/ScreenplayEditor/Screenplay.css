@@ -44,7 +44,7 @@
 .screenplay-page {
   --sp-paper-width: 816px; /* 8.5" @ 96dpi — matches screenplayPaperLayout.ts */
   /* Must match SCREENPLAY_PAPER_HEIGHT_PX in screenplayPaperLayout.ts (integer, no calc drift) */
-  --sp-paper-height: 1053px;
+  --sp-paper-height: 1056px; /* 11" @ 96dpi */
   --sp-margin-top: 96px;
   --sp-margin-right: 96px;
   --sp-margin-bottom: 96px;
@@ -89,7 +89,7 @@
   overflow: visible; /* gutter icons bleed into margin */
 }
 
-/* Repeating “sheet + desk gap” mask (1053px + 48px). Sits behind ProseMirror; does not
+/* Repeating “sheet + desk gap” mask (1056px + 48px). Sits behind ProseMirror; does not
    receive pointer events. Real breaks still come from PageBreakPlugin widgets. */
 .screenplay-page::before {
   content: '';
@@ -135,19 +135,6 @@
   z-index: 2;
   display: flex;
   flex-direction: column;
-}
-
-/* Inline widgets inside padded blocks (dialogue, parenthetical, character)
-   need extra compensation for the block's own padding-left / padding-right.
-   They also participate in flex layout — force a full-width line break. */
-.script-block .page-break-gap {
-  margin-left: calc(-1 * var(--sp-margin-left) - var(--inline-pad-left, 0px));
-  width: calc(
-    100% + var(--sp-margin-left) + var(--sp-margin-right) + var(--inline-pad-left, 0px) +
-      var(--inline-pad-right, 0px)
-  );
-  /* Prevent flex containers (character/dialogue) from treating this as a flex item */
-  flex: 0 0 100%;
 }
 
 /* White remainder space at bottom of previous page */
@@ -239,7 +226,8 @@
   word-wrap: break-word;
   /* Opaque fill so the desk / repeating mask never shows through collapsed margins */
   background-color: #ffffff;
-  /* Spacing is driven per element-type + adjacency (see below) */
+  /* Spacing is driven per element-type + adjacency via padding */
+  padding-bottom: 0;
   margin-bottom: 0;
   /* Prevent awkward mid-element page breaks when printing */
   break-inside: avoid;
@@ -247,6 +235,7 @@
 }
 
 .script-block:last-child {
+  padding-bottom: 0;
   margin-bottom: 0;
 }
 
@@ -264,55 +253,42 @@
 
 /* First block after a page-break widget sits flush at the top of the new page */
 .page-break-gap + .script-block {
+  padding-top: 0 !important;
   margin-top: 0 !important;
 }
 
 /* ── SCENE HEADING (Slugline) ────────────────────────────────────────────── */
-/*
- * Left edge: 1.5" from paper edge (i.e., 0 additional indent from text area).
- * Full text-area width: 6.0" = 576 px.
- * Always UPPERCASE.  Font-weight bold for immediate visual hierarchy.
- * Extra top spacing separates it clearly from the preceding action block.
- */
 .script-block[data-element-type='slugline'] {
   padding-left: 0;
   padding-right: 0;
   text-transform: uppercase;
   font-weight: 700;
-  margin-top: var(--sp-line-single); /* scene break: single space above */
-  margin-bottom: var(--sp-line-single); /* single space before following action */
-  margin-right: -36px;
-}
-
-/* First slugline needs no extra top margin */
-.script-block[data-element-type='slugline']:first-child {
+  padding-top: var(--sp-line-single);
+  padding-bottom: var(--sp-line-single);
   margin-top: 0;
-}
-
-/* Keep heading on the same page as its first line of action */
-.script-block[data-element-type='slugline'] {
+  margin-bottom: 0;
+  margin-right: -36px;
   break-after: avoid;
   page-break-after: avoid;
 }
 
+/* First slugline needs no extra top padding */
+.script-block[data-element-type='slugline']:first-child {
+  padding-top: 0;
+  margin-top: 0;
+}
+
 /* ── ACTION ──────────────────────────────────────────────────────────────── */
-/*
- * Same left edge as slugline (full text area).
- * Mixed case, normal weight.
- */
 .script-block[data-element-type='action'] {
   padding-left: 0;
   padding-right: 0;
-  margin-bottom: var(--sp-line-single);
+  padding-bottom: var(--sp-line-single);
+  margin-bottom: 0;
+  margin-top: 0;
   margin-right: -36px;
 }
 
 /* ── CHARACTER CUE ───────────────────────────────────────────────────────── */
-/*
- * Left edge: 3.7" from paper  →  2.2" indent from text area  →  211 px.
- * Always UPPERCASE.  No bottom margin — dialogue follows immediately.
- * display:flex lets the block-alts indicator sit to the right of the name.
- */
 .script-block[data-element-type='character'] {
   display: flex;
   align-items: center;
@@ -320,23 +296,21 @@
   padding-left: var(--sp-character-indent);
   padding-right: 0;
   text-transform: uppercase;
+  padding-top: 0;
+  padding-bottom: 0;
   margin-bottom: 0;
-  /* Keep character cue attached to its dialogue */
+  margin-top: 0;
   break-after: avoid;
   page-break-after: avoid;
 }
 
 /* ── PARENTHETICAL ───────────────────────────────────────────────────────── */
-/*
- * Left edge: 3.1" from paper  →  1.6" indent from text area  →  154 px.
- * Right constraint keeps width at ≈ 2.5" = 240 px of usable space,
- * centered within the dialogue column.
- */
 .script-block[data-element-type='parenthetical'] {
   padding-left: var(--sp-parenthetical-indent);
   padding-right: var(--sp-parenthetical-right-pad);
+  padding-bottom: 0;
   margin-bottom: 0;
-  /* Attached to surrounding dialogue */
+  margin-top: 0;
   break-before: avoid;
   break-after: avoid;
   page-break-before: avoid;
@@ -344,20 +318,15 @@
 }
 
 /* ── DIALOGUE ────────────────────────────────────────────────────────────── */
-/*
- * Left edge: 2.5" from paper  →  1.0" indent from text area  →  96 px.
- * Width: 3.5" = 336 px.
- * Ends at 2.5" + 3.5" = 6.0" from paper (right edge of text area).
- * Right padding: 576 - 96(left) - 336(width) = 144 px.
- */
 .script-block[data-element-type='dialogue'] {
   display: flex;
   align-items: flex-start;
   flex-wrap: wrap;
   padding-left: var(--sp-dialogue-indent);
   padding-right: var(--sp-dialogue-right-pad);
-  margin-bottom: var(--sp-line-single);
-  /* Keep dialogue block intact if possible */
+  padding-bottom: var(--sp-line-single);
+  margin-bottom: 0;
+  margin-top: 0;
   break-before: avoid;
   page-break-before: avoid;
 }
@@ -393,17 +362,15 @@
 }
 
 /* ── TRANSITION ──────────────────────────────────────────────────────────── */
-/*
- * Right-aligned at the right margin (1.0" from paper edge).
- * Always UPPERCASE.  Examples: "CUT TO:", "FADE OUT.", "SMASH CUT TO:"
- */
 .script-block[data-element-type='transition'] {
   padding-left: 0;
   padding-right: 0;
   text-align: right;
   text-transform: uppercase;
-  margin-top: var(--sp-line-single);
-  margin-bottom: var(--sp-line-single);
+  padding-top: var(--sp-line-single);
+  padding-bottom: var(--sp-line-single);
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 /* ── Cursor / selection appearance ──────────────────────────────────────── */

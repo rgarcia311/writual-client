@@ -50,6 +50,24 @@ function workspaceFillFromEl(el: Element | null): string {
   return bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent' ? bg : '#d0d0d0'
 }
 
+/** Map post-`transform: scale()` visual pixels to layout CSS px (`getBoundingClientRect` / `offsetHeight`). */
+function layoutScaleFromEditorDom(dom: HTMLElement): number {
+  const h = dom.offsetHeight
+  if (h === 0) return 1
+  const r = dom.getBoundingClientRect().height
+  const s = r / h
+  if (!Number.isFinite(s) || s <= 0) return 1
+  return Math.abs(s - 1) < 0.001 ? 1 : s
+}
+
+function yLayoutInPm(el: HTMLElement, pmRect: DOMRect, scale: number): { top: number; bottom: number } {
+  const r = el.getBoundingClientRect()
+  return {
+    top: (r.top - pmRect.top) / scale,
+    bottom: (r.bottom - pmRect.top) / scale,
+  }
+}
+
 /* ── Widget DOM builder ────────────────────────────────────────────────────── */
 
 interface GapOpts {
@@ -106,7 +124,7 @@ export const PageBreakExtension = Extension.create({
           if (meta && Object.prototype.hasOwnProperty.call(meta, 'decorations')) {
             return meta.decorations
           }
-          if (tr.docChanged) return DecorationSet.empty
+          if (tr.docChanged) return value.map(tr.mapping, tr.doc)
           return value
         },
       },
@@ -121,6 +139,7 @@ export const PageBreakExtension = Extension.create({
         let timerId: ReturnType<typeof setTimeout> | null = null
         let rafId: number | null = null
         let resizeObserver: ResizeObserver | null = null
+        let zoomAttrObserver: MutationObserver | null = null
         let measuring = false
 
         function dispatchDecorations(set: DecorationSet) {
@@ -139,6 +158,7 @@ export const PageBreakExtension = Extension.create({
 
           const decorations: Decoration[] = []
           const pmRect = editorView.dom.getBoundingClientRect()
+          const scale = layoutScaleFromEditorDom(editorView.dom as HTMLElement)
 
           let cursorOffset = 0
           let pageIndex = 1
@@ -148,15 +168,8 @@ export const PageBreakExtension = Extension.create({
             const el = editorView.nodeDOM(pos) as HTMLElement
             if (!el) continue
 
-            const cs = getComputedStyle(el)
-            const mt = parseFloat(cs.marginTop) || 0
-            const mb = parseFloat(cs.marginBottom) || 0
-
-            const rect = el.getBoundingClientRect()
-            
-            // Raw physical positions relative to the ProseMirror container
-            const naturalTop = rect.top - pmRect.top
-            const naturalBottom = rect.bottom - pmRect.top
+            // Layout-space Y relative to ProseMirror (parent may use `transform: scale(zoom)`).
+            const { top: naturalTop, bottom: naturalBottom } = yLayoutInPm(el, pmRect, scale)
 
             // Projected positions (including the height of any widgets we've added so far)
             const blockTop = naturalTop + cursorOffset
@@ -182,7 +195,7 @@ export const PageBreakExtension = Extension.create({
                 if (!nextEl) break
                 const nextType = blocks[j].node.attrs.elementType as string
                 if (nextType !== 'parenthetical' && nextType !== 'dialogue') break
-                groupBottom = nextEl.getBoundingClientRect().bottom - pmRect.top
+                groupBottom = yLayoutInPm(nextEl, pmRect, scale).bottom
                 if (nextType === 'dialogue') break
               }
               if (groupBottom + cursorOffset > pageContentEnd) forceBreak = true
@@ -193,7 +206,7 @@ export const PageBreakExtension = Extension.create({
               if (nextBlock && nextBlock.node.attrs.elementType === 'dialogue') {
                 const nextEl = editorView.nodeDOM(nextBlock.pos) as HTMLElement
                 if (nextEl) {
-                  const nextBottom = nextEl.getBoundingClientRect().bottom - pmRect.top + cursorOffset
+                  const nextBottom = yLayoutInPm(nextEl, pmRect, scale).bottom + cursorOffset
                   if (nextBottom > pageContentEnd) forceBreak = true
                 }
               }
@@ -204,20 +217,22 @@ export const PageBreakExtension = Extension.create({
             }
 
             // --- Core Break Logic ---
-            // If it crosses the page boundary (and isn't the very first item on the page), push it.
             if (forceBreak || (blockBottom > pageContentEnd && blockTop > pageContentStart + 1)) {
               
-              // Find exactly where the previous block's margin ended
-              const prevEl = i > 0 ? editorView.nodeDOM(blocks[i - 1].pos) as HTMLElement : null
+              let prevBottomRaw = pageContentStart
               let prevBottom = pageContentStart
-              let prevMb = 0
-              if (prevEl) {
-                prevBottom = prevEl.getBoundingClientRect().bottom - pmRect.top + cursorOffset
-                prevMb = parseFloat(getComputedStyle(prevEl).marginBottom) || 0
+
+              // Calculate exactly where the previous block ended
+              if (i > 0) {
+                const prevEl = editorView.nodeDOM(blocks[i - 1].pos) as HTMLElement
+                if (prevEl) {
+                  prevBottomRaw = yLayoutInPm(prevEl, pmRect, scale).bottom
+                  prevBottom = prevBottomRaw + cursorOffset
+                }
               }
 
-              // Pad perfectly to the end of the 861px page content area
-              const remainder = Math.max(0, pageContentEnd - prevBottom - prevMb)
+              // Because CSS uses strictly padding, the bottom edge is absolute and never collapses
+              const remainder = Math.max(0, pageContentEnd - prevBottom)
 
               decorations.push(
                 Decoration.widget(
@@ -229,6 +244,8 @@ export const PageBreakExtension = Extension.create({
                   }),
                   {
                     side: -1,
+                    /** When supported, keeps the gap out of inline/flex text flow inside `inline*` blocks. */
+                    type: 'block' as const,
                     marks: [],
                     stopEvent: () => true,
                     key: `pb-${pos}`,
@@ -236,9 +253,13 @@ export const PageBreakExtension = Extension.create({
                 ),
               )
 
-              // Account for the injected widget height PLUS the margin collapsing shift.
-              // CSS rule `.page-break-gap + .script-block` strips the top margin of the pushed block.
-              cursorOffset += prevMb + remainder + WIDGET_HEIGHT - Math.max(prevMb, mt)
+              // The actual space between the blocks *before* our widget was injected
+              const naturalGap = naturalTop - prevBottomRaw
+              
+              // The precise pixel shift we are introducing into the document
+              const actualShift = remainder + WIDGET_HEIGHT - naturalGap
+              
+              cursorOffset += actualShift
               pageIndex++
             }
           }
@@ -283,6 +304,13 @@ export const PageBreakExtension = Extension.create({
         if (typeof ResizeObserver !== 'undefined' && pageEl) {
           resizeObserver = new ResizeObserver(() => scheduleRecalc())
           resizeObserver.observe(pageEl)
+          // Node views and line wrapping can resize the inner editor without the page box changing.
+          resizeObserver.observe(editorView.dom)
+        }
+        // `transform: scale()` does not change layout size — RO may not fire on zoom; `data-zoom` does.
+        if (typeof MutationObserver !== 'undefined' && pageEl) {
+          zoomAttrObserver = new MutationObserver(() => scheduleRecalc())
+          zoomAttrObserver.observe(pageEl, { attributes: true, attributeFilter: ['data-zoom'] })
         }
 
         const onWinResize = () => scheduleRecalc()
@@ -304,6 +332,7 @@ export const PageBreakExtension = Extension.create({
             if (timerId) clearTimeout(timerId)
             if (rafId) cancelAnimationFrame(rafId)
             resizeObserver?.disconnect()
+            zoomAttrObserver?.disconnect()
             window.removeEventListener('resize', onWinResize)
             dispatchDecorations(DecorationSet.empty)
           },
