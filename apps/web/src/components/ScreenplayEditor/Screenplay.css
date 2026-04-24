@@ -52,7 +52,7 @@
   --sp-text-area-width: 576px;
 
   --sp-dialogue-indent: 96px;
-  --sp-dialogue-right-pad: 144px;
+  --sp-dialogue-right-pad: 136px;
   --sp-parenthetical-indent: 154px;
   --sp-parenthetical-right-pad: 230px;
   --sp-character-indent: 211px;
@@ -220,6 +220,7 @@
 
 /* ── Base script-block reset ─────────────────────────────────────────────── */
 .script-block {
+  box-sizing: border-box;
   margin: 0;
   padding: 0;
   white-space: pre-wrap;
@@ -358,7 +359,7 @@
 .script-block[data-element-type='dialogue'] [data-node-view-content] {
   order: 1;
   min-width: 0;
-  flex: 0 0 100%;
+  flex: 1 1 auto;
 }
 
 /* ── TRANSITION ──────────────────────────────────────────────────────────── */
