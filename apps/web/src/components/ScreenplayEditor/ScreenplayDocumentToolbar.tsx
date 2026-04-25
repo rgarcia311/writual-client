@@ -69,8 +69,8 @@ export function ScreenplayDocumentToolbar({
             borderTopRightRadius: 8,
             borderBottomLeftRadius: 0,
             borderBottomRightRadius: 0,
-            backgroundColor: '#ffffff',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.12)',
+            bgcolor: 'background.default',
+            boxShadow: 2,
           }}
         >
           <ScreenplayToolbar />
@@ -89,13 +89,15 @@ export function ScreenplayDocumentToolbar({
             py: 0.75,
             borderBottom: `1px solid ${theme.palette.divider}`,
             flexShrink: 0,
+            bgcolor: 'background.default',
+            /* Match TreatmentToolbar elevation when this row is on its own */
+            boxShadow: showElementSelectors ? 0 : 2,
             ...(!showElementSelectors
               ? {
                   borderTopLeftRadius: 8,
                   borderTopRightRadius: 8,
                 }
               : {}),
-            backgroundColor: '#ffffff',
           }}
         >
           {saveContent}

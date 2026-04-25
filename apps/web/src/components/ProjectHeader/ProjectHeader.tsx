@@ -187,7 +187,7 @@ export function ProjectHeader({ accordionAdornment }: { accordionAdornment?: Rea
           },
         }}
       >
-        <Box sx={{ flex: 1, minWidth: 0, mr: 1, pb: 2, pt: "4px" }}>
+        <Box sx={{ flex: 1, minWidth: 0, mr: 1, pb: 2, pt: "4git spx" }}>
           <Breadcrumbs
             aria-label="breadcrumb"
             sx={{

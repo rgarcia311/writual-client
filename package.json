@@ -22,7 +22,8 @@
     "lint": "turbo run lint",
     "dev:web": "turbo run dev --filter=@writual/web",
     "dev:api": "turbo run dev --filter=@writual/api",
-    "dev:hocuspocus": "turbo run dev --filter=@writual/hocuspocus"
+    "dev:hocuspocus": "turbo run dev --filter=@writual/hocuspocus",
+    "dev:ai": "turbo run dev --filter=@writual/writual-ai"
   },
   "devDependencies": {
     "firebase-tools": "^15.5.1",

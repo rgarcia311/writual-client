@@ -10,6 +10,7 @@
       "dependsOn": ["^build"],
       "env": [
         "NEXT_PUBLIC_GRAPHQL_ENDPOINT",
+        "NEXT_PUBLIC_API_ORIGIN",
         "NEXT_PUBLIC_HOCUSPOCUS_URL",
         "NEXT_PUBLIC_FIREBASE_API_KEY",
         "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
@@ -26,7 +27,17 @@
     },
     "@writual/api#build": {
       "dependsOn": ["^build"],
-      "env": ["MONGODB_CONNECTION_URI", "PORT"],
+      "env": [
+        "MONGODB_CONNECTION_URI",
+        "PORT",
+        "AI_SERVICE_URL",
+        "AI_SERVICE_SECRET"
+      ],
+      "outputs": ["dist/**"]
+    },
+    "@writual/writual-ai#build": {
+      "dependsOn": ["^build"],
+      "env": ["PORT", "GROQ_API_KEY", "GROQ_MODEL", "INTERNAL_SERVICE_SECRET"],
       "outputs": ["dist/**"]
     },
     "@writual/hocuspocus#build": {

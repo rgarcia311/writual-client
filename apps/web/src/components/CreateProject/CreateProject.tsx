@@ -35,6 +35,7 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
   handleAddProject,
   initialData,
   handleUpdateProject,
+  screenplayImportMode = 'client',
 }) => {
   const frameworks = useOutlineFrameworksStore((state) => state.frameworks);
   const theme = useTheme();
@@ -45,6 +46,7 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
   const [emailError, setEmailError] = React.useState('');
   const [screenplayContent, setScreenplayContent] = React.useState<Record<string, unknown> | null>(null);
   const [screenplayPageCount, setScreenplayPageCount] = React.useState(0);
+  const [screenplayPdfFile, setScreenplayPdfFile] = React.useState<File | null>(null);
 
   React.useEffect(() => {
     if (!initialData) return;
@@ -111,7 +113,9 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, padding: 4 }}>
         {!isUpdate && (
           <ScreenplayDropZone
+            importMode={screenplayImportMode}
             onParsed={(doc, pageCount, title) => {
+              setScreenplayPdfFile(null);
               setScreenplayContent(doc);
               setScreenplayPageCount(pageCount);
               if (title) {
@@ -121,9 +125,15 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
                 }));
               }
             }}
+            onServerPdfReady={(file) => {
+              setScreenplayContent(null);
+              setScreenplayPageCount(0);
+              setScreenplayPdfFile(file);
+            }}
             onCleared={() => {
               setScreenplayContent(null);
               setScreenplayPageCount(0);
+              setScreenplayPdfFile(null);
             }}
           />
         )}
@@ -273,6 +283,7 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
               outlineName: formValues.outlineName ?? undefined,
               timePeriod: formValues.timePeriod ?? undefined,
               screenplayContent: screenplayContent ?? undefined,
+              screenplayPdfFile: screenplayPdfFile ?? undefined,
             };
             if (isUpdate && handleUpdateProject) {
               handleUpdateProject(payload);

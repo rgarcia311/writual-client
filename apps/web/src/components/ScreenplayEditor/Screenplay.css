@@ -89,10 +89,9 @@
   position: relative;
   box-sizing: border-box;
   overflow: visible; /* gutter icons bleed into margin */
-  /* Stacked-paper rim — same blur/spread/opacity on all four edges */
+  /* Stacked-paper rim — no leftward shadow (avoids a dark band in the gap beside the scene list). */
   box-shadow:
     3px 0 12px -6px rgba(0, 0, 0, 0.2),
-    -3px 0 12px -6px rgba(0, 0, 0, 0.2),
     0 -3px 12px -6px rgba(0, 0, 0, 0.2),
     0 3px 12px -6px rgba(0, 0, 0, 0.2);
 }

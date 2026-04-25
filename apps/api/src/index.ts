@@ -14,6 +14,7 @@ import { getCharactersByProjectIdsBatch } from './services/CharacterService';
 import { Projects, AppUsers, Conversations } from '@writual/db';
 import { verifyUser } from './lib/verifyUser';
 import { pusher } from './services/pusher';
+import { registerScreenplayImportPdfAiRoute } from './routes/screenplayImportPdfAi';
 
 // Required logic for integrating with Express
 const app = express();
@@ -29,6 +30,8 @@ const server = new ApolloServer(
 
 const startServer = async () => {
     await server.start()
+
+    registerScreenplayImportPdfAiRoute(app);
 
     // JSON body parser must run before all routes so req.body is available
     app.use(express.json({ limit: '50mb' }));

@@ -42,6 +42,11 @@ interface SceneCardProps {
   step?: string;
   steps?: StepOption[];
   onDelete?: () => void;
+  /**
+   * Use in narrow parents (e.g. screenplay scene strip): 100% width, auto height,
+   * no outline grid / min-450px constraints.
+   */
+  fullWidthInParent?: boolean;
 }
 
 export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
@@ -56,6 +61,7 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
   step,
   steps = [],
   onDelete,
+  fullWidthInParent = false,
 }) {
   const initialActiveVersion = Math.max(1, Number(activeVersion ?? 1));
   const [activeVersionLocal, setActiveVersionLocal] = useState<number>(initialActiveVersion);
@@ -324,21 +330,38 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
 
   return (
     <Card
-      sx={{
-        ...sceneCardStyle.card,
-        flex: "1 1 auto",
-        minWidth: "calc((400px - 32px) / 3)",
-        '@container (min-width: 400px)': {
-          flex: "1 1 calc(33.33% - 10.67px)",
-          minWidth: "calc((100% - 32px) / 3)",
-          maxWidth: "calc((100% - 32px) / 4)",
-        },
-        backgroundColor: theme.palette.background.paper,
-        display: 'flex',
-        flexDirection: 'column',
-      }}
+      sx={
+        fullWidthInParent
+          ? {
+              width: '100%',
+              minWidth: 0,
+              maxWidth: '100%',
+              height: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              flex: '0 0 auto',
+              backgroundColor: theme.palette.background.paper,
+              boxShadow: '0px 8px 15px rgba(0, 0, 0, 0.1)',
+              borderRadius: 2,
+              border: '1px solid rgba(0, 0, 0, 0.1)',
+              mb: 1.25,
+            }
+          : {
+              ...sceneCardStyle.card,
+              flex: '1 1 auto',
+              minWidth: 'calc((400px - 32px) / 3)',
+              '@container (min-width: 400px)': {
+                flex: '1 1 calc(33.33% - 10.67px)',
+                minWidth: 'calc((100% - 32px) / 3)',
+                maxWidth: 'calc((100% - 32px) / 4)',
+              },
+              backgroundColor: theme.palette.background.paper,
+              display: 'flex',
+              flexDirection: 'column',
+            }
+      }
     >
-      {/* Header: Scene title + badges */}
+      {/* Header: Scene title + badges — match screenplay / treatment toolbar surface */}
       <Box
         sx={{
           display: 'flex',
@@ -348,10 +371,20 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
           gap: 1,
           px: 2,
           py: 1.5,
+          bgcolor: 'background.default',
+          borderBottom: `1px solid ${theme.palette.divider}`,
+          minWidth: 0,
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 220, flex: 1 }}>
-       
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            minWidth: fullWidthInParent ? 0 : 220,
+            flex: 1,
+          }}
+        >
           {isLocked ? (
             <Typography variant="subtitle1" fontWeight={700} component="span" sx={multiLineTruncate(4)}>
               {sceneContent.sceneHeading?.trim() || 'Untitled scene'}
@@ -363,7 +396,11 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
               onChange={handleContentChange('sceneHeading')}
               placeholder="Scene heading"
               variant="outlined"
-              sx={{ minWidth: 200, flex: 1, '& .MuiInputBase-input': { py: 0.5 } }}
+              sx={{
+                minWidth: fullWidthInParent ? 0 : 200,
+                flex: 1,
+                '& .MuiInputBase-input': { py: 0.5 },
+              }}
             />
           )}
         </Box>
@@ -403,7 +440,6 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
         </IconButton>
         </Box>
       </Box>
-      <Divider />
       {/* Content: Thesis, Antithesis, Synthesis (constrained height) */}
       <CardContent
         sx={{
@@ -500,10 +536,20 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
           px: 2,
           py: 1.5,
           flexShrink: 0,
+          minWidth: 0,
         }}
       >
-        
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            flex: 1,
+            justifyContent: 'center',
+            flexWrap: 'wrap',
+            minWidth: 0,
+          }}
+        >
           <VersionSelectorWithAdd
             value={selectValue}
             versionOptions={versionOptionsList}
@@ -515,7 +561,14 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
           />
           
           {steps.length > 0 && (
-            <FormControl size="small" sx={{ minWidth: 160 }}>
+            <FormControl
+              size="small"
+              sx={{
+                minWidth: fullWidthInParent ? 0 : 160,
+                maxWidth: fullWidthInParent ? '100%' : 'none',
+                flex: fullWidthInParent ? '1 1 120px' : 'none',
+              }}
+            >
               <Select
                 value={sceneContent.step ?? ''}
                 onChange={handleStepChange}

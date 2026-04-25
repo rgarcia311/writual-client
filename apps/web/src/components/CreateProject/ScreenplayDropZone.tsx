@@ -14,6 +14,9 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import CloseIcon from '@mui/icons-material/Close'
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
 import { parseScreenplayPdf } from '@/lib/parseScreenplayPdf'
+import type { ScreenplayImportMode } from '@/interfaces/project'
+
+const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20 MB
 
 type DropZoneState =
   | { status: 'idle' }
@@ -23,11 +26,28 @@ type DropZoneState =
   | { status: 'error'; message: string }
 
 interface ScreenplayDropZoneProps {
+  importMode: ScreenplayImportMode
   onParsed: (doc: Record<string, unknown>, pageCount: number, title: string | null) => void
+  onServerPdfReady?: (file: File) => void
   onCleared: () => void
 }
 
-export function ScreenplayDropZone({ onParsed, onCleared }: ScreenplayDropZoneProps) {
+function validatePdfFile(file: File): string | null {
+  if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+    return 'Please select a PDF file.'
+  }
+  if (file.size > MAX_FILE_SIZE) {
+    return `File size (${(file.size / 1024 / 1024).toFixed(1)}MB) exceeds the 20MB limit.`
+  }
+  return null
+}
+
+export function ScreenplayDropZone({
+  importMode,
+  onParsed,
+  onServerPdfReady,
+  onCleared,
+}: ScreenplayDropZoneProps) {
   const theme = useTheme()
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const dragCounterRef = React.useRef(0)
@@ -35,7 +55,26 @@ export function ScreenplayDropZone({ onParsed, onCleared }: ScreenplayDropZonePr
 
   const handleFile = React.useCallback(
     async (file: File) => {
+      const invalid = validatePdfFile(file)
+      if (invalid) {
+        setState({ status: 'error', message: invalid })
+        return
+      }
+
       setState({ status: 'parsing', fileName: file.name })
+
+      if (importMode === 'server') {
+        try {
+          onServerPdfReady?.(file)
+          setState({ status: 'success', fileName: file.name, pageCount: 0 })
+        } catch (err) {
+          const message =
+            err instanceof Error ? err.message : 'Failed to prepare PDF.'
+          setState({ status: 'error', message })
+        }
+        return
+      }
+
       try {
         const { doc, pageCount, title } = await parseScreenplayPdf(file)
         setState({ status: 'success', fileName: file.name, pageCount })
@@ -46,13 +85,12 @@ export function ScreenplayDropZone({ onParsed, onCleared }: ScreenplayDropZonePr
         setState({ status: 'error', message })
       }
     },
-    [onParsed],
+    [importMode, onParsed, onServerPdfReady],
   )
 
   const handleClear = React.useCallback(() => {
     setState({ status: 'idle' })
     onCleared()
-    // Stipulation: reset file input so re-selecting the same file triggers onChange
     if (fileInputRef.current) fileInputRef.current.value = ''
   }, [onCleared])
 
@@ -98,7 +136,6 @@ export function ScreenplayDropZone({ onParsed, onCleared }: ScreenplayDropZonePr
   const handleInputChange = React.useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0]
-      // Stipulation: reset so re-selecting the same file works
       e.target.value = ''
       if (file) handleFile(file)
     },
@@ -133,7 +170,9 @@ export function ScreenplayDropZone({ onParsed, onCleared }: ScreenplayDropZonePr
             {state.fileName}
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            {state.pageCount} page{state.pageCount !== 1 ? 's' : ''} parsed
+            {importMode === 'server'
+              ? 'Ready — screenplay will be imported with AI when you create the project'
+              : `${state.pageCount} page${state.pageCount !== 1 ? 's' : ''} parsed`}
           </Typography>
         </Box>
         <IconButton size="small" onClick={handleClear} aria-label="Remove imported screenplay">
@@ -159,7 +198,9 @@ export function ScreenplayDropZone({ onParsed, onCleared }: ScreenplayDropZonePr
       >
         <CircularProgress size={20} />
         <Typography variant="body2" color="text.secondary">
-          Parsing {state.fileName}...
+          {importMode === 'server'
+            ? `Preparing ${state.fileName}…`
+            : `Parsing ${state.fileName}...`}
         </Typography>
       </Box>
     )
@@ -254,8 +295,10 @@ export function ScreenplayDropZone({ onParsed, onCleared }: ScreenplayDropZonePr
       >
         Choose File
       </Button>
-      <Typography variant="caption" color="text.disabled">
-        Standard screenplay format &middot; PDF only &middot; 20MB max
+      <Typography variant="caption" color="text.disabled" textAlign="center">
+        {importMode === 'server'
+          ? 'Enhanced AI import (Greenlit+) · PDF only · 20MB max'
+          : 'Standard screenplay format · PDF only · 20MB max'}
       </Typography>
     </Box>
   )
