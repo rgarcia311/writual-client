@@ -36,7 +36,20 @@ export function ProjectDetailsLayout({
     <Container
       maxWidth={false}
       disableGutters
-      sx={{ display: 'flex', flexDirection: 'column', flex: 1, padding: 2, height: '100%', width: '100%', minWidth: 0, overflow: 'hidden' }}
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        flex: 1,
+        height: '100%',
+        width: '100%',
+        minWidth: 0,
+        overflow: 'hidden',
+        /* Match sidenav logo row: StyledSideNav padding 5px + logo strip pt 8px */
+        pt: '13px',
+        pr: 2,
+        pb: 2,
+        pl: '13px',
+      }}
     >
       <ProjectHeader accordionAdornment={accordionAdornment} />
       <Container

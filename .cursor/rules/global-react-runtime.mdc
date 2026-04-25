@@ -1,0 +1,22 @@
+---
+description: WebSocket/subscription cleanup, env validation, layout tokens, and React data-flow checks
+alwaysApply: true
+---
+
+# Global frontend and runtime rules
+
+## Zombie Killer
+
+All **WebSocket** connections, **`addEventListener`** (and similar DOM subscriptions), and **API / observable subscriptions** must include an **explicit cleanup**: disconnect, `removeEventListener`, unsubscribe, or `abort`, in **`useEffect` cleanup** or equivalent **component unmount** path. Never leave listeners or sockets dangling after unmount.
+
+## Fail-Fast (environment)
+
+**Environment variables** (e.g. `NEXT_PUBLIC_HOCUSPOCUS_URL` and other required config) must be **validated at the entry point** of the surface that uses them (app bootstrap, server entry, or a dedicated `env` module imported first). If a variable is **required in production**, **throw an explicit error** with a clear message when it is missing or invalid—do not fail later with a vague runtime error.
+
+## No magic numbers (layout)
+
+**Layout constants** (margins, indents, **z-index**, spacing used for visual structure) must be defined as **CSS custom properties** (`var(--…)`) scoped to the **component or page** (e.g. in a colocated `.css` module or a wrapper class). Do **not** encode those values as **hardcoded pixel (or unit) literals in JavaScript/TS** when they define layout or stacking; keep presentation tokens in CSS.
+
+## Integration-first (React)
+
+Before **proposing or making** a change to a **React component**, **read its parent(s)** and any **related Zustand stores** (selectors, actions, naming). Ensure **data flow**—**props vs store**—stays **consistent** with existing patterns in that part of the app; do not introduce a parallel source of truth without an intentional, documented reason.

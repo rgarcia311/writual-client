@@ -5,27 +5,24 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Collaboration from '@tiptap/extension-collaboration'
 import { CollaborationCursor } from './CollaborationCursorExtension'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { request } from 'graphql-request'
 import {
+  Avatar,
   Box,
+  ButtonBase,
   Chip,
   CircularProgress,
-  Divider,
   IconButton,
-  List,
-  ListItemButton,
-  ListItemText,
   Paper,
   Tooltip,
   Typography,
   useTheme,
 } from '@mui/material'
-import CloudDoneIcon from '@mui/icons-material/CloudDone'
 import LocalMoviesIcon from '@mui/icons-material/LocalMovies'
-import MenuOpenIcon from '@mui/icons-material/MenuOpen'
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
+import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import MenuIcon from '@mui/icons-material/Menu'
-import PrintIcon from '@mui/icons-material/Print'
 import PersonIcon from '@mui/icons-material/Person'
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline'
 import FormatQuoteIcon from '@mui/icons-material/FormatQuote'
@@ -37,30 +34,84 @@ import {
   SCREENPLAY_ELEMENT_LABELS,
   type ScreenplayElementType,
 } from './ScreenplayExtension'
+import { PageBreakExtension } from './PageBreakPlugin'
+import { printScreenplayHidden } from './screenplayPdfPrint'
 import { BlockAltsToolbar } from './BlockAltsToolbar'
-import { ScreenplayToolbar } from './ScreenplayToolbar'
+import {
+  ScreenplayDocumentToolbar,
+  SCREENPLAY_ZOOM_MAX,
+  SCREENPLAY_ZOOM_MIN,
+  SCREENPLAY_ZOOM_STEP,
+} from './ScreenplayDocumentToolbar'
+import { SceneCard } from '@/components/SceneCard'
+import { CharacterCard } from '@/components/CharacterCard'
+import { updateCharacter as updateCharacterAction } from '@/app/actions/characters'
+import { OUTLINE_FRAMEWORKS_QUERY } from '@/queries/OutlineQueries'
+import { PROJECT_CHARACTERS_QUERY } from '@/queries/CharacterQueries'
 import { PROJECT_SCENES_QUERY } from '@/queries/SceneQueries'
+import type { OutlineFrameworkItem } from '@/state/outlineFrameworks'
 import { PROJECT_SCENES_QUERY_KEY } from 'hooks'
 import { useAutosave } from '@hooks/useAutosave'
 import { useCollaboration } from '@hooks/useCollaboration'
 import { useUserProfileStore } from '@/state/user'
 import { useScreenplaySaveStatusStore } from '@/state/screenplaySaveStatus'
 import { useScreenplayEditorStore } from '@/state/screenplayEditor'
+import { useScreenplayHeaderChromeStore } from '@/state/screenplayHeaderChrome'
 import { GRAPHQL_ENDPOINT } from '@/lib/config'
 import type { HocuspocusProvider } from '@hocuspocus/provider'
 import type * as Y from 'yjs'
 import './Screenplay.css'
+import {
+  SCREENPLAY_EDITOR_COLUMN_WIDTH_PX,
+  SCREENPLAY_PAPER_HEIGHT_PX,
+  SCREENPLAY_PAPER_WIDTH_PX,
+  SCREENPLAY_SCROLL_GUTTER_LEFT_PX,
+  SCREENPLAY_SCROLL_GUTTER_RIGHT_PX,
+} from './screenplayPaperLayout'
+import {
+  getSluglineChipLabel,
+  getSluglineLocation,
+  type SluglineLocation,
+} from './screenplaySluglineUtils'
+
+// ─── Scene navigator width (flex — reflows editor; do not use absolute + padding sync) ─
+/**
+ * Narrower than 560 so expanded strip + max editor column + padding usually fits without
+ * a horizontal scrollbar clipping the right paper shadow. Do not use overflowX: hidden
+ * to mask overflow (stip: narrow viewports need horizontal access).
+ */
+/** Matches `ProjectDetailsLayout` outer `Container` `pl` so the editor can bleed edge-to-edge under the header. */
+const PROJECT_LAYOUT_CONTENT_INSET_LEFT_PX = 13
+/** Vertical Scenes / Characters tabs on the left edge of the screenplay area. */
+const SIDE_PANEL_TABS_W_PX = 44
+const SCENE_STRIP_W_EXPANDED_PX = 420
+const SCENE_STRIP_W_COLLAPSED_PX = 56
+/** Extra right inset so `.screenplay-page` box-shadow isn’t lost at the scroll edge. */
+const SCREENPLAY_PAGE_SHADOW_INSET_PX = 12
+const WORKSPACE_H_INSET_PX = 20 + SCREENPLAY_PAGE_SHADOW_INSET_PX
+
+function sluglineChipMuiColor(
+  loc: SluglineLocation,
+): 'primary' | 'success' | 'warning' | 'default' {
+  if (loc === 'INT') return 'primary'
+  if (loc === 'EXT') return 'success'
+  if (loc === 'I_E') return 'warning'
+  return 'default'
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface SceneVersion {
   sceneHeading?: string
   version?: number
+  step?: string
+  act?: number
 }
 
 interface ProjectScene {
   _id: string
   activeVersion?: number
+  lockedVersion?: number | null
   versions?: SceneVersion[]
 }
 
@@ -115,22 +166,6 @@ export function ElementTooltipContent({ type }: { type: ScreenplayElementType })
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function countWordsFromDoc(doc: import('@tiptap/pm/model').Node): number {
-  let count = 0
-  doc.descendants((node) => {
-    if (node.isTextblock) {
-      const text = node.textContent.trim()
-      if (text) count += text.split(/\s+/).filter(Boolean).length
-      return false
-    }
-  })
-  return count
-}
-
-function estimatePages(wordCount: number): number {
-  return Math.max(1, Math.round(wordCount / 180))
-}
-
 function getSceneHeading(scene: ProjectScene): string {
   const idx = Math.max(0, (scene.activeVersion ?? 1) - 1)
   return (scene.versions?.[idx]?.sceneHeading ?? '').trim()
@@ -156,98 +191,6 @@ function buildDocFromScenes(scenes: ProjectScene[]): Record<string, unknown> {
   return { type: 'doc', content: blocks }
 }
 
-// ─── Print utility ────────────────────────────────────────────────────────────
-
-function printScreenplay(html: string) {
-  const win = window.open('', '_blank', 'width=900,height=700,scrollbars=yes')
-  if (!win) {
-    console.warn('Popup blocked — please allow popups for this site to print.')
-    return
-  }
-
-  win.document.write(`<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>Screenplay</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
-<style>
-  @page {
-    size: 8.5in 11in;
-    margin: 1in 1in 1in 1.5in;
-  }
-  * { box-sizing: border-box; }
-  body {
-    font-family: 'Courier Prime', 'Courier New', Courier, monospace;
-    font-size: 12pt;
-    line-height: 1.0;
-    color: #000;
-    background: #fff;
-    margin: 0;
-    padding: 0;
-  }
-  .script-block {
-    margin: 0 0 12pt 0;
-    padding: 0;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-  .script-block:last-child { margin-bottom: 0; }
-  .script-block[data-element-type="slugline"] {
-    text-transform: uppercase;
-    font-weight: 700;
-    margin-top: 24pt;
-    margin-bottom: 12pt;
-    break-after: avoid;
-    page-break-after: avoid;
-  }
-  .script-block[data-element-type="slugline"]:first-child { margin-top: 0; }
-  .script-block[data-element-type="character"] {
-    margin-left: 2.0in;
-    text-transform: uppercase;
-    margin-bottom: 0;
-    break-after: avoid;
-    page-break-after: avoid;
-  }
-  .script-block[data-element-type="parenthetical"] {
-    margin-left: 1.5in;
-    margin-right: 1.5in;
-    margin-bottom: 0;
-    break-before: avoid;
-    break-after: avoid;
-    page-break-before: avoid;
-    page-break-after: avoid;
-  }
-  .script-block[data-element-type="dialogue"] {
-    margin-left: 1.0in;
-    margin-right: 1.5in;
-    margin-bottom: 12pt;
-    break-before: avoid;
-    page-break-before: avoid;
-  }
-  .script-block[data-element-type="transition"] {
-    text-align: right;
-    text-transform: uppercase;
-    margin-top: 12pt;
-    margin-bottom: 12pt;
-  }
-</style>
-</head>
-<body>${html}</body>
-</html>`)
-
-  win.document.close()
-
-  if (win.document.fonts?.ready) {
-    win.document.fonts.ready.then(() => { win.focus(); win.print(); win.close() })
-  } else {
-    setTimeout(() => { win.focus(); win.print(); win.close() }, 800)
-  }
-}
-
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface WritualEditorProps {
@@ -271,6 +214,31 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
   const project = (scenesData as any)?.getProjectData?.[0]
   const projectScenes: ProjectScene[] = project?.scenes ?? []
   const savedScreenplayContent = project?.screenplay?.versions?.[0]?.content ?? null
+  const outlineName = project?.outlineName?.trim() ?? null
+
+  const { data: frameworksData } = useQuery({
+    queryKey: ['outline-frameworks', user, projectId],
+    queryFn: async () => request(GRAPHQL_ENDPOINT, OUTLINE_FRAMEWORKS_QUERY, { user }),
+    enabled: Boolean(outlineName && user && projectId),
+  }) as { data: { getOutlineFrameworks?: any[] } | undefined }
+
+  const outlineFramework: OutlineFrameworkItem | null = React.useMemo(() => {
+    const list = frameworksData?.getOutlineFrameworks ?? []
+    return list.find((f) => (f.name ?? '').trim() === outlineName) ?? null
+  }, [frameworksData, outlineName])
+
+  /** Same `steps` list as the Outline page `SceneCard` (assign-to-step). */
+  const sceneCardSteps = React.useMemo(
+    () => {
+      if (!outlineFramework?.format?.steps?.length) return []
+      return outlineFramework.format.steps.map((s: { name?: string; number?: number; act?: string }) => ({
+        name: (s.name ?? '').trim() || `Step ${s.number ?? 0}`,
+        number: s.number ?? 0,
+        act: s.act ?? '',
+      }))
+    },
+    [outlineFramework],
+  )
 
   const canEdit = React.useMemo(() => {
     if (!project || !user) return false
@@ -295,20 +263,34 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
       canEdit={canEdit}
       projectScenes={projectScenes}
       savedScreenplayContent={savedScreenplayContent}
+      sceneCardSteps={sceneCardSteps}
     />
   )
 }
 
 // ─── Middle Layer — collab resource gate ───────────────────────────────────────
 
+interface SceneCardStepOption {
+  name: string
+  number: number
+  act: string
+}
+
 interface CollabGateProps {
   projectId?: string
   canEdit: boolean
   projectScenes: ProjectScene[]
   savedScreenplayContent: unknown
+  sceneCardSteps: SceneCardStepOption[]
 }
 
-function CollabGate({ projectId, canEdit, projectScenes, savedScreenplayContent }: CollabGateProps) {
+function CollabGate({
+  projectId,
+  canEdit,
+  projectScenes,
+  savedScreenplayContent,
+  sceneCardSteps,
+}: CollabGateProps) {
   const { ydoc, provider, failed } = useCollaboration(projectId)
 
   if (projectId && !failed && (!ydoc || !provider)) {
@@ -326,6 +308,7 @@ function CollabGate({ projectId, canEdit, projectScenes, savedScreenplayContent 
       canEdit={canEdit}
       projectScenes={projectScenes}
       savedScreenplayContent={savedScreenplayContent}
+      sceneCardSteps={sceneCardSteps}
       ydoc={failed ? null : ydoc}
       provider={failed ? null : provider}
     />
@@ -339,6 +322,7 @@ interface ScreenplayEditorCoreProps {
   canEdit: boolean
   projectScenes: ProjectScene[]
   savedScreenplayContent: unknown
+  sceneCardSteps: SceneCardStepOption[]
   ydoc: Y.Doc | null
   provider: HocuspocusProvider | null
 }
@@ -348,20 +332,139 @@ function ScreenplayEditorCore({
   canEdit,
   projectScenes,
   savedScreenplayContent,
+  sceneCardSteps,
   ydoc,
   provider,
 }: ScreenplayEditorCoreProps) {
   const theme = useTheme()
   const [navigatorOpen, setNavigatorOpen] = React.useState(true)
-  const [wordCount, setWordCount] = React.useState(0)
+  /** Wide list vs. narrow strip (scene INT/EXT chips or character initials). */
+  const [sidePanelExpanded, setSidePanelExpanded] = React.useState(true)
+  /** Which side panel list is shown when the navigator is open. */
+  const [sidePanelTab, setSidePanelTab] = React.useState<'scenes' | 'characters'>('scenes')
+  const [characterCardExpandedId, setCharacterCardExpandedId] = React.useState<number | undefined>(
+    undefined,
+  )
+  const [zoom, setZoom] = React.useState(1)
+
+  const workspaceRef = React.useRef<HTMLDivElement | null>(null)
+  const stageRef = React.useRef<HTMLDivElement | null>(null)
+  const pageRef = React.useRef<HTMLDivElement | null>(null)
+  const toolbarScaleStageRef = React.useRef<HTMLDivElement | null>(null)
+  const toolbarScaleInnerRef = React.useRef<HTMLDivElement | null>(null)
+  const paperLayoutRef = React.useRef({
+    width: SCREENPLAY_PAPER_WIDTH_PX,
+    height: SCREENPLAY_PAPER_HEIGHT_PX,
+  })
+  const zoomRef = React.useRef(zoom)
+  zoomRef.current = zoom
+
+  const applyStageDimensions = React.useCallback(() => {
+    const stage = stageRef.current
+    if (!stage) return
+    const z = zoomRef.current
+    const { width, height } = paperLayoutRef.current
+    stage.style.width = `${width * z}px`
+    stage.style.height = `${height * z}px`
+  }, [])
+
+  React.useLayoutEffect(() => {
+    applyStageDimensions()
+  }, [zoom, applyStageDimensions])
+
+  const syncToolbarScaleLayout = React.useCallback(() => {
+    const stage = toolbarScaleStageRef.current
+    const inner = toolbarScaleInnerRef.current
+    if (!stage || !inner) return
+    const z = zoomRef.current
+    stage.style.width = `${SCREENPLAY_PAPER_WIDTH_PX * z}px`
+    stage.style.height = `${inner.offsetHeight * z}px`
+  }, [])
+
+  React.useLayoutEffect(() => {
+    syncToolbarScaleLayout()
+  }, [zoom, syncToolbarScaleLayout])
+
+  React.useEffect(() => {
+    const inner = toolbarScaleInnerRef.current
+    if (!inner) return
+    const ro = new ResizeObserver(() => {
+      syncToolbarScaleLayout()
+    })
+    ro.observe(inner)
+    return () => {
+      ro.disconnect()
+    }
+  }, [syncToolbarScaleLayout])
+
+  React.useEffect(() => {
+    const page = pageRef.current
+    if (!page) return
+    const ro = new ResizeObserver(() => {
+      paperLayoutRef.current = {
+        width: SCREENPLAY_PAPER_WIDTH_PX,
+        height: page.offsetHeight,
+      }
+      applyStageDimensions()
+    })
+    ro.observe(page)
+    return () => {
+      ro.disconnect()
+    }
+  }, [applyStageDimensions])
+
+  React.useEffect(() => {
+    const el = workspaceRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return
+      e.preventDefault()
+      const delta = e.deltaY > 0 ? -SCREENPLAY_ZOOM_STEP : SCREENPLAY_ZOOM_STEP
+      setZoom((z) => {
+        const next = Math.min(
+          SCREENPLAY_ZOOM_MAX,
+          Math.max(SCREENPLAY_ZOOM_MIN, Math.round((z + delta) * 100) / 100),
+        )
+        return next
+      })
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => {
+      el.removeEventListener('wheel', onWheel)
+    }
+  }, [])
 
   const { setActiveType, setCanEdit, setElementTypeFnRef } = useScreenplayEditorStore()
-  const collabStatus = useScreenplayEditorStore((s) => s.collabStatus)
-  const connectedUsers = useScreenplayEditorStore((s) => s.connectedUsers)
 
   const seededRef = React.useRef(false)
 
   const user = useUserProfileStore((s) => s.userProfile?.user)
+  const queryClient = useQueryClient()
+
+  const { data: charactersData } = useQuery({
+    queryKey: ['project-characters', projectId],
+    queryFn: async () =>
+      request(GRAPHQL_ENDPOINT, PROJECT_CHARACTERS_QUERY, {
+        input: { user, _id: projectId },
+      }),
+    enabled: Boolean(projectId && user),
+  })
+  const projectCharacters: any[] = (charactersData as any)?.getProjectData?.[0]?.characters ?? []
+
+  const updateCharacterLockMutation = useMutation({
+    mutationFn: async ({ characterId, locked }: { characterId: string; locked: boolean }) => {
+      const character = projectCharacters.find((c) => c._id === characterId)
+      const activeVersion = character?.activeVersion ?? 1
+      return updateCharacterAction(characterId, {
+        activeVersion,
+        lockedVersion: locked ? activeVersion : null,
+      })
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['project-characters', projectId] })
+      await queryClient.refetchQueries({ queryKey: ['project-characters', projectId] })
+    },
+  })
 
   // ── Save status ──────────────────────────────────────────────────────────
   const { savingCount, lastSavedAt, hasPendingChanges, setPending, startSaving, endSaving } = useScreenplaySaveStatusStore()
@@ -392,6 +495,7 @@ function ScreenplayEditorCore({
         undoRedo: collabActive ? false : undefined,
       }),
       ScriptBlock as any,
+      PageBreakExtension,
     ]
 
     if (collabActive) {
@@ -547,19 +651,6 @@ function ScreenplayEditorCore({
     return () => { editor.off('selectionUpdate', syncType); editor.off('update', syncType) }
   }, [editor, setActiveType])
 
-  // ── Debounced word count ─────────────────────────────────────────────────
-  React.useEffect(() => {
-    if (!editor) return
-    let timer: ReturnType<typeof setTimeout>
-    const syncWordCount = () => {
-      clearTimeout(timer)
-      timer = setTimeout(() => setWordCount(countWordsFromDoc(editor.state.doc)), 500)
-    }
-    editor.on('update', syncWordCount)
-    syncWordCount()
-    return () => { editor.off('update', syncWordCount); clearTimeout(timer) }
-  }, [editor, setWordCount])
-
   // ── Navigate to scene by heading text ────────────────────────────────────
   const navigateToHeading = React.useCallback(
     (heading: string) => {
@@ -582,215 +673,578 @@ function ScreenplayEditorCore({
     [editor]
   )
 
-  // ── Print ────────────────────────────────────────────────────────────────
-  const handlePrint = React.useCallback(() => {
-    if (editor) printScreenplay(editor.getHTML())
-  }, [editor])
+  const setHeaderChrome = useScreenplayHeaderChromeStore((s) => s.setChrome)
+  React.useEffect(() => {
+    setHeaderChrome({
+      zoom,
+      collabActive,
+      handlers: editor
+        ? {
+            zoomOut: () =>
+              setZoom((z) =>
+                Math.max(SCREENPLAY_ZOOM_MIN, Math.round((z - SCREENPLAY_ZOOM_STEP) * 100) / 100),
+              ),
+            zoomIn: () =>
+              setZoom((z) =>
+                Math.min(SCREENPLAY_ZOOM_MAX, Math.round((z + SCREENPLAY_ZOOM_STEP) * 100) / 100),
+              ),
+            zoomReset: () => setZoom(1),
+            print: () => void printScreenplayHidden(editor),
+          }
+        : null,
+    })
+    return () => {
+      setHeaderChrome({ handlers: null, collabActive: false, zoom: 1 })
+    }
+  }, [zoom, collabActive, editor, setHeaderChrome])
 
   // ── Derived ──────────────────────────────────────────────────────────────
-  const pages = estimatePages(wordCount)
-  const sceneCount = projectScenes.length
+  const sceneStripWidthPx = navigatorOpen
+    ? (sidePanelExpanded ? SCENE_STRIP_W_EXPANDED_PX : SCENE_STRIP_W_COLLAPSED_PX)
+    : 0
+  /** When list is off or only the narrow strip: center the screenplay column; expanded list hugs the right. */
+  const centerEditorColumn = !navigatorOpen || (navigatorOpen && !sidePanelExpanded)
 
   if (!editor) return null
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', minHeight: 0 }}>
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        overflow: 'hidden',
+        minHeight: 0,
+        // Cancel project layout left inset so side tabs + panel sit flush left; header stays padded in `ProjectDetailsLayout`.
+        marginLeft: `-${PROJECT_LAYOUT_CONTENT_INSET_LEFT_PX}px`,
+        width: `calc(100% + ${PROJECT_LAYOUT_CONTENT_INSET_LEFT_PX}px)`,
+        minWidth: 0,
+        boxSizing: 'border-box',
+      }}
+    >
 
-      {/* ── TOOLBAR ─────────────────────────────────────────────────────── */}
-      <Paper
-        className="screenplay-toolbar"
-        elevation={0}
-        square
+      {/* ── BODY: side tabs + side panel + editor; moved up 10px vs previous pt(5) ─ */}
+      <Box
         sx={{
           display: 'flex',
-          alignItems: 'center',
-          gap: 1,
-          px: 1.5,
-          py: 0.75,
-          borderBottom: `1px solid ${theme.palette.divider}`,
-          flexShrink: 0,
-          flexWrap: 'wrap',
-          minHeight: 48,
+          flex: 1,
+          minHeight: 0,
+          overflow: 'hidden',
+          alignItems: 'stretch',
+          pt: 3.75,
         }}
       >
-        <Tooltip title={navigatorOpen ? 'Hide scene panel' : 'Show scene panel'}>
-          <IconButton size="small" onClick={() => setNavigatorOpen((v) => !v)} aria-label="toggle scene panel">
-            {navigatorOpen ? <MenuOpenIcon fontSize="small" /> : <MenuIcon fontSize="small" />}
-          </IconButton>
-        </Tooltip>
 
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-
-        <ScreenplayToolbar />
-
-        <Box sx={{ flex: 1, minWidth: 8 }} />
-
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{ display: { xs: 'none', sm: 'block' }, fontFamily: 'monospace', whiteSpace: 'nowrap' }}
-        >
-          {wordCount.toLocaleString()} words · ~{pages}p
-        </Typography>
-
-        {/* ── Collab status indicators ──────────────────────────────────── */}
-        {collabActive && collabStatus === 'connecting' && (
-          <Chip label="Syncing..." size="small" color="warning" variant="outlined" sx={{ height: 22, fontSize: '0.65rem' }} />
-        )}
-        {collabActive && collabStatus === 'disconnected' && (
-          <Chip label="Offline" size="small" color="error" variant="outlined" sx={{ height: 22, fontSize: '0.65rem' }} />
-        )}
-        {collabActive && collabStatus === 'connected' && connectedUsers.length > 1 && (
-          <Chip label={`${connectedUsers.length} online`} size="small" color="success" variant="outlined" sx={{ height: 22, fontSize: '0.65rem' }} />
-        )}
-
-        {/* ── Save status indicators (solo mode only) ──────────────────── */}
-        {!collabActive && isSavingOrPending && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }} aria-label="Saving">
-            <CloudDoneIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
-            <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
-              ...saving
-            </Typography>
-          </Box>
-        )}
-        {!collabActive && showSaved && (
-          <Box sx={{ display: 'flex', alignItems: 'center' }} aria-label="Saved">
-            <CloudDoneIcon sx={{ fontSize: 18, color: 'success.main' }} />
-          </Box>
-        )}
-
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-
-        <Tooltip title="Print screenplay — opens a clean print dialog with correct 8.5″×11″ formatting">
-          <IconButton size="small" onClick={handlePrint} aria-label="print screenplay">
-            <PrintIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      </Paper>
-
-      {/* ── BODY ────────────────────────────────────────────────────────── */}
-      <Box sx={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-
-        {/* ── SCENE PANEL — populated from project outline ─────────────── */}
+        {/* ── Side tabs + panel (scenes or character cards) — flush with layout’s left content edge via root bleed ─ */}
         {navigatorOpen && (
-          <Paper
-            className="screenplay-navigator"
-            elevation={0}
-            square
+          <Box
             sx={{
-              width: 220,
-              flexShrink: 0,
               display: 'flex',
-              flexDirection: 'column',
-              borderRight: `1px solid ${theme.palette.divider}`,
-              overflow: 'hidden',
+              flexDirection: 'row',
+              flexShrink: 0,
+              alignSelf: 'stretch',
+              minHeight: 0,
             }}
           >
             <Box
               sx={{
-                px: 2,
-                py: 1.25,
-                borderBottom: `1px solid ${theme.palette.divider}`,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 0.75,
+                width: SIDE_PANEL_TABS_W_PX,
                 flexShrink: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'stretch',
+                alignSelf: 'stretch',
+                minHeight: 0,
+                boxSizing: 'border-box',
+                bgcolor: 'background.paper',
+                borderRight: (t) => `1px solid ${t.palette.divider}`,
               }}
             >
-              <LocalMoviesIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-              <Typography
-                variant="caption"
-                fontWeight={700}
-                color="text.secondary"
-                sx={{ textTransform: 'uppercase', letterSpacing: 0.8 }}
+              <Box
+                role="tablist"
+                aria-label="Screenplay side panel"
+                aria-orientation="vertical"
+                sx={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'stretch',
+                  py: 1.25,
+                  pl: 0,
+                  pr: 0.5,
+                  gap: 0.75,
+                  minHeight: 0,
+                }}
               >
-                Scenes
-              </Typography>
-              <Chip label={sceneCount} size="small" sx={{ ml: 'auto', height: 18, fontSize: '0.65rem' }} />
-            </Box>
-
-            <Box sx={{ flex: 1, overflowY: 'auto' }}>
-              {projectScenes.length === 0 ? (
-                <Box sx={{ px: 2, py: 3, textAlign: 'center' }}>
-                  <Typography variant="caption" color="text.disabled">
-                    No scenes in your outline yet.
-                    <br />
-                    Add scenes in the Outline tab to see them here.
-                  </Typography>
-                </Box>
-              ) : (
-                <List dense disablePadding>
-                  {projectScenes.map((scene, i) => {
-                    const heading = getSceneHeading(scene)
-                    return (
-                      <Tooltip
-                        key={scene._id ?? i}
-                        title={heading || '(No scene heading)'}
-                        placement="right"
-                        arrow
-                        enterDelay={600}
+                {(
+                  [
+                    { id: 'scenes' as const, label: 'Scenes', Icon: LocalMoviesIcon },
+                    { id: 'characters' as const, label: 'Characters', Icon: PersonIcon },
+                  ] as const
+                ).map(({ id, label, Icon }) => {
+                  const selected = sidePanelTab === id
+                  return (
+                    <ButtonBase
+                      key={id}
+                      role="tab"
+                      aria-selected={selected}
+                      id={`screenplay-side-tab-${id}`}
+                      onClick={() => {
+                        setSidePanelTab(id)
+                      }}
+                      focusRipple
+                      sx={{
+                        flex: 1,
+                        minHeight: 72,
+                        maxHeight: 120,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: '0 12px 12px 0',
+                        color: 'text.primary',
+                        bgcolor: selected ? 'action.selected' : 'transparent',
+                        border: (t) => `1px solid ${t.palette.divider}`,
+                        boxShadow: 'none',
+                        transition: (t) => t.transitions.create(['background-color', 'color'], {
+                          duration: t.transitions.duration.shorter,
+                        }),
+                        '&:hover': {
+                          bgcolor: selected ? 'action.selected' : 'action.hover',
+                        },
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: 0.5,
+                          py: 0.5,
+                        }}
                       >
-                        <ListItemButton
-                          onClick={() => navigateToHeading(heading)}
+                        <Icon
                           sx={{
-                            px: 2,
-                            py: 0.75,
-                            borderBottom: `1px solid ${theme.palette.divider}`,
-                            '&:last-child': { borderBottom: 'none' },
-                            alignItems: 'flex-start',
-                            gap: 1,
+                            fontSize: 18,
+                            color: selected ? 'text.primary' : 'text.secondary',
+                          }}
+                        />
+                        <Typography
+                          component="span"
+                          variant="caption"
+                          sx={{
+                            fontWeight: 800,
+                            letterSpacing: 0.2,
+                            lineHeight: 1.1,
+                            writingMode: 'vertical-rl',
+                            textOrientation: 'mixed',
+                            fontSize: '0.68rem',
+                            textTransform: 'uppercase',
                           }}
                         >
-                          <Typography
-                            component="span"
-                            variant="caption"
-                            color="text.disabled"
-                            sx={{ fontFamily: 'monospace', minWidth: 20, mt: '1px', flexShrink: 0 }}
-                          >
-                            {i + 1}
-                          </Typography>
-                          <ListItemText
-                            primary={heading || '(No heading)'}
-                            primaryTypographyProps={{
-                              variant: 'caption',
-                              fontFamily: 'monospace',
-                              fontWeight: 600,
-                              textTransform: 'uppercase',
-                              lineHeight: 1.3,
-                              color: heading ? 'text.primary' : 'text.disabled',
-                              sx: {
-                                display: '-webkit-box',
-                                WebkitLineClamp: 2,
-                                WebkitBoxOrient: 'vertical',
-                                overflow: 'hidden',
-                              },
-                            }}
-                          />
-                        </ListItemButton>
+                          {label}
+                        </Typography>
+                      </Box>
+                    </ButtonBase>
+                  )
+                })}
+              </Box>
+              <Box
+                sx={{
+                  flexShrink: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  py: 1,
+                  borderTop: (t) => `1px solid ${t.palette.divider}`,
+                }}
+              >
+                {sidePanelExpanded ? (
+                  <Tooltip title="Narrow list">
+                    <IconButton
+                      size="small"
+                      onClick={() => setSidePanelExpanded(false)}
+                      aria-label="Narrow list"
+                      aria-expanded
+                    >
+                      <ChevronLeftIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                ) : (
+                  <Tooltip title="Widen list">
+                    <IconButton
+                      size="small"
+                      onClick={() => setSidePanelExpanded(true)}
+                      aria-label="Widen list"
+                      aria-expanded={false}
+                    >
+                      <ChevronRightIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                )}
+                <Tooltip title="Hide side panel">
+                  <IconButton
+                    size="small"
+                    onClick={() => setNavigatorOpen(false)}
+                    aria-label="Hide side panel"
+                  >
+                    <MenuIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            </Box>
+
+            <Paper
+              className="screenplay-navigator"
+              elevation={0}
+              sx={{
+                width: sceneStripWidthPx,
+                minWidth: 0,
+                minHeight: 0,
+                flexShrink: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignSelf: 'stretch',
+                borderTopLeftRadius: 0,
+                borderTopRightRadius: 8,
+                borderRight: `1px solid ${theme.palette.divider}`,
+                borderBottom: 'none',
+                borderLeft: 'none',
+                overflow: 'hidden',
+                transition: theme.transitions.create('width', { duration: theme.transitions.duration.shorter }),
+                /* Depth on the list column’s right edge only (not cast from the page onto the gap) */
+                boxShadow: '4px 0 12px -8px rgba(0,0,0,0.12)',
+              }}
+            >
+            <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
+              {sidePanelTab === 'scenes' && (
+                <>
+                  {projectScenes.length === 0 ? (
+                sidePanelExpanded ? (
+                  <Box sx={{ px: 2, py: 3, textAlign: 'center' }}>
+                    <Typography variant="caption" color="text.disabled">
+                      No scenes in your outline yet.
+                      <br />
+                      Add scenes in the Outline tab to see them here.
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Box sx={{ py: 1.5, display: 'flex', justifyContent: 'center' }} aria-label="No scenes">
+                    <LocalMoviesIcon sx={{ fontSize: 20, color: 'text.disabled', opacity: 0.5 }} />
+                  </Box>
+                )
+              ) : sidePanelExpanded ? (
+                <Box
+                  sx={{
+                    p: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 1,
+                    width: '100%',
+                    minWidth: 0,
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  {projectScenes.map((scene, i) => {
+                    const activeVersion = scene.activeVersion ?? 1
+                    const avIdx = Math.max(0, activeVersion - 1)
+                    const v = scene.versions?.[avIdx] ?? scene.versions?.[0]
+                    return (
+                      <SceneCard
+                        key={scene._id ?? i}
+                        sceneId={scene._id}
+                        number={i + 1}
+                        newScene={false}
+                        versions={scene.versions ?? []}
+                        activeVersion={activeVersion}
+                        lockedVersion={scene.lockedVersion ?? null}
+                        projectId={projectId}
+                        step={v?.step ?? ''}
+                        act={v?.act}
+                        steps={sceneCardSteps}
+                        fullWidthInParent
+                      />
+                    )
+                  })}
+                </Box>
+              ) : (
+                <Box
+                  sx={{
+                    py: 0.5,
+                    px: 0.5,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 0.5,
+                  }}
+                >
+                  {projectScenes.map((scene, idx) => {
+                    const heading = getSceneHeading(scene)
+                    const loc = getSluglineLocation(heading)
+                    const label = getSluglineChipLabel(loc)
+                    return (
+                      <Tooltip key={scene._id ?? idx} title={heading || '(No scene heading)'} placement="right" arrow>
+                        <Chip
+                          size="small"
+                          label={label}
+                          onClick={() => navigateToHeading(heading)}
+                          color={sluglineChipMuiColor(loc)}
+                          variant={loc === 'OTHER' ? 'outlined' : 'filled'}
+                          sx={{
+                            minWidth: 40,
+                            height: 22,
+                            fontSize: '0.65rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            '& .MuiChip-label': { px: 0.75 },
+                          }}
+                        />
                       </Tooltip>
                     )
                   })}
-                </List>
+                </Box>
+              )}
+                </>
+              )}
+
+              {sidePanelTab === 'characters' && (
+                <>
+                  {projectCharacters.length === 0 ? (
+                    sidePanelExpanded ? (
+                      <Box sx={{ px: 2, py: 3, textAlign: 'center' }}>
+                        <Typography variant="caption" color="text.disabled">
+                          No characters yet.
+                          <br />
+                          Add characters on the Characters page.
+                        </Typography>
+                      </Box>
+                    ) : (
+                      <Box
+                        sx={{ py: 1.5, display: 'flex', justifyContent: 'center' }}
+                        aria-label="No characters"
+                      >
+                        <PersonIcon sx={{ fontSize: 20, color: 'text.disabled', opacity: 0.5 }} />
+                      </Box>
+                    )
+                  ) : sidePanelExpanded ? (
+                    <Box
+                      sx={{
+                        p: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 1,
+                        width: '100%',
+                        minWidth: 0,
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      {projectCharacters.map((character, index) => {
+                        const cardId = index + 1
+                        return (
+                          <CharacterCard
+                            key={character._id ?? `character-${index}`}
+                            id={cardId}
+                            name={character.name}
+                            imageUrl={character.imageUrl}
+                            details={character.details}
+                            expanded={characterCardExpandedId === cardId}
+                            onExpandClick={() =>
+                              setCharacterCardExpandedId((prev) => (prev === cardId ? undefined : cardId))
+                            }
+                            locked={character.lockedVersion != null}
+                            onToggleLock={() =>
+                              updateCharacterLockMutation.mutate({
+                                characterId: character._id,
+                                locked: character.lockedVersion == null,
+                              })
+                            }
+                            fullWidthInParent
+                          />
+                        )
+                      })}
+                    </Box>
+                  ) : (
+                    <Box
+                      sx={{
+                        py: 0.5,
+                        px: 0.5,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 0.5,
+                      }}
+                    >
+                      {projectCharacters.map((c, idx) => {
+                        const name = (c.name ?? '').trim() || 'Character'
+                        const initial = name.charAt(0).toUpperCase() || '?'
+                        return (
+                          <Tooltip key={c._id ?? idx} title={name} placement="right" arrow>
+                            <Avatar
+                              sx={{
+                                width: 28,
+                                height: 28,
+                                fontSize: '0.75rem',
+                                bgcolor: 'primary.main',
+                                color: 'primary.contrastText',
+                              }}
+                            >
+                              {initial}
+                            </Avatar>
+                          </Tooltip>
+                        )
+                      })}
+                    </Box>
+                  )}
+                </>
               )}
             </Box>
           </Paper>
+          </Box>
         )}
 
-        {/* ── SCREENPLAY WORKSPACE ─────────────────────────────────────── */}
+        {/* ── SCREENPLAY: column with optional “show side panel” row; single scroll with sticky element toolbar (matches page width) ─ */}
         <Box
-          className="screenplay-workspace"
           sx={{
             flex: 1,
-            overflowY: 'auto',
-            overflowX: 'auto',
-            backgroundColor: theme.palette.mode === 'dark' ? '#2a2a2a' : '#d0d0d0',
-            py: 5,
-            px: 3,
+            minWidth: 0,
+            minHeight: 0,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'stretch',
+            backgroundColor: '#ffffff',
+            pl: centerEditorColumn ? `${WORKSPACE_H_INSET_PX}px` : 0,
+            pr: `${WORKSPACE_H_INSET_PX}px`,
+            pb: 5,
+            pt: 0,
+            boxSizing: 'border-box',
           }}
         >
-          <Box className="screenplay-page">
-            <EditorContent editor={editor} />
-            <BlockAltsToolbar editor={editor} canEdit={canEdit} userId={user} />
+          <Box
+            sx={{
+              flex: 1,
+              minHeight: 0,
+              width: '100%',
+              maxWidth: SCREENPLAY_EDITOR_COLUMN_WIDTH_PX,
+              alignSelf: centerEditorColumn ? 'center' : 'flex-end',
+              minWidth: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'stretch',
+              ...(centerEditorColumn ? { marginLeft: 'auto', marginRight: 'auto' } : {}),
+            }}
+          >
+            {!navigatorOpen && (
+              <Box
+                sx={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  pl: `${SCREENPLAY_SCROLL_GUTTER_LEFT_PX}px`,
+                  pr: `${SCREENPLAY_SCROLL_GUTTER_RIGHT_PX}px`,
+                  mb: 1,
+                  flexShrink: 0,
+                  minWidth: 0,
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                }}
+              >
+                <Tooltip title="Show side panel (scenes & characters)">
+                  <IconButton
+                    size="small"
+                    onClick={() => setNavigatorOpen(true)}
+                    aria-label="Show side panel"
+                  >
+                    <MenuIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            )}
+            <Box
+              ref={workspaceRef}
+              className="screenplay-workspace"
+              sx={{
+                flex: 1,
+                minHeight: 0,
+                width: '100%',
+                overflowY: 'auto',
+                overflowX: 'auto',
+                backgroundColor: '#ffffff',
+                WebkitOverflowScrolling: 'touch',
+              }}
+            >
+              <Box
+                sx={{
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 10,
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  pl: `${SCREENPLAY_SCROLL_GUTTER_LEFT_PX}px`,
+                  pr: `${SCREENPLAY_SCROLL_GUTTER_RIGHT_PX + SCREENPLAY_PAGE_SHADOW_INSET_PX}px`,
+                  flexShrink: 0,
+                  bgcolor: '#ffffff',
+                }}
+              >
+                <Box
+                  ref={toolbarScaleStageRef}
+                  sx={{
+                    marginLeft: 'auto',
+                    marginRight: 0,
+                    flexShrink: 0,
+                    overflow: 'visible',
+                  }}
+                >
+                  <Box
+                    ref={toolbarScaleInnerRef}
+                    sx={{
+                      width: `${SCREENPLAY_PAPER_WIDTH_PX}px`,
+                      transform: `scale(${zoom})`,
+                      transformOrigin: 'top right',
+                    }}
+                  >
+                    <ScreenplayDocumentToolbar
+                      collabActive={collabActive}
+                      isSavingOrPending={isSavingOrPending}
+                      showSaved={showSaved}
+                    />
+                  </Box>
+                </Box>
+              </Box>
+              <Box
+                sx={{
+                  pb: 5,
+                  boxSizing: 'border-box',
+                  pl: `${SCREENPLAY_SCROLL_GUTTER_LEFT_PX}px`,
+                  pr: `${SCREENPLAY_SCROLL_GUTTER_RIGHT_PX + SCREENPLAY_PAGE_SHADOW_INSET_PX}px`,
+                }}
+              >
+                <Box
+                  ref={stageRef}
+                  sx={{
+                    position: 'relative',
+                    marginLeft: 'auto',
+                    marginRight: 0,
+                    flexShrink: 0,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 0,
+                      right: 0,
+                      left: 'auto',
+                      transform: `scale(${zoom})`,
+                      transformOrigin: 'top right',
+                    }}
+                  >
+                    <Box ref={pageRef} className="screenplay-page" data-zoom={zoom}>
+                      <EditorContent editor={editor} />
+                      <BlockAltsToolbar editor={editor} canEdit={canEdit} userId={user} />
+                    </Box>
+                  </Box>
+                </Box>
+              </Box>
+            </Box>
           </Box>
         </Box>
       </Box>

@@ -24,6 +24,10 @@ import { ClientOnlyMuiLayout } from '../components/ClientOnlyMuiLayout';
 
 const client = new QueryClient();
 
+function isProjectDetailsRoute(pathname: string | null): boolean {
+  return pathname != null && /^\/project\/[^/]+/.test(pathname);
+}
+
 export default function RootLayout({
     children,
   }: {
@@ -31,7 +35,7 @@ export default function RootLayout({
   }) {
     const pathname = usePathname();
     const { theme: isLightMode, setTheme, appliedTheme } = getTheme();
-    const showTopBar = pathname !== '/';
+    const showTopBar = pathname !== '/' && !isProjectDetailsRoute(pathname);
 
     return (
       <html lang="en">

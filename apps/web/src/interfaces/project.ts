@@ -39,10 +39,14 @@ export interface TabPanelProps {
     value: number;
 }
 
+export type ScreenplayImportMode = 'client' | 'server';
+
 export interface CreateProjectProps {
     setAddProject: (open: boolean) => void;
     handleAddProject: (formValues: Record<string, unknown>) => void;
     /** When set, form is in update mode: title "Update Project", prefilled, submit calls handleUpdateProject */
     initialData?: Record<string, unknown> | null;
     handleUpdateProject?: (formValues: Record<string, unknown>) => void;
+    /** server = greenlit+ AI import via API; client = in-browser PDF parse */
+    screenplayImportMode?: ScreenplayImportMode;
 }

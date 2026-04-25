@@ -22,6 +22,7 @@ import { ProjectType } from '@/enums/ProjectEnums';
 import { CreateProjectProps } from '@/interfaces/project';
 
 import { isValidImageUrl, getImageUrlForStorage } from '../../utils/imageUrl';
+import { ScreenplayDropZone } from './ScreenplayDropZone';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -34,6 +35,7 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
   handleAddProject,
   initialData,
   handleUpdateProject,
+  screenplayImportMode = 'client',
 }) => {
   const frameworks = useOutlineFrameworksStore((state) => state.frameworks);
   const theme = useTheme();
@@ -42,6 +44,9 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
   const [sharedWithEmails, setSharedWithEmails] = React.useState<string[]>([]);
   const [emailInput, setEmailInput] = React.useState('');
   const [emailError, setEmailError] = React.useState('');
+  const [screenplayContent, setScreenplayContent] = React.useState<Record<string, unknown> | null>(null);
+  const [screenplayPageCount, setScreenplayPageCount] = React.useState(0);
+  const [screenplayPdfFile, setScreenplayPdfFile] = React.useState<File | null>(null);
 
   React.useEffect(() => {
     if (!initialData) return;
@@ -106,6 +111,32 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
         {isUpdate ? 'Update Project' : 'CREATE PROJECT'}
       </DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, padding: 4 }}>
+        {!isUpdate && (
+          <ScreenplayDropZone
+            importMode={screenplayImportMode}
+            onParsed={(doc, pageCount, title) => {
+              setScreenplayPdfFile(null);
+              setScreenplayContent(doc);
+              setScreenplayPageCount(pageCount);
+              if (title) {
+                setFormValues((prev) => ({
+                  ...prev,
+                  title: prev.title?.trim() ? prev.title : title,
+                }));
+              }
+            }}
+            onServerPdfReady={(file) => {
+              setScreenplayContent(null);
+              setScreenplayPageCount(0);
+              setScreenplayPdfFile(file);
+            }}
+            onCleared={() => {
+              setScreenplayContent(null);
+              setScreenplayPageCount(0);
+              setScreenplayPdfFile(null);
+            }}
+          />
+        )}
         <TextField
           required
           label="Title"
@@ -251,6 +282,8 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
               similarProjects,
               outlineName: formValues.outlineName ?? undefined,
               timePeriod: formValues.timePeriod ?? undefined,
+              screenplayContent: screenplayContent ?? undefined,
+              screenplayPdfFile: screenplayPdfFile ?? undefined,
             };
             if (isUpdate && handleUpdateProject) {
               handleUpdateProject(payload);

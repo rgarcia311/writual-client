@@ -1,0 +1,29 @@
+---
+description: Global standards for DB/external-service design, package versions, and TypeScript strictness
+alwaysApply: true
+---
+
+# Architecture, dependencies, and TypeScript
+
+## Databases and external services
+
+When **proposing or implementing** architecture that touches **databases, queues, HTTP clients, third-party APIs, or other external services**:
+
+- **Plans and designs** must call out **failure modes** (timeouts, connection errors, validation errors, partial responses) and how they surface to callers or users.
+- **Implementation** must include **explicit error handling**: use `try`/`catch` (or equivalent, e.g. `Result` types with exhaustive handling) around I/O boundaries; avoid silent failures and empty `catch` blocks. Log or rethrow with context as fits the codebase.
+- Prefer **narrow catches** where the language allows (specific error types / guards), and document **retry vs fail-fast** where relevant.
+
+## New package dependencies
+
+When **adding or upgrading** dependencies in `package.json` (or workspace manifests):
+
+- Pin to **stable, currently released** versions (concrete semver, e.g. `^2.15.0` or an exact version the ecosystem expects).
+- Do **not** use workspace `*` (or unbounded ranges) for **new** third-party packages unless the repo already standardizes that pattern for internal workspaces only.
+- Do **not** invent or guess version numbers; **verify** against the registry or the project’s existing lockfile patterns before proposing a version.
+
+## New TypeScript configuration
+
+Any **new** `tsconfig.json` (or new project using TypeScript) must **enforce strict typing**:
+
+- Enable **`"strict": true`** (do not ship new configs with `strict` off).
+- Prefer also **`noImplicitAny`**, **`strictNullChecks`** (implied by `strict`), and matching project norms for **`noUnusedLocals`** / **`noUnusedParameters`** if other packages in the repo use them—stay consistent with sibling `tsconfig` files in the monorepo.

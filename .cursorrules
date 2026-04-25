@@ -1,0 +1,11 @@
+# Project Rules
+
+## Request Interception & Auth Guards
+
+The `middleware.ts` pattern is deprecated in this project. All request-level
+interceptions, auth guards, and redirects must be implemented in
+`apps/web/src/proxy.ts`.
+
+- Do NOT create or modify `apps/web/src/middleware.ts`
+- Add new route guards or redirect logic to the `proxy` function in `proxy.ts`
+- Update the `config.matcher` array in `proxy.ts` when adding new protected routes

@@ -11,6 +11,8 @@ export interface AppLogoProps {
   fontSize?: number;
   gap?: number;
   loading?: 'eager' | 'lazy';
+  /** When false, only the mark is shown (narrow sidebars). */
+  showWordmark?: boolean;
 }
 
 export function AppLogo({
@@ -20,13 +22,16 @@ export function AppLogo({
   loading = 'lazy',
   color = 'primary',
   logoPath = '/logo_symbol_transparent.png',
+  showWordmark = true,
 }: AppLogoProps) {
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', }}>
       <Image src={logoPath} alt="Writual" width={size} height={size} loading={loading} />
-      <Typography fontFamily='Merriweather' sx={{ marginLeft: '2px'}} letterSpacing={5} fontSize={25} color={color}>
-        ritual
-      </Typography>
+      {showWordmark ? (
+        <Typography fontFamily='Merriweather' sx={{ marginLeft: '2px'}} letterSpacing={5} fontSize={25} color={color}>
+          ritual
+        </Typography>
+      ) : null}
     </Box>
   );
 }

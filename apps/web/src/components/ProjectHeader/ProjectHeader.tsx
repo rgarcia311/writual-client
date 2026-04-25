@@ -171,39 +171,65 @@ export function ProjectHeader({ accordionAdornment }: { accordionAdornment?: Rea
         expandIcon={<ExpandMoreIcon />}
         aria-controls="project-header-content"
         id="project-header-header"
-        sx={{ p: 0, minHeight: 56, '& .MuiAccordionSummary-content': { my: 1.5, display: 'flex', alignItems: 'center', gap: 2, width: '100%' } }}
+        sx={{
+          p: 0,
+          minHeight: 0,
+          py: 0,
+          alignItems: 'center',
+          '& .MuiAccordionSummary-content': {
+            my: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            width: '100%',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+          },
+        }}
       >
-        <Breadcrumbs aria-label="breadcrumb" sx={{...projectStyles.tableTopButtons, minWidth: 'auto' }}>
-          <Link 
-            underline="hover" 
-            color="inherit" 
-            href="/projects"
-            onClick={(e) => e.stopPropagation()}
+        <Box sx={{ flex: 1, minWidth: 0, mr: 1, pb: 2, pt: "4git spx" }}>
+          <Breadcrumbs
+            aria-label="breadcrumb"
+            sx={{
+              ...projectStyles.tableTopButtons,
+              minWidth: 0,
+              width: '100%',
+              height: 'auto',
+              minHeight: 0,
+              alignItems: 'center',
+            }}
           >
-            <Typography sx={{ width: '100%' }} variant="h6">
-              Projects
-            </Typography>
-          </Link>
-          {currentPageLabel ? (
             <Link 
               underline="hover" 
-              color="inherit"  
-              href={projectHref}
+              color="inherit" 
+              href="/projects"
               onClick={(e) => e.stopPropagation()}
             >
               <Typography sx={{ width: '100%' }} variant="h6">
-                {projectTitle}
+                Projects
               </Typography>
             </Link>
-          ) : null}
-          <Typography sx={{ width: '100%', fontWeight: 700 }} variant="h6">
-            {currentPageLabel ?? projectTitle}
-          </Typography>
-        </Breadcrumbs>
+            {currentPageLabel ? (
+              <Link 
+                underline="hover" 
+                color="inherit"  
+                href={projectHref}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Typography sx={{ width: '100%' }} variant="h6">
+                  {projectTitle}
+                </Typography>
+              </Link>
+            ) : null}
+            <Typography sx={{ width: '100%', fontWeight: 700 }} variant="h6">
+              {currentPageLabel ?? projectTitle}
+            </Typography>
+          </Breadcrumbs>
+        </Box>
         {accordionAdornment && (
           <Box
             onClick={(e) => e.stopPropagation()}
-            sx={{ display: 'flex', alignItems: 'center' }}
+            sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}
           >
             {accordionAdornment}
           </Box>

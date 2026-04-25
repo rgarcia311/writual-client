@@ -10,21 +10,14 @@ import '@fontsource/lato/900.css';
 import '@fontsource/varela-round';
 
 import { SideNavComponent } from '@/components/SideNav';
-import { useSideNavCollapsedStore } from '@/state/sideNavCollapsed';
-
-const SIDENAV_WIDTH_EXPANDED = 250;
-const SIDENAV_WIDTH_COLLAPSED = 80;
 
 export default function ProjectLayout({
     children,
   }: {
     children: React.ReactNode
   }) {
-    const collapsed = useSideNavCollapsedStore((s) => s.collapsed);
-    const navWidth = collapsed ? SIDENAV_WIDTH_COLLAPSED : SIDENAV_WIDTH_EXPANDED;
-
     return (
-      <Box sx={{  p: 1, height: "calc(100% - 50px)", overflow: "hidden", minWidth: 0 }} gap={2} display="flex" flexDirection="row" position="relative">
+      <Box sx={{ p: 1, flex: 1, minHeight: 0, overflow: 'hidden', minWidth: 0 }} gap={2} display="flex" flexDirection="row" position="relative">
           <SideNavComponent />
         <Paper elevation={1} sx={{
           display: "flex",

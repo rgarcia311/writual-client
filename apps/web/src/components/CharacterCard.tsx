@@ -45,6 +45,10 @@ interface CharacterCardProps {
   onAddVersion?: () => void;
   /** Called when user toggles the locked state */
   onToggleLock?: () => void;
+  /**
+   * Narrow parents (e.g. screenplay side panel): full width, no grid percentage width.
+   */
+  fullWidthInParent?: boolean;
 }
 
 export const CharacterCard: React.FC<CharacterCardProps> = ({
@@ -57,6 +61,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   locked = false,
   onAddVersion,
   onToggleLock,
+  fullWidthInParent = false,
 }) => {
   const detailCount = Array.isArray(details) ? Math.max(1, details.length) : 1;
   const [version, setVersion] = React.useState(1);
@@ -72,7 +77,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   return (
       <Card
         sx={{
-          width: 'calc(20% - 8px)',
+          width: fullWidthInParent ? '100%' : 'calc(20% - 8px)',
+          maxWidth: fullWidthInParent ? '100%' : 'none',
           maxHeight: 'max-content',
           overflow: 'hidden',
           display: 'flex',

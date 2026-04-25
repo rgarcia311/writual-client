@@ -54,16 +54,9 @@ export const updateData = (model: any, input: any, id: string, property: string 
     })
 }
 
-export const insertData = (data: any) => {
-    return new Promise((resolve, reject) => {
-        try {
-            data.save()
-            resolve(data)
-        } catch (e) {
-            reject(e)
-        }
-      
-    })
+export const insertData = async (data: any) => {
+    await data.save();
+    return data;
 }
 
 export const deleteData = (model: any, id: any) => {

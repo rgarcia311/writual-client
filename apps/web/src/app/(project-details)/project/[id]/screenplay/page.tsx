@@ -1,6 +1,4 @@
-import { ProjectDetailsLayout } from '@/components/ProjectDetailsLayout'
-import { WritualEditor } from '@/components/ScreenplayEditor'
-import { FeatureGate } from '@/components/Auth/FeatureGate'
+import { ScreenplayView } from './ScreenplayView'
 
 export default async function ScreenplayPage({
   params,
@@ -9,21 +7,5 @@ export default async function ScreenplayPage({
 }) {
   const { id } = await params
 
-  return (
-    <ProjectDetailsLayout
-      contentSx={{
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: 0,
-        p: 0,
-        pt: 0,
-        paddingTop: '0 !important',
-        overflow: 'hidden',
-      }}
-    >
-      <FeatureGate minTier="spec" variant="page">
-        <WritualEditor projectId={id} />
-      </FeatureGate>
-    </ProjectDetailsLayout>
-  )
+  return <ScreenplayView projectId={id} />
 }

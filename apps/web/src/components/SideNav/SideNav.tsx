@@ -3,11 +3,13 @@
 import * as React from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Autocomplete, Box, Button, Container, Drawer, IconButton, Link as MuiLink, Paper, TextField, Tooltip, Typography } from "@mui/material";
+import { Autocomplete, Box, Button, Drawer, IconButton, Link as MuiLink, Paper, TextField, Tooltip } from "@mui/material";
 import { styled } from "@mui/system";
 import { useState } from "react";
-import Image from "next/image";
+import AddIcon from '@mui/icons-material/Add';
 import { SettingsPopover } from '@/components/SettingsPopover';
+import { AppLogo } from '@/components/AppLogo';
+import { FeatureGate } from '@/components/Auth/FeatureGate';
 import SwitchLeftIcon from '@mui/icons-material/SwitchLeft';
 import SwitchRightIcon from '@mui/icons-material/SwitchRight';
 import TheaterComedyIcon from '@mui/icons-material/TheaterComedy';
@@ -76,58 +78,56 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
 
   return (
     <StyledSideNav elevation={2} collapsed={collapsed}>
-      <Box sx={{  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between', width: '100%', px: 1, mt: '10px' }}>
-          <MuiLink
-            component={Link}
-            href="/projects"
-            sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 1, textAlign: 'center', height: '70px', textDecoration: 'none', color: 'inherit' }}
-          >
-            {!collapsed && <Typography fontFamily={'Merriweather'} fontWeight={700} fontSize={20} letterSpacing={4} variant="h5" color="primary">Details</Typography>
-            }
-          </MuiLink>
-          <Tooltip title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} placement="right">
-            <IconButton
-              onClick={toggleCollapsed}
-              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              size="small"
-            >
-              {collapsed ? <SwitchRightIcon /> : <SwitchLeftIcon />}
-            </IconButton>
-          </Tooltip>
-        </Box>
-        {!collapsed && (
-          <Autocomplete
-            multiple
-            freeSolo
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: collapsed ? 'column' : 'row',
+          alignItems: 'center',
+          justifyContent: collapsed ? 'center' : 'space-between',
+          width: '100%',
+          px: 1,
+          pt: 1,
+          gap: 0.5,
+          flexShrink: 0,
+        }}
+      >
+        <MuiLink
+          component={Link}
+          href="/projects"
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: collapsed ? 'center' : 'flex-start',
+            minWidth: 0,
+            textDecoration: 'none',
+            color: 'inherit',
+          }}
+        >
+          <AppLogo size={collapsed ? 32 : 30} showWordmark={!collapsed} loading="eager" />
+        </MuiLink>
+        <Tooltip title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} placement="right">
+          <IconButton
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             size="small"
-            value={searchValue}
-            inputValue={searchInputValue}
-            onInputChange={(_e, newInputValue) => setSearchInputValue(newInputValue)}
-            onChange={(_e, newValue) => setSearchValue(typeof newValue === 'string' ? [newValue] : newValue)}
-            options={SEARCH_MENU_ITEMS}
-            sx={{ width: '100%', px: 1, '& .MuiOutlinedInput-root': { borderRadius: '50px', backgroundColor: 'action.hover' } }}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                placeholder="Project Title, User, etc"
-                sx={{ '& .MuiInputBase-input': { py: 0.5 } }}
-              />
-            )}
-          />
-        )}
+          >
+            {collapsed ? <SwitchRightIcon /> : <SwitchLeftIcon />}
+          </IconButton>
+        </Tooltip>
       </Box>
-      <Container
+     
+      <Box
         sx={{
           display: 'flex',
           alignItems: collapsed ? 'center' : 'flex-start',
           flexDirection: 'column',
-          gap: "10px",
-          flex: '1 1 25%',
-          minHeight: '50%',
-          padding: collapsed ? '8px' : '8px',
-          paddingTop: "20px",
-         
+          gap: '10px',
+          flex: 1,
+          minHeight: 0,
+          overflow: 'auto',
+          width: '100%',
+          px: collapsed ? '8px' : '8px',
+          pt: 2,
         }}
       >
         {SIDENAV_LINKS.map(({ segment, label, Icon }) => {
@@ -168,18 +168,40 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
             </Button>
           );
         })}
-      </Container>
+      </Box>
       <Box
         sx={{
           display: 'flex',
           flexDirection: collapsed ? 'column' : 'row',
-          justifyContent: 'space-between',
           alignItems: 'center',
-          px: collapsed ? 0.5 : 1.5,
-          py: 1,
-          gap: 0.5,
+          justifyContent: collapsed ? 'center' : 'flex-start',
+          gap: 1,
+          px: collapsed ? 0.5 : 1,
+          py: 1.5,
+          flexShrink: 0,
+          width: '100%',
         }}
       >
+        <FeatureGate minTier="spec">
+          {collapsed ? (
+            <Tooltip title="Create project" placement="right">
+              <IconButton color="primary" onClick={openCreateProjectModal} aria-label="Create project" size="medium">
+                <AddIcon />
+              </IconButton>
+            </Tooltip>
+          ) : (
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<AddIcon />}
+              onClick={openCreateProjectModal}
+              sx={{ flex: 1, minWidth: 0 }}
+            >
+              Create Project
+            </Button>
+          )}
+        </FeatureGate>
+        <SettingsPopover />
       </Box>
     </StyledSideNav>
   );

@@ -1,0 +1,56 @@
+---
+description: MongoDB transactions must fall back when standalone dev has no tx support
+globs: apps/api/**/*.{ts,js}
+alwaysApply: false
+---
+
+# MongoDB Transaction Rule
+
+When writing or modifying MongoDB database operations for writual, account for local development environments that run **standalone** MongoDB instances that **do not support transactions**.
+
+Whenever you implement a MongoDB transaction (`startSession()`, `startTransaction()`, `commitTransaction()`, `abortTransaction()`), you **must** implement a graceful fallback: run the same operations **sequentially without a transaction** if the failure is due to lack of transaction support.
+
+## Implementation Requirements
+
+1. Wrap the transaction attempt in a `try...catch` block.
+2. In the `catch` block, detect transaction-support errors (e.g. `error.message` includes `transaction`, `standalone`, `replica set`, or relevant Mongo error codes).
+3. If it is a transaction-support error, log a warning (e.g. `Transactions not supported, falling back to sequential operations`) and re-run the database operations **without** passing the `session` object.
+4. If it is a normal database error (validation, duplicate key, etc.), rethrow.
+
+## Example Pattern
+
+```javascript
+const session = await mongoose.startSession(); // or client.startSession()
+try {
+  session.startTransaction();
+
+  // 1. Attempt operations WITH session
+  await Model.create([doc1], { session });
+  await Model.updateOne({ _id: id }, { $set: data }, { session });
+
+  await session.commitTransaction();
+} catch (error) {
+  await session.abortTransaction();
+
+  // 2. Check for unsupported transaction errors
+  const isUnsupportedTx =
+    error.message.toLowerCase().includes('transaction') ||
+    error.message.toLowerCase().includes('replica set') ||
+    error.message.toLowerCase().includes('standalone');
+
+  if (isUnsupportedTx) {
+    console.warn(
+      '⚠️ Transactions not supported in this environment. Falling back to non-transactional execution.'
+    );
+
+    // 3. Fallback: Execute WITHOUT session
+    await Model.create([doc1]);
+    await Model.updateOne({ _id: id }, { $set: data });
+  } else {
+    // Re-throw genuine errors
+    throw error;
+  }
+} finally {
+  session.endSession();
+}
+```
