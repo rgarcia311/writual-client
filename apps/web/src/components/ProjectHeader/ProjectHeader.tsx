@@ -165,9 +165,10 @@ export function ProjectHeader({ accordionAdornment }: { accordionAdornment?: Rea
       expanded={expanded}
       onChange={handleAccordionChange}
       disableGutters
-      sx={{ ...accordionFlat, borderBottom: 1, borderColor: 'divider' }}
+      sx={{ ...accordionFlat, borderBottom: 1, borderColor: 'divider', paddingLeft: '12px' }}
     >
       <AccordionSummary
+        component="div"
         expandIcon={<ExpandMoreIcon />}
         aria-controls="project-header-content"
         id="project-header-header"
@@ -187,7 +188,7 @@ export function ProjectHeader({ accordionAdornment }: { accordionAdornment?: Rea
           },
         }}
       >
-        <Box sx={{ flex: 1, minWidth: 0, mr: 1, pb: 2, pt: "4git spx" }}>
+        <Box sx={{ flex: 1, minWidth: 0, mr: 1, pb: 2, pt: '4px' }}>
           <Breadcrumbs
             aria-label="breadcrumb"
             sx={{

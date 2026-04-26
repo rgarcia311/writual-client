@@ -11,9 +11,12 @@ import {
   DialogContent,
   DialogTitle,
   FormControl,
+  FormControlLabel,
+  FormHelperText,
   InputLabel,
   MenuItem,
   Select,
+  Switch,
   TextField,
   useTheme,
 } from '@mui/material';
@@ -47,6 +50,7 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
   const [screenplayContent, setScreenplayContent] = React.useState<Record<string, unknown> | null>(null);
   const [screenplayPageCount, setScreenplayPageCount] = React.useState(0);
   const [screenplayPdfFile, setScreenplayPdfFile] = React.useState<File | null>(null);
+  const [createCompleteWritualProject, setCreateCompleteWritualProject] = React.useState(false);
 
   React.useEffect(() => {
     if (!initialData) return;
@@ -115,6 +119,7 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
           <ScreenplayDropZone
             importMode={screenplayImportMode}
             onParsed={(doc, pageCount, title) => {
+              setCreateCompleteWritualProject(false);
               setScreenplayPdfFile(null);
               setScreenplayContent(doc);
               setScreenplayPageCount(pageCount);
@@ -126,16 +131,36 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
               }
             }}
             onServerPdfReady={(file) => {
+              setCreateCompleteWritualProject(false);
               setScreenplayContent(null);
               setScreenplayPageCount(0);
               setScreenplayPdfFile(file);
             }}
             onCleared={() => {
+              setCreateCompleteWritualProject(false);
               setScreenplayContent(null);
               setScreenplayPageCount(0);
               setScreenplayPdfFile(null);
             }}
           />
+        )}
+        {!isUpdate && screenplayImportMode === 'server' && (
+          <FormControl component="fieldset" variant="standard" fullWidth>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={createCompleteWritualProject}
+                  onChange={(_, v) => setCreateCompleteWritualProject(v)}
+                  disabled={!screenplayPdfFile}
+                />
+              }
+              label="Create Complete Writual Project"
+            />
+            <FormHelperText>
+              If this is off, only the screenplay is added to the project—no character or scene cards are created from
+              the PDF. Turn it on to use AI to build a full project with characters and scenes.
+            </FormHelperText>
+          </FormControl>
         )}
         <TextField
           required
@@ -284,6 +309,8 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
               timePeriod: formValues.timePeriod ?? undefined,
               screenplayContent: screenplayContent ?? undefined,
               screenplayPdfFile: screenplayPdfFile ?? undefined,
+              createCompleteWritualProject:
+                screenplayImportMode === 'server' && Boolean(screenplayPdfFile) && createCompleteWritualProject,
             };
             if (isUpdate && handleUpdateProject) {
               handleUpdateProject(payload);

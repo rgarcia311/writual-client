@@ -76,15 +76,13 @@ import {
 
 // ─── Scene navigator width (flex — reflows editor; do not use absolute + padding sync) ─
 /**
- * Narrower than 560 so expanded strip + max editor column + padding usually fits without
- * a horizontal scrollbar clipping the right paper shadow. Do not use overflowX: hidden
- * to mask overflow (stip: narrow viewports need horizontal access).
+ * When the list is expanded, the list `Paper` flex-grows within the navigator column (0.7 vs editor 1.3).
+ * Do not use overflowX: hidden on the main row to mask editor overflow.
  */
 /** Matches `ProjectDetailsLayout` outer `Container` `pl` so the editor can bleed edge-to-edge under the header. */
 const PROJECT_LAYOUT_CONTENT_INSET_LEFT_PX = 13
 /** Vertical Scenes / Characters tabs on the left edge of the screenplay area. */
-const SIDE_PANEL_TABS_W_PX = 44
-const SCENE_STRIP_W_EXPANDED_PX = 420
+const SIDE_PANEL_TABS_W_PX = 40
 const SCENE_STRIP_W_COLLAPSED_PX = 56
 /** Extra right inset so `.screenplay-page` box-shadow isn’t lost at the scroll edge. */
 const SCREENPLAY_PAGE_SHADOW_INSET_PX = 12
@@ -699,9 +697,7 @@ function ScreenplayEditorCore({
   }, [zoom, collabActive, editor, setHeaderChrome])
 
   // ── Derived ──────────────────────────────────────────────────────────────
-  const sceneStripWidthPx = navigatorOpen
-    ? (sidePanelExpanded ? SCENE_STRIP_W_EXPANDED_PX : SCENE_STRIP_W_COLLAPSED_PX)
-    : 0
+  const navigatorSplitProportions = navigatorOpen && sidePanelExpanded
   /** When list is off or only the narrow strip: center the screenplay column; expanded list hugs the right. */
   const centerEditorColumn = !navigatorOpen || (navigatorOpen && !sidePanelExpanded)
 
@@ -741,9 +737,12 @@ function ScreenplayEditorCore({
             sx={{
               display: 'flex',
               flexDirection: 'row',
-              flexShrink: 0,
               alignSelf: 'stretch',
               minHeight: 0,
+              minWidth: 0,
+              ...(navigatorSplitProportions
+                ? { flex: '0.7 1 0%' }
+                : { flex: '0 0 auto' }),
             }}
           >
             <Box
@@ -757,7 +756,6 @@ function ScreenplayEditorCore({
                 minHeight: 0,
                 boxSizing: 'border-box',
                 bgcolor: 'background.paper',
-                borderRight: (t) => `1px solid ${t.palette.divider}`,
               }}
             >
               <Box
@@ -898,22 +896,25 @@ function ScreenplayEditorCore({
               className="screenplay-navigator"
               elevation={0}
               sx={{
-                width: sceneStripWidthPx,
-                minWidth: 0,
                 minHeight: 0,
-                flexShrink: 0,
                 display: 'flex',
                 flexDirection: 'column',
                 alignSelf: 'stretch',
-                borderTopLeftRadius: 0,
-                borderTopRightRadius: 8,
-                borderRight: `1px solid ${theme.palette.divider}`,
-                borderBottom: 'none',
-                borderLeft: 'none',
+                border: `1px solid ${theme.palette.divider}`,
+                borderRadius: 2,
+                boxShadow: theme.shadows[1],
                 overflow: 'hidden',
-                transition: theme.transitions.create('width', { duration: theme.transitions.duration.shorter }),
-                /* Depth on the list column’s right edge only (not cast from the page onto the gap) */
-                boxShadow: '4px 0 12px -8px rgba(0,0,0,0.12)',
+                transition: theme.transitions.create(['box-shadow', 'border-color'], {
+                  duration: theme.transitions.duration.shorter,
+                }),
+                ...(sidePanelExpanded
+                  ? { flex: '1 1 0%', minWidth: 0 }
+                  : {
+                      width: SCENE_STRIP_W_COLLAPSED_PX,
+                      minWidth: SCENE_STRIP_W_COLLAPSED_PX,
+                      maxWidth: SCENE_STRIP_W_COLLAPSED_PX,
+                      flexShrink: 0,
+                    }),
               }}
             >
             <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
@@ -1105,7 +1106,9 @@ function ScreenplayEditorCore({
         {/* ── SCREENPLAY: column with optional “show side panel” row; single scroll with sticky element toolbar (matches page width) ─ */}
         <Box
           sx={{
-            flex: 1,
+            ...(navigatorSplitProportions
+              ? { flex: '1.3 1 0%' }
+              : { flex: 1 }),
             minWidth: 0,
             minHeight: 0,
             overflow: 'hidden',
@@ -1188,6 +1191,7 @@ function ScreenplayEditorCore({
                 <Box
                   ref={toolbarScaleStageRef}
                   sx={{
+                    position: 'relative',
                     marginLeft: 'auto',
                     marginRight: 0,
                     flexShrink: 0,
@@ -1195,18 +1199,28 @@ function ScreenplayEditorCore({
                   }}
                 >
                   <Box
-                    ref={toolbarScaleInnerRef}
                     sx={{
-                      width: `${SCREENPLAY_PAPER_WIDTH_PX}px`,
+                      position: 'absolute',
+                      top: 0,
+                      right: 0,
+                      left: 'auto',
                       transform: `scale(${zoom})`,
                       transformOrigin: 'top right',
                     }}
                   >
-                    <ScreenplayDocumentToolbar
-                      collabActive={collabActive}
-                      isSavingOrPending={isSavingOrPending}
-                      showSaved={showSaved}
-                    />
+                    <Box
+                      ref={toolbarScaleInnerRef}
+                      sx={{
+                        width: `${SCREENPLAY_PAPER_WIDTH_PX}px`,
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      <ScreenplayDocumentToolbar
+                        collabActive={collabActive}
+                        isSavingOrPending={isSavingOrPending}
+                        showSaved={showSaved}
+                      />
+                    </Box>
                   </Box>
                 </Box>
               </Box>

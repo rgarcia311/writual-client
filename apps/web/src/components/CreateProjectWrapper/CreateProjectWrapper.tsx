@@ -13,8 +13,8 @@ import { OUTLINE_FRAMEWORKS_QUERY } from '@/queries/OutlineQueries';
 import type { OutlineFrameworkItem } from '@/state/outlineFrameworks';
 import { authRequest } from '@/lib/authRequest';
 import { useUserProfileStore } from '@/state/user';
-import { getApiOrigin } from '@/lib/config';
 import { getFirebaseAuth } from '@/lib/firebase';
+import { parseScreenplayPdf } from '@/lib/parseScreenplayPdf';
 import { TIER_RANK, type Tier } from '@/types/tier';
 
 interface OutlineFrameworksResponse {
@@ -62,7 +62,12 @@ export function CreateProjectWrapper() {
 
   const createProjectMutation = useMutation({
     mutationFn: async (variables: Record<string, unknown>) => {
-      const { screenplayContent, screenplayPdfFile, ...projectVars } = variables;
+      const {
+        screenplayContent,
+        screenplayPdfFile,
+        createCompleteWritualProject,
+        ...projectVars
+      } = variables;
       const result = await authRequest<{ createProject?: { _id: string } }>(
         CREATE_PROJECT,
         projectVars as Record<string, string>,
@@ -71,17 +76,17 @@ export function CreateProjectWrapper() {
       if (!newProjectId) return;
 
       const pdfFile = screenplayPdfFile instanceof File ? screenplayPdfFile : null;
-      const useAiImport =
-        screenplayImportMode === 'server' && pdfFile != null;
+      const useServerPdf = screenplayImportMode === 'server' && pdfFile != null;
+      const wantsCompleteWritualProject = createCompleteWritualProject === true;
 
-      if (useAiImport) {
+      if (useServerPdf && wantsCompleteWritualProject) {
         try {
           const token = await getFirebaseAuth().currentUser?.getIdToken();
           const fd = new FormData();
           fd.append('projectId', newProjectId);
           fd.append('file', pdfFile);
-          const origin = getApiOrigin();
-          const r = await fetch(`${origin}/api/screenplay/import-pdf-ai`, {
+          // Same-origin path (Next rewrites to API) avoids cross-origin "Failed to fetch" in the browser
+          const r = await fetch('/api/screenplay/import-pdf-ai', {
             method: 'POST',
             headers: token ? { Authorization: `Bearer ${token}` } : {},
             body: fd,
@@ -126,6 +131,25 @@ export function CreateProjectWrapper() {
           setAlertSeverity('error');
           setAlertMessage(
             'Project created but the AI import request failed. Please try again from the project page.',
+          );
+          setAlertOpen(true);
+        }
+        return;
+      }
+
+      if (useServerPdf && !wantsCompleteWritualProject) {
+        if (!pdfFile) return;
+        try {
+          const { doc } = await parseScreenplayPdf(pdfFile);
+          await authRequest(SAVE_SCREENPLAY, {
+            projectId: newProjectId,
+            content: doc,
+          });
+        } catch (err) {
+          console.error('[CreateProjectWrapper] Screenplay import failed:', err);
+          setAlertSeverity('error');
+          setAlertMessage(
+            'Project was created, but the screenplay could not be parsed or saved. You can re-import the PDF from the project page.',
           );
           setAlertOpen(true);
         }

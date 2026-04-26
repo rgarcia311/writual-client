@@ -2,8 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
-import { extractPdfText } from './extractPdfText';
-import { groqParseScreenplay } from './groqScreenplay';
+import { importScreenplayFromPdfBuffer } from './screenplayImportService';
 
 const PORT = Number(process.env.PORT) || 8790;
 const INTERNAL_SECRET = process.env.INTERNAL_SERVICE_SECRET ?? '';
@@ -57,18 +56,7 @@ app.post(
     }
 
     try {
-      const { text, pageCount } = await extractPdfText(file.buffer);
-      if (!text.trim()) {
-        res.status(400).json({
-          error:
-            'No extractable text (scanned PDF?). Use a text-based PDF.',
-        });
-        return;
-      }
-
-      const result = await groqParseScreenplay({
-        plainText: text,
-        pageCount,
+      const result = await importScreenplayFromPdfBuffer(file.buffer, {
         apiKey: GROQ_API_KEY,
         model: GROQ_MODEL,
       });

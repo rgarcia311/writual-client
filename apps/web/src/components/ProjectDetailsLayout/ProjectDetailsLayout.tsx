@@ -48,7 +48,7 @@ export function ProjectDetailsLayout({
         pt: '13px',
         pr: 2,
         pb: 2,
-        pl: '13px',
+        pl: 0,
       }}
     >
       <ProjectHeader accordionAdornment={accordionAdornment} />
