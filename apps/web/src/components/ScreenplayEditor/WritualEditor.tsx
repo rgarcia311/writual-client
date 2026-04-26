@@ -20,7 +20,7 @@ import {
 import LocalMoviesIcon from '@mui/icons-material/LocalMovies'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
-import MenuIcon from '@mui/icons-material/Menu'
+import ViewSidebarIcon from '@mui/icons-material/ViewSidebar'
 import PersonIcon from '@mui/icons-material/Person'
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline'
 import FormatQuoteIcon from '@mui/icons-material/FormatQuote'
@@ -74,7 +74,7 @@ import {
 /** Matches `ProjectDetailsLayout` outer `Container` `pl` so the editor can bleed edge-to-edge under the header. */
 const PROJECT_LAYOUT_CONTENT_INSET_LEFT_PX = 13
 /** Vertical Scenes / Characters tabs on the left edge of the screenplay area. */
-const SIDE_PANEL_TABS_W_PX = 60
+const SIDE_PANEL_TABS_W_PX = 55
 /** Space between the tab rail and the scenes/characters list panel. */
 const SIDE_PANEL_LIST_OFFSET_LEFT_PX = 20
 /** Extra right inset so `.screenplay-page` box-shadow isn’t lost at the scroll edge. */
@@ -762,14 +762,14 @@ function ScreenplayEditorCore({
                         justifyContent: 'center',
                         borderRadius: '0 12px 12px 0',
                         color: 'text.primary',
-                        bgcolor: selected ? 'action.selected' : 'transparent',
+                        bgcolor: selected ? 'background.default' : 'transparent',
                         border: (t) => `1px solid ${t.palette.divider}`,
                         boxShadow: 'none',
                         transition: (t) => t.transitions.create(['background-color', 'color'], {
                           duration: t.transitions.duration.shorter,
                         }),
                         '&:hover': {
-                          bgcolor: selected ? 'action.selected' : 'action.hover',
+                          bgcolor: selected ? 'background.default' : 'action.hover',
                         },
                       }}
                     >
@@ -816,7 +816,6 @@ function ScreenplayEditorCore({
                   alignItems: 'center',
                   gap: 0.5,
                   py: 1,
-                  borderTop: (t) => `1px solid ${t.palette.divider}`,
                 }}
               >
                 {sidePanelExpanded ? (
@@ -842,15 +841,6 @@ function ScreenplayEditorCore({
                     </IconButton>
                   </Tooltip>
                 )}
-                <Tooltip title="Hide side panel">
-                  <IconButton
-                    size="small"
-                    onClick={() => setNavigatorOpen(false)}
-                    aria-label="Hide side panel"
-                  >
-                    <MenuIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
               </Box>
             </Box>
 
@@ -866,7 +856,7 @@ function ScreenplayEditorCore({
                   flex: '1 1 0%',
                   minWidth: 0,
                   ml: `${SIDE_PANEL_LIST_OFFSET_LEFT_PX}px`,
-                  border: `1px solid ${theme.palette.divider}`,
+                  border: 'none',
                   borderRadius: 2,
                   boxShadow: theme.shadows[1],
                   overflow: 'hidden',
@@ -1033,7 +1023,7 @@ function ScreenplayEditorCore({
                     onClick={() => setNavigatorOpen(true)}
                     aria-label="Show side panel"
                   >
-                    <MenuIcon fontSize="small" />
+                    <ViewSidebarIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
               </Box>

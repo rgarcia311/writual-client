@@ -57,8 +57,23 @@ export function ProjectDetailsLayout({
         disableGutters
         sx={
           contentSx
-            ? ([{ flex: 1, width: '100%', minWidth: 0, paddingTop: 2, overflow: 'hidden' }, contentSx] as SxProps<Theme>)
-            : { flex: 1, width: '100%', minWidth: 0, paddingTop: 2, overflow: 'hidden' }
+            ? ([
+                {
+                  flex: 1,
+                  width: '100%',
+                  minWidth: 0,
+                  paddingTop: (theme) => `max(0px, calc(${theme.spacing(2)} - 15px))`,
+                  overflow: 'hidden',
+                },
+                contentSx,
+              ] as SxProps<Theme>)
+            : {
+                flex: 1,
+                width: '100%',
+                minWidth: 0,
+                paddingTop: (theme) => `max(0px, calc(${theme.spacing(2)} - 15px))`,
+                overflow: 'hidden',
+              }
         }
       >
         {showHeader && (
