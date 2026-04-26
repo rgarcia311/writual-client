@@ -8,10 +8,8 @@ import { CollaborationCursor } from './CollaborationCursorExtension'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { request } from 'graphql-request'
 import {
-  Avatar,
   Box,
   ButtonBase,
-  Chip,
   CircularProgress,
   IconButton,
   Paper,
@@ -68,12 +66,6 @@ import {
   SCREENPLAY_SCROLL_GUTTER_LEFT_PX,
   SCREENPLAY_SCROLL_GUTTER_RIGHT_PX,
 } from './screenplayPaperLayout'
-import {
-  getSluglineChipLabel,
-  getSluglineLocation,
-  type SluglineLocation,
-} from './screenplaySluglineUtils'
-
 // ─── Scene navigator width (flex — reflows editor; do not use absolute + padding sync) ─
 /**
  * When the list is expanded, the list `Paper` flex-grows within the navigator column (0.7 vs editor 1.3).
@@ -82,20 +74,12 @@ import {
 /** Matches `ProjectDetailsLayout` outer `Container` `pl` so the editor can bleed edge-to-edge under the header. */
 const PROJECT_LAYOUT_CONTENT_INSET_LEFT_PX = 13
 /** Vertical Scenes / Characters tabs on the left edge of the screenplay area. */
-const SIDE_PANEL_TABS_W_PX = 40
-const SCENE_STRIP_W_COLLAPSED_PX = 56
+const SIDE_PANEL_TABS_W_PX = 60
+/** Space between the tab rail and the scenes/characters list panel. */
+const SIDE_PANEL_LIST_OFFSET_LEFT_PX = 20
 /** Extra right inset so `.screenplay-page` box-shadow isn’t lost at the scroll edge. */
 const SCREENPLAY_PAGE_SHADOW_INSET_PX = 12
 const WORKSPACE_H_INSET_PX = 20 + SCREENPLAY_PAGE_SHADOW_INSET_PX
-
-function sluglineChipMuiColor(
-  loc: SluglineLocation,
-): 'primary' | 'success' | 'warning' | 'default' {
-  if (loc === 'INT') return 'primary'
-  if (loc === 'EXT') return 'success'
-  if (loc === 'I_E') return 'warning'
-  return 'default'
-}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -649,28 +633,6 @@ function ScreenplayEditorCore({
     return () => { editor.off('selectionUpdate', syncType); editor.off('update', syncType) }
   }, [editor, setActiveType])
 
-  // ── Navigate to scene by heading text ────────────────────────────────────
-  const navigateToHeading = React.useCallback(
-    (heading: string) => {
-      if (!editor || !heading) return
-      const upper = heading.toUpperCase()
-      let targetPos = -1
-      editor.state.doc.forEach((node, offset) => {
-        if (targetPos !== -1) return
-        if (
-          node.type.name === 'scriptBlock' &&
-          node.attrs.elementType === 'slugline' &&
-          node.textContent.toUpperCase() === upper
-        ) {
-          targetPos = offset + 1
-        }
-      })
-      if (targetPos < 0) return
-      editor.chain().focus().setTextSelection(targetPos).scrollIntoView().run()
-    },
-    [editor]
-  )
-
   const setHeaderChrome = useScreenplayHeaderChromeStore((s) => s.setChrome)
   React.useEffect(() => {
     setHeaderChrome({
@@ -858,22 +820,22 @@ function ScreenplayEditorCore({
                 }}
               >
                 {sidePanelExpanded ? (
-                  <Tooltip title="Narrow list">
+                  <Tooltip title="Hide list">
                     <IconButton
                       size="small"
                       onClick={() => setSidePanelExpanded(false)}
-                      aria-label="Narrow list"
+                      aria-label="Hide list"
                       aria-expanded
                     >
                       <ChevronLeftIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
                 ) : (
-                  <Tooltip title="Widen list">
+                  <Tooltip title="Show list">
                     <IconButton
                       size="small"
                       onClick={() => setSidePanelExpanded(true)}
-                      aria-label="Widen list"
+                      aria-label="Show list"
                       aria-expanded={false}
                     >
                       <ChevronRightIcon fontSize="small" />
@@ -892,214 +854,129 @@ function ScreenplayEditorCore({
               </Box>
             </Box>
 
-            <Paper
-              className="screenplay-navigator"
-              elevation={0}
-              sx={{
-                minHeight: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                alignSelf: 'stretch',
-                border: `1px solid ${theme.palette.divider}`,
-                borderRadius: 2,
-                boxShadow: theme.shadows[1],
-                overflow: 'hidden',
-                transition: theme.transitions.create(['box-shadow', 'border-color'], {
-                  duration: theme.transitions.duration.shorter,
-                }),
-                ...(sidePanelExpanded
-                  ? { flex: '1 1 0%', minWidth: 0 }
-                  : {
-                      width: SCENE_STRIP_W_COLLAPSED_PX,
-                      minWidth: SCENE_STRIP_W_COLLAPSED_PX,
-                      maxWidth: SCENE_STRIP_W_COLLAPSED_PX,
-                      flexShrink: 0,
-                    }),
-              }}
-            >
-            <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
-              {sidePanelTab === 'scenes' && (
-                <>
-                  {projectScenes.length === 0 ? (
-                sidePanelExpanded ? (
-                  <Box sx={{ px: 2, py: 3, textAlign: 'center' }}>
-                    <Typography variant="caption" color="text.disabled">
-                      No scenes in your outline yet.
-                      <br />
-                      Add scenes in the Outline tab to see them here.
-                    </Typography>
-                  </Box>
-                ) : (
-                  <Box sx={{ py: 1.5, display: 'flex', justifyContent: 'center' }} aria-label="No scenes">
-                    <LocalMoviesIcon sx={{ fontSize: 20, color: 'text.disabled', opacity: 0.5 }} />
-                  </Box>
-                )
-              ) : sidePanelExpanded ? (
-                <Box
-                  sx={{
-                    p: 1,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 1,
-                    width: '100%',
-                    minWidth: 0,
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  {projectScenes.map((scene, i) => {
-                    const activeVersion = scene.activeVersion ?? 1
-                    const avIdx = Math.max(0, activeVersion - 1)
-                    const v = scene.versions?.[avIdx] ?? scene.versions?.[0]
-                    return (
-                      <SceneCard
-                        key={scene._id ?? i}
-                        sceneId={scene._id}
-                        number={i + 1}
-                        newScene={false}
-                        versions={scene.versions ?? []}
-                        activeVersion={activeVersion}
-                        lockedVersion={scene.lockedVersion ?? null}
-                        projectId={projectId}
-                        step={v?.step ?? ''}
-                        act={v?.act}
-                        steps={sceneCardSteps}
-                        fullWidthInParent
-                      />
-                    )
-                  })}
-                </Box>
-              ) : (
-                <Box
-                  sx={{
-                    py: 0.5,
-                    px: 0.5,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 0.5,
-                  }}
-                >
-                  {projectScenes.map((scene, idx) => {
-                    const heading = getSceneHeading(scene)
-                    const loc = getSluglineLocation(heading)
-                    const label = getSluglineChipLabel(loc)
-                    return (
-                      <Tooltip key={scene._id ?? idx} title={heading || '(No scene heading)'} placement="right" arrow>
-                        <Chip
-                          size="small"
-                          label={label}
-                          onClick={() => navigateToHeading(heading)}
-                          color={sluglineChipMuiColor(loc)}
-                          variant={loc === 'OTHER' ? 'outlined' : 'filled'}
+            {sidePanelExpanded && (
+              <Paper
+                className="screenplay-navigator"
+                elevation={0}
+                sx={{
+                  minHeight: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignSelf: 'stretch',
+                  flex: '1 1 0%',
+                  minWidth: 0,
+                  ml: `${SIDE_PANEL_LIST_OFFSET_LEFT_PX}px`,
+                  border: `1px solid ${theme.palette.divider}`,
+                  borderRadius: 2,
+                  boxShadow: theme.shadows[1],
+                  overflow: 'hidden',
+                  transition: theme.transitions.create(['box-shadow', 'border-color'], {
+                    duration: theme.transitions.duration.shorter,
+                  }),
+                }}
+              >
+                <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
+                  {sidePanelTab === 'scenes' && (
+                    <>
+                      {projectScenes.length === 0 ? (
+                        <Box sx={{ px: 2, py: 3, textAlign: 'center' }}>
+                          <Typography variant="caption" color="text.disabled">
+                            No scenes in your outline yet.
+                            <br />
+                            Add scenes in the Outline tab to see them here.
+                          </Typography>
+                        </Box>
+                      ) : (
+                        <Box
                           sx={{
-                            minWidth: 40,
-                            height: 22,
-                            fontSize: '0.65rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            '& .MuiChip-label': { px: 0.75 },
+                            p: 1,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 1,
+                            width: '100%',
+                            minWidth: 0,
+                            boxSizing: 'border-box',
                           }}
-                        />
-                      </Tooltip>
-                    )
-                  })}
-                </Box>
-              )}
-                </>
-              )}
-
-              {sidePanelTab === 'characters' && (
-                <>
-                  {projectCharacters.length === 0 ? (
-                    sidePanelExpanded ? (
-                      <Box sx={{ px: 2, py: 3, textAlign: 'center' }}>
-                        <Typography variant="caption" color="text.disabled">
-                          No characters yet.
-                          <br />
-                          Add characters on the Characters page.
-                        </Typography>
-                      </Box>
-                    ) : (
-                      <Box
-                        sx={{ py: 1.5, display: 'flex', justifyContent: 'center' }}
-                        aria-label="No characters"
-                      >
-                        <PersonIcon sx={{ fontSize: 20, color: 'text.disabled', opacity: 0.5 }} />
-                      </Box>
-                    )
-                  ) : sidePanelExpanded ? (
-                    <Box
-                      sx={{
-                        p: 1,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 1,
-                        width: '100%',
-                        minWidth: 0,
-                        boxSizing: 'border-box',
-                      }}
-                    >
-                      {projectCharacters.map((character, index) => {
-                        const cardId = index + 1
-                        return (
-                          <CharacterCard
-                            key={character._id ?? `character-${index}`}
-                            id={cardId}
-                            name={character.name}
-                            imageUrl={character.imageUrl}
-                            details={character.details}
-                            expanded={characterCardExpandedId === cardId}
-                            onExpandClick={() =>
-                              setCharacterCardExpandedId((prev) => (prev === cardId ? undefined : cardId))
-                            }
-                            locked={character.lockedVersion != null}
-                            onToggleLock={() =>
-                              updateCharacterLockMutation.mutate({
-                                characterId: character._id,
-                                locked: character.lockedVersion == null,
-                              })
-                            }
-                            fullWidthInParent
-                          />
-                        )
-                      })}
-                    </Box>
-                  ) : (
-                    <Box
-                      sx={{
-                        py: 0.5,
-                        px: 0.5,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 0.5,
-                      }}
-                    >
-                      {projectCharacters.map((c, idx) => {
-                        const name = (c.name ?? '').trim() || 'Character'
-                        const initial = name.charAt(0).toUpperCase() || '?'
-                        return (
-                          <Tooltip key={c._id ?? idx} title={name} placement="right" arrow>
-                            <Avatar
-                              sx={{
-                                width: 28,
-                                height: 28,
-                                fontSize: '0.75rem',
-                                bgcolor: 'primary.main',
-                                color: 'primary.contrastText',
-                              }}
-                            >
-                              {initial}
-                            </Avatar>
-                          </Tooltip>
-                        )
-                      })}
-                    </Box>
+                        >
+                          {projectScenes.map((scene, i) => {
+                            const activeVersion = scene.activeVersion ?? 1
+                            const avIdx = Math.max(0, activeVersion - 1)
+                            const v = scene.versions?.[avIdx] ?? scene.versions?.[0]
+                            return (
+                              <SceneCard
+                                key={scene._id ?? i}
+                                sceneId={scene._id}
+                                number={i + 1}
+                                newScene={false}
+                                versions={scene.versions ?? []}
+                                activeVersion={activeVersion}
+                                lockedVersion={scene.lockedVersion ?? null}
+                                projectId={projectId}
+                                step={v?.step ?? ''}
+                                act={v?.act}
+                                steps={sceneCardSteps}
+                                fullWidthInParent
+                              />
+                            )
+                          })}
+                        </Box>
+                      )}
+                    </>
                   )}
-                </>
-              )}
-            </Box>
-          </Paper>
+
+                  {sidePanelTab === 'characters' && (
+                    <>
+                      {projectCharacters.length === 0 ? (
+                        <Box sx={{ px: 2, py: 3, textAlign: 'center' }}>
+                          <Typography variant="caption" color="text.disabled">
+                            No characters yet.
+                            <br />
+                            Add characters on the Characters page.
+                          </Typography>
+                        </Box>
+                      ) : (
+                        <Box
+                          sx={{
+                            p: 1,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 1,
+                            width: '100%',
+                            minWidth: 0,
+                            boxSizing: 'border-box',
+                          }}
+                        >
+                          {projectCharacters.map((character, index) => {
+                            const cardId = index + 1
+                            return (
+                              <CharacterCard
+                                key={character._id ?? `character-${index}`}
+                                id={cardId}
+                                name={character.name}
+                                imageUrl={character.imageUrl}
+                                details={character.details}
+                                expanded={characterCardExpandedId === cardId}
+                                onExpandClick={() =>
+                                  setCharacterCardExpandedId((prev) => (prev === cardId ? undefined : cardId))
+                                }
+                                locked={character.lockedVersion != null}
+                                onToggleLock={() =>
+                                  updateCharacterLockMutation.mutate({
+                                    characterId: character._id,
+                                    locked: character.lockedVersion == null,
+                                  })
+                                }
+                                fullWidthInParent
+                              />
+                            )
+                          })}
+                        </Box>
+                      )}
+                    </>
+                  )}
+                </Box>
+              </Paper>
+            )}
           </Box>
         )}
 
