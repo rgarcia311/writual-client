@@ -70,7 +70,7 @@
   /* Fixed paper width — always 8.5" regardless of viewport */
   width: var(--sp-paper-width);
   min-height: var(--sp-paper-height);
-  margin: 0 auto 32px auto;
+  margin: 0 auto;
 
   /* Paper margins: top right bottom left */
   padding: var(--sp-margin-top) var(--sp-margin-right) var(--sp-margin-bottom) var(--sp-margin-left);

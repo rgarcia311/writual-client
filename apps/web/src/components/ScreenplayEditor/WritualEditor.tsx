@@ -81,6 +81,13 @@ const SIDE_PANEL_LIST_OFFSET_LEFT_PX = 20
 const SCREENPLAY_PAGE_SHADOW_INSET_PX = 12
 const WORKSPACE_H_INSET_PX = 20 + SCREENPLAY_PAGE_SHADOW_INSET_PX
 
+/** Same horizontal insets as the scroll inner that wraps `stageRef`. The sticky toolbar’s scale stage must be a direct child of this box (not full-width sticky) so `marginLeft: auto` / `top right` scaling share the same coordinate system as the page. */
+const SCREENPLAY_WORKSPACE_SCROLL_GUTTER_SX = {
+  boxSizing: 'border-box' as const,
+  pl: `${SCREENPLAY_SCROLL_GUTTER_LEFT_PX}px`,
+  pr: `${SCREENPLAY_SCROLL_GUTTER_RIGHT_PX + SCREENPLAY_PAGE_SHADOW_INSET_PX}px`,
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface SceneVersion {
@@ -855,6 +862,7 @@ function ScreenplayEditorCore({
                   alignSelf: 'stretch',
                   flex: '1 1 0%',
                   minWidth: 0,
+                  mr: 1.5,
                   ml: `${SIDE_PANEL_LIST_OFFSET_LEFT_PX}px`,
                   border: 'none',
                   borderRadius: 2,
@@ -1050,46 +1058,46 @@ function ScreenplayEditorCore({
                   zIndex: 10,
                   width: '100%',
                   boxSizing: 'border-box',
-                  pl: `${SCREENPLAY_SCROLL_GUTTER_LEFT_PX}px`,
-                  pr: `${SCREENPLAY_SCROLL_GUTTER_RIGHT_PX + SCREENPLAY_PAGE_SHADOW_INSET_PX}px`,
                   flexShrink: 0,
                   bgcolor: '#ffffff',
                   pt: 2,
                   mt: -2,
                 }}
               >
-                <Box
-                  ref={toolbarScaleStageRef}
-                  sx={{
-                    position: 'relative',
-                    marginLeft: 'auto',
-                    marginRight: 0,
-                    flexShrink: 0,
-                    overflow: 'visible',
-                  }}
-                >
+                <Box sx={SCREENPLAY_WORKSPACE_SCROLL_GUTTER_SX}>
                   <Box
+                    ref={toolbarScaleStageRef}
                     sx={{
-                      position: 'absolute',
-                      top: 0,
-                      right: 0,
-                      left: 'auto',
-                      transform: `scale(${zoom})`,
-                      transformOrigin: 'top right',
+                      position: 'relative',
+                      marginLeft: 'auto',
+                      marginRight: 0,
+                      flexShrink: 0,
+                      overflow: 'visible',
                     }}
                   >
                     <Box
-                      ref={toolbarScaleInnerRef}
                       sx={{
-                        width: `${SCREENPLAY_PAPER_WIDTH_PX}px`,
-                        boxSizing: 'border-box',
+                        position: 'absolute',
+                        top: 0,
+                        right: 0,
+                        left: 'auto',
+                        transform: `scale(${zoom})`,
+                        transformOrigin: 'top right',
                       }}
                     >
-                      <ScreenplayDocumentToolbar
-                        collabActive={collabActive}
-                        isSavingOrPending={isSavingOrPending}
-                        showSaved={showSaved}
-                      />
+                      <Box
+                        ref={toolbarScaleInnerRef}
+                        sx={{
+                          width: `${SCREENPLAY_PAPER_WIDTH_PX}px`,
+                          boxSizing: 'border-box',
+                        }}
+                      >
+                        <ScreenplayDocumentToolbar
+                          collabActive={collabActive}
+                          isSavingOrPending={isSavingOrPending}
+                          showSaved={showSaved}
+                        />
+                      </Box>
                     </Box>
                   </Box>
                 </Box>
@@ -1097,9 +1105,7 @@ function ScreenplayEditorCore({
               <Box
                 sx={{
                   pb: 5,
-                  boxSizing: 'border-box',
-                  pl: `${SCREENPLAY_SCROLL_GUTTER_LEFT_PX}px`,
-                  pr: `${SCREENPLAY_SCROLL_GUTTER_RIGHT_PX + SCREENPLAY_PAGE_SHADOW_INSET_PX}px`,
+                  ...SCREENPLAY_WORKSPACE_SCROLL_GUTTER_SX,
                 }}
               >
                 <Box
