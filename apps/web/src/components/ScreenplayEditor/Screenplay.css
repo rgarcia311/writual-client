@@ -70,7 +70,7 @@
   /* Fixed paper width — always 8.5" regardless of viewport */
   width: var(--sp-paper-width);
   min-height: var(--sp-paper-height);
-  margin: 0 auto;
+  margin: 0 auto 32px auto;
 
   /* Paper margins: top right bottom left */
   padding: var(--sp-margin-top) var(--sp-margin-right) var(--sp-margin-bottom) var(--sp-margin-left);
@@ -93,7 +93,7 @@
   box-shadow:
     3px 0 12px -6px rgba(0, 0, 0, 0.2),
     0 -3px 12px -6px rgba(0, 0, 0, 0.2),
-    0 3px 12px -6px rgba(0, 0, 0, 0.2);
+    0 8px 12px -6px rgba(0, 0, 0, 0.2);
 }
 
 /* Repeating “sheet + desk gap” mask (1056px + --sp-inter-page-gap). Sits behind ProseMirror; does not

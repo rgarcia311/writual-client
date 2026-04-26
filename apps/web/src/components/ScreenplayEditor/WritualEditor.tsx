@@ -858,7 +858,9 @@ function ScreenplayEditorCore({
                   ml: `${SIDE_PANEL_LIST_OFFSET_LEFT_PX}px`,
                   border: 'none',
                   borderRadius: 2,
-                  boxShadow: theme.shadows[1],
+                  mb: 5,
+                  boxShadow:
+                    '3px 0 12px -6px rgba(0, 0, 0, 0.2), 0 -3px 12px -6px rgba(0, 0, 0, 0.2), 0 8px 12px -6px rgba(0, 0, 0, 0.2)',
                   overflow: 'hidden',
                   transition: theme.transitions.create(['box-shadow', 'border-color'], {
                     duration: theme.transitions.duration.shorter,
@@ -1052,6 +1054,8 @@ function ScreenplayEditorCore({
                   pr: `${SCREENPLAY_SCROLL_GUTTER_RIGHT_PX + SCREENPLAY_PAGE_SHADOW_INSET_PX}px`,
                   flexShrink: 0,
                   bgcolor: '#ffffff',
+                  pt: 2,
+                  mt: -2,
                 }}
               >
                 <Box
