@@ -995,7 +995,6 @@ function ScreenplayEditorCore({
             backgroundColor: '#ffffff',
             pl: centerEditorColumn ? `${WORKSPACE_H_INSET_PX}px` : 0,
             pr: `${WORKSPACE_H_INSET_PX}px`,
-            pb: 5,
             pt: 0,
             boxSizing: 'border-box',
           }}
