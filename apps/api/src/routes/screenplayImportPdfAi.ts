@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from 'express';
-import multer from 'multer';
+import express from 'express';
 import mongoose from 'mongoose';
 import { GraphQLError } from 'graphql';
 import { Projects } from '@writual/db';
@@ -10,12 +10,12 @@ import { saveScreenplay } from '../mutations/project-mutations';
 import { createCharacter as createCharacterService } from '../services/CharacterService';
 import { createScene as createSceneService } from '../services/SceneService';
 
+/** Must match writual-ai `MAX_PLAINTEXT_CHARS`. */
+const MAX_AI_PLAINTEXT_CHARS = 200_000;
+
 const AI_REQUEST_TIMEOUT_MS = 600_000;
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 },
-});
+const json50mb = express.json({ limit: '50mb' });
 
 interface AiParseJson {
   doc?: unknown;
@@ -32,29 +32,22 @@ function getAiConfig(): { baseUrl: string; secret: string } | null {
   return { baseUrl, secret };
 }
 
-async function forwardPdfToAi(
-  buffer: Buffer,
-  originalname: string,
+async function forwardPlainTextToAi(
+  plainText: string,
+  pageCount: number,
 ): Promise<AiParseJson> {
   const cfg = getAiConfig();
   if (!cfg) {
     throw new Error('AI service not configured');
   }
 
-  const form = new FormData();
-  const bytes = new Uint8Array(buffer);
-  form.append(
-    'file',
-    new Blob([bytes], { type: 'application/pdf' }),
-    originalname || 'screenplay.pdf',
-  );
-
-  const res = await fetch(`${cfg.baseUrl}/v1/parse-screenplay-pdf`, {
+  const res = await fetch(`${cfg.baseUrl}/v1/parse-screenplay-text`, {
     method: 'POST',
     headers: {
+      'Content-Type': 'application/json',
       'X-Writual-Internal-Secret': cfg.secret,
     },
-    body: form,
+    body: JSON.stringify({ plainText, pageCount }),
     signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS),
   });
 
@@ -77,7 +70,7 @@ async function forwardPdfToAi(
 export function registerScreenplayImportPdfAiRoute(app: Express): void {
   app.post(
     '/api/screenplay/import-pdf-ai',
-    upload.single('file'),
+    json50mb,
     async (req: Request, res: Response) => {
       const authHeader = req.headers.authorization;
       const uid = await verifyUser(
@@ -118,15 +111,36 @@ export function registerScreenplayImportPdfAiRoute(app: Express): void {
         throw e;
       }
 
-      const file = req.file;
-      if (!file?.buffer) {
-        res.status(400).json({ error: 'Missing file' });
+      const plainText = req.body?.plainText;
+      if (typeof plainText !== 'string') {
+        res.status(400).json({ error: 'Missing or invalid plainText' });
+        return;
+      }
+      if (plainText.length > MAX_AI_PLAINTEXT_CHARS) {
+        res.status(400).json({
+          error: `Screenplay text exceeds ${MAX_AI_PLAINTEXT_CHARS} characters`,
+        });
+        return;
+      }
+      if (!plainText.trim()) {
+        res.status(400).json({
+          error:
+            'No extractable text (scanned PDF?). Use a text-based PDF.',
+        });
         return;
       }
 
+      const pageCountRaw = req.body?.pageCount;
+      const pageCount =
+        typeof pageCountRaw === 'number' &&
+        Number.isFinite(pageCountRaw) &&
+        pageCountRaw >= 0
+          ? Math.floor(pageCountRaw)
+          : 0;
+
       let parsed: AiParseJson;
       try {
-        parsed = await forwardPdfToAi(file.buffer, file.originalname);
+        parsed = await forwardPlainTextToAi(plainText, pageCount);
       } catch (e) {
         const message = e instanceof Error ? e.message : 'AI parse failed';
         console.error('[import-pdf-ai] forward to AI:', message);
@@ -148,13 +162,13 @@ export function registerScreenplayImportPdfAiRoute(app: Express): void {
         return;
       }
 
-      const pageCount =
+      const pageCountOut =
         typeof parsed.pageCount === 'number' && Number.isFinite(parsed.pageCount)
           ? parsed.pageCount
           : undefined;
-      if (pageCount != null && pageCount >= 0) {
+      if (pageCountOut != null && pageCountOut >= 0) {
         await Projects.findByIdAndUpdate(projectId, {
-          $set: { pageCountEstimate: pageCount },
+          $set: { pageCountEstimate: pageCountOut },
         }).exec();
       }
 
@@ -212,10 +226,20 @@ export function registerScreenplayImportPdfAiRoute(app: Express): void {
         }
       }
 
+      const contentArr =
+        doc &&
+        typeof doc === 'object' &&
+        doc !== null &&
+        'content' in doc &&
+        Array.isArray((doc as { content?: unknown }).content)
+          ? (doc as { content: unknown[] }).content
+          : [];
+
       res.json({
         ok: true,
         titleHint:
           typeof parsed.titleHint === 'string' ? parsed.titleHint : null,
+        screenplayBlockCount: contentArr.length,
         charactersCreated,
         scenesCreated,
         entityErrors,

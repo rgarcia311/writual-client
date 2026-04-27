@@ -14,8 +14,12 @@ import type { OutlineFrameworkItem } from '@/state/outlineFrameworks';
 import { authRequest } from '@/lib/authRequest';
 import { useUserProfileStore } from '@/state/user';
 import { getFirebaseAuth } from '@/lib/firebase';
-import { parseScreenplayPdf } from '@/lib/parseScreenplayPdf';
+import {
+  extractPlainTextForAiScreenplayImport,
+  parseScreenplayPdf,
+} from '@/lib/parseScreenplayPdf';
 import { TIER_RANK, type Tier } from '@/types/tier';
+import { PROJECT_SCENES_QUERY_KEY } from 'hooks';
 
 interface OutlineFrameworksResponse {
   getOutlineFrameworks?: OutlineFrameworkItem[];
@@ -81,15 +85,21 @@ export function CreateProjectWrapper() {
 
       if (useServerPdf && wantsCompleteWritualProject) {
         try {
+          const { plainText, pageCount } =
+            await extractPlainTextForAiScreenplayImport(pdfFile);
           const token = await getFirebaseAuth().currentUser?.getIdToken();
-          const fd = new FormData();
-          fd.append('projectId', newProjectId);
-          fd.append('file', pdfFile);
-          // Same-origin path (Next rewrites to API) avoids cross-origin "Failed to fetch" in the browser
+          // Same-origin path (Next rewrites to API) sends parsed text to writual-ai (no binary hop).
           const r = await fetch('/api/screenplay/import-pdf-ai', {
             method: 'POST',
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-            body: fd,
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              projectId: newProjectId,
+              plainText,
+              pageCount,
+            }),
             signal: AbortSignal.timeout(600_000),
           });
           let body: {
@@ -111,20 +121,28 @@ export function CreateProjectWrapper() {
                 : 'AI screenplay import failed. The project was created.',
             );
             setAlertOpen(true);
-          } else if (
-            Array.isArray(body.entityErrors) &&
-            body.entityErrors.length > 0
-          ) {
-            const preview = body.entityErrors.slice(0, 3).join('; ');
-            const more =
-              body.entityErrors.length > 3
-                ? ` (+${body.entityErrors.length - 3} more)`
-                : '';
-            setAlertSeverity('warning');
-            setAlertMessage(
-              `Project created. Some outline or character rows could not be saved: ${preview}${more}`,
-            );
-            setAlertOpen(true);
+          } else {
+            await queryClient.invalidateQueries({
+              queryKey: [PROJECT_SCENES_QUERY_KEY, newProjectId],
+            });
+            await queryClient.refetchQueries({
+              queryKey: [PROJECT_SCENES_QUERY_KEY, newProjectId],
+            });
+            if (
+              Array.isArray(body.entityErrors) &&
+              body.entityErrors.length > 0
+            ) {
+              const preview = body.entityErrors.slice(0, 3).join('; ');
+              const more =
+                body.entityErrors.length > 3
+                  ? ` (+${body.entityErrors.length - 3} more)`
+                  : '';
+              setAlertSeverity('warning');
+              setAlertMessage(
+                `Project created. Some outline or character rows could not be saved: ${preview}${more}`,
+              );
+              setAlertOpen(true);
+            }
           }
         } catch (err) {
           console.error('[CreateProjectWrapper] AI import request failed:', err);

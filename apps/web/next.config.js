@@ -21,8 +21,14 @@ const nextConfig = {
     sassOptions: {
         includePaths: [path.join(__dirname, '/src/app/styles')],
     },
+    // Dev rewrites below hit the API over HTTP; AI PDF import can run many minutes. Next's
+    // default proxied-rewrite window (~30s) otherwise closes the connection (ECONNRESET / "Failed to proxy").
+    // Production: multi-minute *synchronous* HTTP is an anti-pattern on serverless (platform limits are
+    // typically seconds to a few minutes). Running this import in production will require an async
+    // pattern (e.g. job queue + client polling, or webhooks) rather than only raising timeouts here.
     experimental: {
         webpackMemoryOptimizations: true,
+        proxyTimeout: 600_000,
     },
   async rewrites() {
     const origin = apiOriginForRewrites();

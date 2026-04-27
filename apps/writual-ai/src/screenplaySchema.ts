@@ -32,4 +32,11 @@ export const groqImportResponseSchema = z.object({
   titleHint: z.string().nullable().optional(),
 });
 
+/** One forward-pass of chunked conversion: root must be a JSON object (not a raw array). */
+export const groqChunkResponseSchema = z.object({
+  content: z.array(scriptBlockSchema),
+  titleHint: z.string().nullable().optional(),
+});
+
 export type ScreenplayDoc = z.infer<typeof screenplayDocSchema>;
+export type ScriptBlock = z.infer<typeof scriptBlockSchema>;

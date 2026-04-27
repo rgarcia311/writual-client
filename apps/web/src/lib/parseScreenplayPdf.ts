@@ -1,6 +1,8 @@
 import type { ScreenplayElementType } from '@/components/ScreenplayEditor/ScreenplayExtension'
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20 MB
+/** Must match writual-ai / API `MAX_PLAINTEXT_CHARS` for AI import. */
+const MAX_AI_PLAINTEXT_CHARS = 200_000
 
 interface TextItem {
   str: string
@@ -45,6 +47,22 @@ const MARGIN_DIALOGUE_MAX = 265
 const MARGIN_ACTION_MAX = 160
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Text runs on one PDF line are separate items; joining with `''` smashes words ("CA" + "Written").
+ * Sort left-to-right, join with spaces, normalize whitespace.
+ */
+function joinTextRunsToLine(
+  rowItems: Array<{ x: number; str: string }>,
+): string {
+  if (rowItems.length === 0) return ''
+  const sorted = [...rowItems].sort((a, b) => a.x - b.x)
+  return sorted
+    .map((it) => it.str)
+    .join(' ')
+    .replace(/[ \t]+/g, ' ')
+    .trim()
+}
 
 function isAllCaps(text: string): boolean {
   const letters = text.replace(/[^a-zA-Z]/g, '')
@@ -199,7 +217,7 @@ export async function parseScreenplayPdf(file: File): Promise<{
     if (items.length === 0) continue
 
     // Stipulation: PDF Y-axis is bottom-up, sort descending by Y for top-to-bottom
-    const lineMap = new Map<number, { x: number; parts: string[] }>()
+    const lineMap = new Map<number, Array<{ x: number; str: string }>>()
 
     for (const item of items) {
       const x = Math.round(item.transform[4])
@@ -216,19 +234,18 @@ export async function parseScreenplayPdf(file: File): Promise<{
       const key = matchedY ?? y
       const existing = lineMap.get(key)
       if (existing) {
-        existing.parts.push(item.str)
-        existing.x = Math.min(existing.x, x)
+        existing.push({ x, str: item.str })
       } else {
-        lineMap.set(key, { x, parts: [item.str] })
+        lineMap.set(key, [{ x, str: item.str }])
       }
     }
 
     const pageLines: LineGroup[] = Array.from(lineMap.entries())
       .sort(([yA], [yB]) => yB - yA) // descending Y = top-to-bottom
-      .map(([y, { x, parts }]) => ({
-        x,
+      .map(([y, rowItems]) => ({
+        x: Math.min(...rowItems.map((r) => r.x)),
         y,
-        text: parts.join('').trim(),
+        text: joinTextRunsToLine(rowItems),
       }))
       .filter((line) => line.text.length > 0)
 
@@ -297,4 +314,101 @@ export async function parseScreenplayPdf(file: File): Promise<{
     pageCount,
     title,
   }
+}
+
+/**
+ * Full-document plain text for server-side AI structuring (one logical line per PDF line, `\n` between lines).
+ * Includes all pages (e.g. title page). Does not build TipTap `doc` — Groq does that.
+ */
+export async function extractPlainTextForAiScreenplayImport(file: File): Promise<{
+  plainText: string
+  pageCount: number
+}> {
+  if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+    throw new Error('Please select a PDF file.')
+  }
+
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error(
+      `File size (${(file.size / 1024 / 1024).toFixed(1)}MB) exceeds the 20MB limit.`,
+    )
+  }
+
+  const { getDocument, GlobalWorkerOptions } = await import('pdfjs-dist')
+  GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
+
+  const arrayBuffer = await file.arrayBuffer()
+  const pdf = await getDocument({ data: arrayBuffer }).promise
+  const pageCount = pdf.numPages
+
+  const outLines: string[] = []
+
+  for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
+    const page = await pdf.getPage(pageNum)
+    const textContent = await page.getTextContent()
+
+    const items = (textContent.items as TextItem[]).filter(
+      (item) => item.str.trim().length > 0,
+    )
+
+    if (items.length === 0) continue
+
+    const lineMap = new Map<number, Array<{ x: number; str: string }>>()
+
+    for (const item of items) {
+      const x = Math.round(item.transform[4])
+      const y = Math.round(item.transform[5])
+
+      let matchedY: number | null = null
+      for (const existingY of Array.from(lineMap.keys())) {
+        if (Math.abs(existingY - y) <= 3) {
+          matchedY = existingY
+          break
+        }
+      }
+
+      const key = matchedY ?? y
+      const existing = lineMap.get(key)
+      if (existing) {
+        existing.push({ x, str: item.str })
+      } else {
+        lineMap.set(key, [{ x, str: item.str }])
+      }
+    }
+
+    const pageLines: LineGroup[] = Array.from(lineMap.entries())
+      .sort(([yA], [yB]) => yB - yA)
+      .map(([y, rowItems]) => ({
+        x: Math.min(...rowItems.map((r) => r.x)),
+        y,
+        text: joinTextRunsToLine(rowItems),
+      }))
+      .filter((line) => line.text.length > 0)
+
+    const filtered = pageLines.filter((line) => {
+      if (PAGE_NUMBER_RE.test(line.text.trim())) return false
+      if (/^page\s+\d+/i.test(line.text.trim())) return false
+      return true
+    })
+
+    for (const line of filtered) {
+      outLines.push(line.text.trim())
+    }
+  }
+
+  const plainText = outLines.join('\n')
+
+  if (!plainText.trim()) {
+    throw new Error(
+      'No extractable text (scanned PDF?). Use a text-based PDF.',
+    )
+  }
+
+  if (plainText.length > MAX_AI_PLAINTEXT_CHARS) {
+    throw new Error(
+      `This screenplay is too long after extraction (${plainText.length} characters). Max is ${MAX_AI_PLAINTEXT_CHARS}.`,
+    )
+  }
+
+  return { plainText, pageCount }
 }
