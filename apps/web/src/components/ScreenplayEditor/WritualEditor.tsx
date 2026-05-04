@@ -8,9 +8,11 @@ import { CollaborationCursor } from './CollaborationCursorExtension'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { request } from 'graphql-request'
 import {
+  Alert,
   Box,
   CircularProgress,
   IconButton,
+  Snackbar,
   Tooltip,
   Typography,
 } from '@mui/material'
@@ -62,9 +64,11 @@ import type { HocuspocusProvider } from '@hocuspocus/provider'
 import type * as Y from 'yjs'
 import './Screenplay.css'
 import {
+  SCREENPLAY_DISPLAY_SCALE,
   SCREENPLAY_EDITOR_COLUMN_WIDTH_PX,
   SCREENPLAY_PAPER_HEIGHT_PX,
   SCREENPLAY_PAPER_WIDTH_PX,
+  SCREENPLAY_SCROLL_GUTTER_LEFT_PX,
   SCREENPLAY_SCROLL_GUTTER_RIGHT_PX,
 } from './screenplayPaperLayout'
 // ─── Scene navigator width (flex — reflows editor; do not use absolute + padding sync) ─
@@ -317,7 +321,11 @@ function ScreenplayEditorCore({
   const [characterCardExpandedId, setCharacterCardExpandedId] = React.useState<number | undefined>(
     undefined,
   )
-  const [zoom, setZoom] = React.useState(1)
+  const [zoom, setZoom] = React.useState(SCREENPLAY_DISPLAY_SCALE)
+  const [isAutoZoomed, setIsAutoZoomed] = React.useState(false)
+  const [autoZoomSnackbarOpen, setAutoZoomSnackbarOpen] = React.useState(false)
+  /** Mirrors `isAutoZoomed` for use inside ResizeObserver / event callbacks without stale closure. */
+  const isAutoZoomedRef = React.useRef(false)
 
   const workspaceRef = React.useRef<HTMLDivElement | null>(null)
   const stageRef = React.useRef<HTMLDivElement | null>(null)
@@ -342,6 +350,34 @@ function ScreenplayEditorCore({
     applyStageDimensions()
   }, [zoom, applyStageDimensions])
 
+  /** Calculate the zoom factor that fits exactly one paper height into the workspace. */
+  const calcAutoFitZoom = React.useCallback((workspaceEl: HTMLElement): number => {
+    const availableHeight = workspaceEl.clientHeight - 40
+    const availableWidth =
+      workspaceEl.clientWidth - SCREENPLAY_SCROLL_GUTTER_LEFT_PX - SCREENPLAY_SCROLL_GUTTER_RIGHT_PX
+    const targetScale = Math.min(
+      availableHeight / SCREENPLAY_PAPER_HEIGHT_PX,
+      availableWidth / SCREENPLAY_PAPER_WIDTH_PX,
+    )
+    // Cap at SCREENPLAY_DISPLAY_SCALE so auto-fit never makes the page larger than 709 × 917 px.
+    // On viewports too small for that size, the viewport-fit constraint still shrinks further.
+    return Math.min(SCREENPLAY_DISPLAY_SCALE, Math.max(SCREENPLAY_ZOOM_MIN, targetScale))
+  }, [])
+
+  /** Apply auto-fit zoom on first mount (before paint). */
+  React.useLayoutEffect(() => {
+    const workspaceEl = workspaceRef.current
+    if (!workspaceEl) return
+    const fitted = calcAutoFitZoom(workspaceEl)
+    setZoom(fitted)
+    isAutoZoomedRef.current = true
+    setIsAutoZoomed(true)
+    if (fitted < SCREENPLAY_DISPLAY_SCALE - 0.001) {
+      setAutoZoomSnackbarOpen(true)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // intentionally empty — runs once on mount
+
 
   React.useEffect(() => {
     const page = pageRef.current
@@ -359,12 +395,27 @@ function ScreenplayEditorCore({
     }
   }, [applyStageDimensions])
 
+  /** Reapply auto-fit whenever the workspace resizes, as long as the user hasn't overridden zoom. */
+  React.useEffect(() => {
+    const workspaceEl = workspaceRef.current
+    if (!workspaceEl) return
+    const ro = new ResizeObserver(() => {
+      if (!isAutoZoomedRef.current) return
+      setZoom(calcAutoFitZoom(workspaceEl))
+    })
+    ro.observe(workspaceEl)
+    return () => { ro.disconnect() }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calcAutoFitZoom]) // calcAutoFitZoom is stable (useCallback with no deps)
+
   React.useEffect(() => {
     const el = workspaceRef.current
     if (!el) return
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return
       e.preventDefault()
+      isAutoZoomedRef.current = false
+      setIsAutoZoomed(false)
       const delta = e.deltaY > 0 ? -SCREENPLAY_ZOOM_STEP : SCREENPLAY_ZOOM_STEP
       setZoom((z) => {
         const next = Math.min(
@@ -604,15 +655,25 @@ function ScreenplayEditorCore({
       collabActive,
       handlers: editor
         ? {
-            zoomOut: () =>
+            zoomOut: () => {
+              isAutoZoomedRef.current = false
+              setIsAutoZoomed(false)
               setZoom((z) =>
                 Math.max(SCREENPLAY_ZOOM_MIN, Math.round((z - SCREENPLAY_ZOOM_STEP) * 100) / 100),
-              ),
-            zoomIn: () =>
+              )
+            },
+            zoomIn: () => {
+              isAutoZoomedRef.current = false
+              setIsAutoZoomed(false)
               setZoom((z) =>
                 Math.min(SCREENPLAY_ZOOM_MAX, Math.round((z + SCREENPLAY_ZOOM_STEP) * 100) / 100),
-              ),
-            zoomReset: () => setZoom(1),
+              )
+            },
+            zoomReset: () => {
+              isAutoZoomedRef.current = false
+              setIsAutoZoomed(false)
+              setZoom(SCREENPLAY_DISPLAY_SCALE)
+            },
             print: () => void printScreenplayHidden(editor),
           }
         : null,
@@ -795,6 +856,22 @@ function ScreenplayEditorCore({
           </Box>
         </Box>
       </Box>
+
+      <Snackbar
+        open={autoZoomSnackbarOpen}
+        autoHideDuration={5000}
+        onClose={() => setAutoZoomSnackbarOpen(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setAutoZoomSnackbarOpen(false)}
+          severity="info"
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          Zoom adjusted to fit your screen resolution. Use Ctrl+Scroll or the header controls to adjust.
+        </Alert>
+      </Snackbar>
     </Box>
   )
 }

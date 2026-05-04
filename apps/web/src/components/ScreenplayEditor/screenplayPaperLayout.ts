@@ -40,3 +40,10 @@ export const SCREENPLAY_INTER_PAGE_GAP_PX = 28
 
 /** 12pt Courier at 96dpi — inline break search in PageBreakPlugin */
 export const SCREENPLAY_LINE_HEIGHT_PX = 16
+
+/**
+ * Preferred on-screen display scale: renders the 816 × 1056 px canonical paper
+ * as a 709 × 917 px visual page (8.5 × 11" at 1 : 1.294 aspect ratio).
+ * Used as the cap and reset target for the auto-fit zoom in WritualEditor.
+ */
+export const SCREENPLAY_DISPLAY_SCALE = 709 / SCREENPLAY_PAPER_WIDTH_PX

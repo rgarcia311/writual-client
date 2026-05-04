@@ -155,11 +155,11 @@ export const PageBreakExtension = Extension.create({
           editorView.dispatch(tr)
         }
 
-        function computeDecorations(): DecorationSet {
+        function computeDecorations(): { set: DecorationSet; totalPages: number } {
           const state = editorView.state
           const doc = state.doc
           const blocks = collectScriptBlocks(doc)
-          if (blocks.length === 0) return DecorationSet.empty
+          if (blocks.length === 0) return { set: DecorationSet.empty, totalPages: 1 }
 
           const decorations: Decoration[] = []
           const pmRect = editorView.dom.getBoundingClientRect()
@@ -337,7 +337,7 @@ export const PageBreakExtension = Extension.create({
             }
           }
 
-          return DecorationSet.create(doc, decorations)
+          return { set: DecorationSet.create(doc, decorations), totalPages: pageIndex }
         }
 
         function recalculate() {
@@ -353,8 +353,13 @@ export const PageBreakExtension = Extension.create({
             dispatchDecorations(DecorationSet.empty)
             void editorView.dom.offsetHeight // Trigger browser reflow
 
-            const decos = computeDecorations()
-            dispatchDecorations(decos)
+            const { set, totalPages } = computeDecorations()
+            dispatchDecorations(set)
+
+            const pageEl = editorView.dom.closest('.screenplay-page') as HTMLElement | null
+            if (pageEl) {
+              pageEl.style.setProperty('--total-pages', String(totalPages))
+            }
 
             if (workspace) {
               workspace.scrollTop = savedScrollTop

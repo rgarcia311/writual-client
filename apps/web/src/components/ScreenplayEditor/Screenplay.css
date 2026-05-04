@@ -69,7 +69,10 @@
 
   /* Fixed paper width — always 8.5" regardless of viewport */
   width: var(--sp-paper-width);
-  min-height: var(--sp-paper-height);
+  min-height: calc(
+    (var(--total-pages, 1) * var(--sp-paper-height)) +
+    (max(0, var(--total-pages, 1) - 1) * var(--sp-inter-page-gap))
+  );
   margin: 0 auto;
 
   /* Paper margins: top right bottom left */
@@ -416,11 +419,30 @@
   margin: 0;
 }
 
-/* Consecutive contact lines (e.g. address then phone) stack without the
-   repeated 20-line top offset — only the first contact block anchors to
-   the lower-left corner of the title page. */
-.script-block[data-element-type='contact'] + .script-block[data-element-type='contact'] {
+/*
+ * TipTap's ReactNodeViewRenderer wraps every node in `div.node-scriptBlock`.
+ * The old `contact + contact` adjacent-sibling selector never fired because
+ * the siblings in ProseMirror are those wrapper divs, not the script-block
+ * elements. These rules reach through the wrappers via :has() instead.
+ *
+ * Rule A — remove top padding from the 2nd+ contact block in a sequence
+ * (replaces the broken `.script-block[contact] + .script-block[contact]`)
+ */
+.node-scriptBlock:has(> [data-element-type='contact'])
++ .node-scriptBlock
+> [data-element-type='contact'] {
   padding-top: 0;
+}
+
+/*
+ * Rule B — remove bottom padding from a contact block that is immediately
+ * followed by another contact block, so the gap between them is zero
+ * (just natural line-height — same as lines within a single action block).
+ */
+.node-scriptBlock:has(> [data-element-type='contact']):has(
+  + .node-scriptBlock > [data-element-type='contact']
+) > [data-element-type='contact'] {
+  padding-bottom: 0;
 }
 
 /* ── Cursor / selection appearance ──────────────────────────────────────── */
