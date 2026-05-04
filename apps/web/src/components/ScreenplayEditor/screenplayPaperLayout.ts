@@ -47,3 +47,17 @@ export const SCREENPLAY_LINE_HEIGHT_PX = 16
  * Used as the cap and reset target for the auto-fit zoom in WritualEditor.
  */
 export const SCREENPLAY_DISPLAY_SCALE = 709 / SCREENPLAY_PAPER_WIDTH_PX
+
+/**
+ * Shared box-shadow for floating screenplay surfaces whose outward-facing edge is on the RIGHT
+ * (screenplay page, side panel list). Three-sided rim: right, top, bottom.
+ */
+export const SCREENPLAY_FLOATING_SURFACE_SHADOW =
+  '3px 0 12px -6px rgba(0, 0, 0, 0.2), 0 -3px 12px -6px rgba(0, 0, 0, 0.2), 0 8px 12px -6px rgba(0, 0, 0, 0.2)'
+
+/**
+ * Box-shadow for the vertical document toolbar, which sits to the LEFT of the screenplay page.
+ * Mirrors SCREENPLAY_FLOATING_SURFACE_SHADOW: left edge instead of right, same top/bottom.
+ */
+export const SCREENPLAY_TOOLBAR_SHADOW =
+  '-3px 0 12px -6px rgba(0, 0, 0, 0.2), 0 -3px 12px -6px rgba(0, 0, 0, 0.2), 0 8px 12px -6px rgba(0, 0, 0, 0.2)'

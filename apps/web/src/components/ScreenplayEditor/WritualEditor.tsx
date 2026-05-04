@@ -66,6 +66,7 @@ import './Screenplay.css'
 import {
   SCREENPLAY_DISPLAY_SCALE,
   SCREENPLAY_EDITOR_COLUMN_WIDTH_PX,
+  SCREENPLAY_FLOATING_SURFACE_SHADOW,
   SCREENPLAY_PAPER_HEIGHT_PX,
   SCREENPLAY_PAPER_WIDTH_PX,
   SCREENPLAY_SCROLL_GUTTER_LEFT_PX,
@@ -702,6 +703,7 @@ function ScreenplayEditorCore({
         width: `calc(100% + ${PROJECT_LAYOUT_CONTENT_INSET_LEFT_PX}px)`,
         minWidth: 0,
         boxSizing: 'border-box',
+        
       }}
     >
 
@@ -714,7 +716,7 @@ function ScreenplayEditorCore({
           overflow: 'hidden',
           alignItems: 'stretch',
           pt: 1,
-          pb: 1
+          pb: 1,
         }}
       >
 
@@ -747,7 +749,8 @@ function ScreenplayEditorCore({
               : { flex: 1 }),
             minWidth: 0,
             minHeight: 0,
-            overflow: 'hidden',
+            overflowX: 'clip',
+            overflowY: 'visible',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'stretch',
@@ -756,6 +759,7 @@ function ScreenplayEditorCore({
             pr: `${WORKSPACE_H_INSET_PX}px`,
             pt: 0,
             boxSizing: 'border-box',
+            
           }}
         >
           <Box
@@ -770,6 +774,7 @@ function ScreenplayEditorCore({
               flexDirection: 'column',
               alignItems: 'stretch',
               ...(centerEditorColumn ? { marginLeft: 'auto', marginRight: 'auto' } : {}),
+              
             }}
           >
             {!navigatorOpen && (
@@ -797,7 +802,7 @@ function ScreenplayEditorCore({
               </Box>
             )}
             {/* Flex row: vertical toolbar (non-scrolling) + scroll workspace */}
-            <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'row', alignItems: 'stretch' }}>
+            <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'row', alignItems: 'stretch',  }}>
               {/* Vertical toolbar — outside the scroll container; does not scroll with pages */}
               <ScreenplayDocumentToolbar
                 orientation="vertical"
@@ -817,12 +822,13 @@ function ScreenplayEditorCore({
                   overflowX: 'auto',
                   backgroundColor: '#ffffff',
                   WebkitOverflowScrolling: 'touch',
+                  
                 }}
               >
                 <Box
                   sx={{
-                    pb: 5,
                     ...SCREENPLAY_WORKSPACE_SCROLL_GUTTER_SX,
+                    
                   }}
                 >
                   <Box
@@ -832,6 +838,7 @@ function ScreenplayEditorCore({
                       marginLeft: 0,
                       marginRight: 'auto',
                       flexShrink: 0,
+                      boxShadow: SCREENPLAY_FLOATING_SURFACE_SHADOW,
                     }}
                   >
                     <Box

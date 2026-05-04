@@ -14,6 +14,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import PersonIcon from '@mui/icons-material/Person'
 import { SceneCard } from '@/components/SceneCard'
 import { CharacterCard } from '@/components/CharacterCard'
+import { SCREENPLAY_FLOATING_SURFACE_SHADOW } from './screenplayPaperLayout'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -249,9 +250,7 @@ export function ScreenplaySidePanel({
             ml: `${SIDE_PANEL_LIST_OFFSET_LEFT_PX}px`,
             border: 'none',
             borderRadius: 2,
-            mb: 5,
-            boxShadow:
-              '3px 0 12px -6px rgba(0, 0, 0, 0.2), 0 -3px 12px -6px rgba(0, 0, 0, 0.2), 0 8px 12px -6px rgba(0, 0, 0, 0.2)',
+            boxShadow: SCREENPLAY_FLOATING_SURFACE_SHADOW,
             overflow: 'hidden',
             transition: theme.transitions.create(['box-shadow', 'border-color'], {
               duration: theme.transitions.duration.shorter,

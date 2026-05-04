@@ -5,6 +5,7 @@ import { Box, Paper, Typography, useTheme } from '@mui/material'
 import CloudDoneIcon from '@mui/icons-material/CloudDone'
 import { useScreenplayEditorStore } from '@/state/screenplayEditor'
 import { ScreenplayToolbar } from './ScreenplayToolbar'
+import { SCREENPLAY_TOOLBAR_SHADOW } from './screenplayPaperLayout'
 
 export const SCREENPLAY_ZOOM_MIN = 0.5
 export const SCREENPLAY_ZOOM_MAX = 2
@@ -54,7 +55,7 @@ export function ScreenplayDocumentToolbar({
           borderTopRightRadius: 0,
           borderBottomRightRadius: 0,
           bgcolor: 'background.default',
-          boxShadow: '2px 0 8px -4px rgba(0, 0, 0, 0.18)',
+          boxShadow: SCREENPLAY_TOOLBAR_SHADOW,
           overflowY: 'auto',
           overflowX: 'hidden',
           scrollbarWidth: 'none',
