@@ -65,7 +65,6 @@ import {
   SCREENPLAY_EDITOR_COLUMN_WIDTH_PX,
   SCREENPLAY_PAPER_HEIGHT_PX,
   SCREENPLAY_PAPER_WIDTH_PX,
-  SCREENPLAY_SCROLL_GUTTER_LEFT_PX,
   SCREENPLAY_SCROLL_GUTTER_RIGHT_PX,
 } from './screenplayPaperLayout'
 // ─── Scene navigator width (flex — reflows editor; do not use absolute + padding sync) ─
@@ -79,10 +78,10 @@ const PROJECT_LAYOUT_CONTENT_INSET_LEFT_PX = 13
 const SCREENPLAY_PAGE_SHADOW_INSET_PX = 12
 const WORKSPACE_H_INSET_PX = 20 + SCREENPLAY_PAGE_SHADOW_INSET_PX
 
-/** Same horizontal insets as the scroll inner that wraps `stageRef`. The sticky toolbar’s scale stage must be a direct child of this box (not full-width sticky) so `marginLeft: auto` / `top right` scaling share the same coordinate system as the page. */
+/** Horizontal insets for the scroll inner that wraps `stageRef`. Left is 0 — the vertical toolbar is the left visual boundary. */
 const SCREENPLAY_WORKSPACE_SCROLL_GUTTER_SX = {
   boxSizing: 'border-box' as const,
-  pl: `${SCREENPLAY_SCROLL_GUTTER_LEFT_PX}px`,
+  pl: 0,
   pr: `${SCREENPLAY_SCROLL_GUTTER_RIGHT_PX + SCREENPLAY_PAGE_SHADOW_INSET_PX}px`,
 }
 
@@ -323,8 +322,6 @@ function ScreenplayEditorCore({
   const workspaceRef = React.useRef<HTMLDivElement | null>(null)
   const stageRef = React.useRef<HTMLDivElement | null>(null)
   const pageRef = React.useRef<HTMLDivElement | null>(null)
-  const toolbarScaleStageRef = React.useRef<HTMLDivElement | null>(null)
-  const toolbarScaleInnerRef = React.useRef<HTMLDivElement | null>(null)
   const paperLayoutRef = React.useRef({
     width: SCREENPLAY_PAPER_WIDTH_PX,
     height: SCREENPLAY_PAPER_HEIGHT_PX,
@@ -345,30 +342,6 @@ function ScreenplayEditorCore({
     applyStageDimensions()
   }, [zoom, applyStageDimensions])
 
-  const syncToolbarScaleLayout = React.useCallback(() => {
-    const stage = toolbarScaleStageRef.current
-    const inner = toolbarScaleInnerRef.current
-    if (!stage || !inner) return
-    const z = zoomRef.current
-    stage.style.width = `${SCREENPLAY_PAPER_WIDTH_PX * z}px`
-    stage.style.height = `${inner.offsetHeight * z}px`
-  }, [])
-
-  React.useLayoutEffect(() => {
-    syncToolbarScaleLayout()
-  }, [zoom, syncToolbarScaleLayout])
-
-  React.useEffect(() => {
-    const inner = toolbarScaleInnerRef.current
-    if (!inner) return
-    const ro = new ResizeObserver(() => {
-      syncToolbarScaleLayout()
-    })
-    ro.observe(inner)
-    return () => {
-      ro.disconnect()
-    }
-  }, [syncToolbarScaleLayout])
 
   React.useEffect(() => {
     const page = pageRef.current
@@ -679,7 +652,8 @@ function ScreenplayEditorCore({
           minHeight: 0,
           overflow: 'hidden',
           alignItems: 'stretch',
-          pt: 3.75,
+          pt: 1,
+          pb: 1
         }}
       >
 
@@ -704,7 +678,7 @@ function ScreenplayEditorCore({
         )}
 
 
-        {/* ── SCREENPLAY: column with optional “show side panel” row; single scroll with sticky element toolbar (matches page width) ─ */}
+        {/* ── SCREENPLAY: column with optional show-side-panel row; vertical toolbar attached left of page ─ */}
         <Box
           sx={{
             ...(navigatorSplitProportions
@@ -717,7 +691,7 @@ function ScreenplayEditorCore({
             flexDirection: 'column',
             alignItems: 'stretch',
             backgroundColor: '#ffffff',
-            pl: centerEditorColumn ? `${WORKSPACE_H_INSET_PX}px` : 0,
+            pl: 0,
             pr: `${WORKSPACE_H_INSET_PX}px`,
             pt: 0,
             boxSizing: 'border-box',
@@ -742,7 +716,6 @@ function ScreenplayEditorCore({
                 sx={{
                   width: '100%',
                   boxSizing: 'border-box',
-                  pl: `${SCREENPLAY_SCROLL_GUTTER_LEFT_PX}px`,
                   pr: `${SCREENPLAY_SCROLL_GUTTER_RIGHT_PX}px`,
                   mb: 1,
                   flexShrink: 0,
@@ -762,96 +735,58 @@ function ScreenplayEditorCore({
                 </Tooltip>
               </Box>
             )}
-            <Box
-              ref={workspaceRef}
-              className="screenplay-workspace"
-              sx={{
-                flex: 1,
-                minHeight: 0,
-                width: '100%',
-                overflowY: 'auto',
-                overflowX: 'auto',
-                backgroundColor: '#ffffff',
-                WebkitOverflowScrolling: 'touch',
-              }}
-            >
+            {/* Flex row: vertical toolbar (non-scrolling) + scroll workspace */}
+            <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'row', alignItems: 'stretch' }}>
+              {/* Vertical toolbar — outside the scroll container; does not scroll with pages */}
+              <ScreenplayDocumentToolbar
+                orientation="vertical"
+                collabActive={collabActive}
+                isSavingOrPending={isSavingOrPending}
+                showSaved={showSaved}
+              />
+              {/* Scroll workspace */}
               <Box
+                ref={workspaceRef}
+                className="screenplay-workspace"
                 sx={{
-                  position: 'sticky',
-                  top: 0,
-                  zIndex: 10,
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  flexShrink: 0,
-                  bgcolor: '#ffffff'
+                  flex: 1,
+                  minHeight: 0,
+                  minWidth: 0,
+                  overflowY: 'auto',
+                  overflowX: 'auto',
+                  backgroundColor: '#ffffff',
+                  WebkitOverflowScrolling: 'touch',
                 }}
               >
-                <Box sx={SCREENPLAY_WORKSPACE_SCROLL_GUTTER_SX}>
+                <Box
+                  sx={{
+                    pb: 5,
+                    ...SCREENPLAY_WORKSPACE_SCROLL_GUTTER_SX,
+                  }}
+                >
                   <Box
-                    ref={toolbarScaleStageRef}
+                    ref={stageRef}
                     sx={{
                       position: 'relative',
-                      marginLeft: 'auto',
-                      marginRight: 0,
+                      marginLeft: 0,
+                      marginRight: 'auto',
                       flexShrink: 0,
-                      overflow: 'visible',
                     }}
                   >
                     <Box
                       sx={{
                         position: 'absolute',
                         top: 0,
-                        right: 0,
-                        left: 'auto',
+                        left: 0,
+                        right: 'auto',
                         transform: `scale(${zoom})`,
-                        transformOrigin: 'top right',
+                        transformOrigin: 'top left',
                       }}
                     >
-                      <Box
-                        ref={toolbarScaleInnerRef}
-                        sx={{
-                          width: `${SCREENPLAY_PAPER_WIDTH_PX}px`,
-                          boxSizing: 'border-box',
-                        }}
-                      >
-                        <ScreenplayDocumentToolbar
-                          collabActive={collabActive}
-                          isSavingOrPending={isSavingOrPending}
-                          showSaved={showSaved}
-                        />
+                      <Box ref={pageRef} className="screenplay-page" data-zoom={zoom}>
+                        <EditorContent editor={editor} />
+                        <BlockAltsToolbar editor={editor} canEdit={canEdit} userId={user} />
                       </Box>
-                    </Box>
-                  </Box>
-                </Box>
-              </Box>
-              <Box
-                sx={{
-                  pb: 5,
-                  ...SCREENPLAY_WORKSPACE_SCROLL_GUTTER_SX,
-                }}
-              >
-                <Box
-                  ref={stageRef}
-                  sx={{
-                    position: 'relative',
-                    marginLeft: 'auto',
-                    marginRight: 0,
-                    flexShrink: 0,
-                  }}
-                >
-                  <Box
-                    sx={{
-                      position: 'absolute',
-                      top: 0,
-                      right: 0,
-                      left: 'auto',
-                      transform: `scale(${zoom})`,
-                      transformOrigin: 'top right',
-                    }}
-                  >
-                    <Box ref={pageRef} className="screenplay-page" data-zoom={zoom}>
-                      <EditorContent editor={editor} />
-                      <BlockAltsToolbar editor={editor} canEdit={canEdit} userId={user} />
                     </Box>
                   </Box>
                 </Box>

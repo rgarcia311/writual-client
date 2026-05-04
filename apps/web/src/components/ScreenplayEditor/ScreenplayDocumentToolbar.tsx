@@ -10,16 +10,21 @@ export const SCREENPLAY_ZOOM_MIN = 0.5
 export const SCREENPLAY_ZOOM_MAX = 2
 export const SCREENPLAY_ZOOM_STEP = 0.1
 
+/** Width of the vertical document toolbar in pixels. */
+export const SCREENPLAY_VERTICAL_TOOLBAR_W_PX = 44
+
 export interface ScreenplayDocumentToolbarProps {
   collabActive: boolean
   isSavingOrPending: boolean
   showSaved: boolean
+  orientation?: 'horizontal' | 'vertical'
 }
 
 export function ScreenplayDocumentToolbar({
   collabActive,
   isSavingOrPending,
   showSaved,
+  orientation = 'horizontal',
 }: ScreenplayDocumentToolbarProps) {
   const theme = useTheme()
   const showElementSelectors = useScreenplayEditorStore(
@@ -28,6 +33,55 @@ export function ScreenplayDocumentToolbar({
 
   const showSaveRow = !collabActive && (isSavingOrPending || showSaved)
 
+  if (!showElementSelectors && !showSaveRow) return null
+
+  // ── Vertical layout ───────────────────────────────────────────────────────
+  if (orientation === 'vertical') {
+    return (
+      <Paper
+        className="screenplay-toolbar screenplay-toolbar-vertical"
+        elevation={0}
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          alignSelf: 'stretch',
+          width: SCREENPLAY_VERTICAL_TOOLBAR_W_PX,
+          flexShrink: 0,
+          borderRight: `1px solid ${theme.palette.divider}`,
+          borderTopLeftRadius: "8px",
+          borderBottomLeftRadius: "8px",
+          borderTopRightRadius: 0,
+          borderBottomRightRadius: 0,
+          bgcolor: 'background.default',
+          boxShadow: '2px 0 8px -4px rgba(0, 0, 0, 0.18)',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          scrollbarWidth: 'none',
+          '&::-webkit-scrollbar': { display: 'none' },
+          py: 1,
+          zIndex: 1,
+        }}
+      >
+        {showSaveRow && (
+          <Box
+            sx={{ display: 'flex', justifyContent: 'center', mb: 0.5, flexShrink: 0 }}
+            aria-label={isSavingOrPending ? 'Saving' : 'Saved'}
+          >
+            <CloudDoneIcon
+              sx={{
+                fontSize: 16,
+                color: isSavingOrPending ? 'text.disabled' : 'success.main',
+              }}
+            />
+          </Box>
+        )}
+        {showElementSelectors && <ScreenplayToolbar orientation="vertical" />}
+      </Paper>
+    )
+  }
+
+  // ── Horizontal layout (original) ──────────────────────────────────────────
   const saveContent = (
     <>
       {isSavingOrPending && (
@@ -45,8 +99,6 @@ export function ScreenplayDocumentToolbar({
       )}
     </>
   )
-
-  if (!showElementSelectors && !showSaveRow) return null
 
   return (
     <>
@@ -90,7 +142,6 @@ export function ScreenplayDocumentToolbar({
             borderBottom: `1px solid ${theme.palette.divider}`,
             flexShrink: 0,
             bgcolor: 'background.default',
-            /* Match TreatmentToolbar elevation when this row is on its own */
             boxShadow: showElementSelectors ? 0 : 2,
             ...(!showElementSelectors
               ? {
