@@ -14,6 +14,10 @@ import {
   SCREENPLAY_MARGIN_TOP_PX,
 } from './screenplayPaperLayout'
 
+/* ── Title-page element types ──────────────────────────────────────────────── */
+
+const TITLE_PAGE_TYPES = new Set(['title', 'author', 'contact'])
+
 /* ── Layout constants ──────────────────────────────────────────────────────── */
 
 const CONTENT_HEIGHT = SCREENPLAY_CONTENT_HEIGHT_PX
@@ -163,6 +167,7 @@ export const PageBreakExtension = Extension.create({
 
           let cursorOffset = 0
           let pageIndex = 1
+          let hasFiredTitleBreak = false
 
           for (let i = 0; i < blocks.length; i++) {
             const { pos, node } = blocks[i]
@@ -187,6 +192,74 @@ export const PageBreakExtension = Extension.create({
 
             let forceBreak = false
             const elementType = node.attrs.elementType as string || 'action'
+
+            // ── Title-page → body forced break ───────────────────────────────
+            // When the first non-title-page block immediately follows title-page
+            // content (title | author | contact), force a page break so the title
+            // page always occupies its own page and the screenplay body begins on
+            // the next. Fires at most once per computation pass via hasFiredTitleBreak.
+            //
+            // `hasFiredTitleBreak` replaces the previous `pageIndex === 1` guard:
+            // if multiple contact blocks overflow the page the regular break fires
+            // first, advancing pageIndex beyond 1 before we reach this check. The
+            // flag ensures the forced break still fires in that scenario.
+            //
+            // `continue` is required: blockTop / blockBottom / pageContentEnd are
+            // captured before the cursorOffset shift; falling through would re-evaluate
+            // those stale bounds and risk a duplicate break.
+            if (
+              !hasFiredTitleBreak &&
+              !TITLE_PAGE_TYPES.has(elementType) &&
+              i > 0 &&
+              TITLE_PAGE_TYPES.has(blocks[i - 1].node.attrs.elementType as string)
+            ) {
+              const prevEntry = blocks[i - 1]
+              const prevEl = editorView.nodeDOM(prevEntry.pos) as HTMLElement
+              let prevBottomRaw = 0
+              let prevBottom = 0
+              if (prevEl) {
+                prevBottomRaw = yLayoutInPm(prevEl, pmRect, scale).bottom
+                prevBottom = prevBottomRaw + cursorOffset
+              }
+
+              // Use current pageIndex so the remainder is correct even if the
+              // title-page content overflowed past page 1.
+              const titlePageEnd = (pageIndex - 1) * (CONTENT_HEIGHT + WIDGET_HEIGHT) + CONTENT_HEIGHT
+              const remainder = Math.max(0, titlePageEnd - prevBottom)
+
+              decorations.push(
+                Decoration.widget(
+                  pos,
+                  createGapElement({ remainder, pageNumber: pageIndex + 1 }),
+                  {
+                    side: -1,
+                    type: 'block' as const,
+                    marks: [],
+                    stopEvent: () => true,
+                    key: `tp-break-${pos}`,
+                  },
+                ),
+              )
+
+              const naturalGap = naturalTop - prevBottomRaw
+              const actualShift = remainder + WIDGET_HEIGHT - naturalGap
+              cursorOffset += actualShift
+              pageIndex++
+              hasFiredTitleBreak = true
+              continue
+            }
+            // ── End title-page forced break ───────────────────────────────────
+
+            // ── Title-page blocks: never insert regular breaks ────────────────
+            // The forced break above is the only correct way to end the title
+            // page. Regular breaks within title-page-type blocks (title | author
+            // | contact) would split contact info across pages. The CSS
+            // `contact + contact { padding-top: 0 }` combinator is also
+            // unreliable once a widget appears between siblings, so this guard
+            // is the definitive fix.
+            if (TITLE_PAGE_TYPES.has(elementType)) {
+              continue
+            }
 
             // --- Orphan / Widow Group Checks ---
             if (elementType === 'character' && blockBottom <= pageContentEnd && blockTop > pageContentStart + 1) {

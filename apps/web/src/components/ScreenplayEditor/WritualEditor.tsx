@@ -9,23 +9,21 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { request } from 'graphql-request'
 import {
   Box,
-  ButtonBase,
   CircularProgress,
   IconButton,
-  Paper,
   Tooltip,
   Typography,
-  useTheme,
 } from '@mui/material'
-import LocalMoviesIcon from '@mui/icons-material/LocalMovies'
-import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
-import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import ViewSidebarIcon from '@mui/icons-material/ViewSidebar'
-import PersonIcon from '@mui/icons-material/Person'
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline'
 import FormatQuoteIcon from '@mui/icons-material/FormatQuote'
 import NotesIcon from '@mui/icons-material/Notes'
 import FastForwardIcon from '@mui/icons-material/FastForward'
+import TitleIcon from '@mui/icons-material/Title'
+import EditNoteIcon from '@mui/icons-material/EditNote'
+import ContactMailIcon from '@mui/icons-material/ContactMail'
+import LocalMoviesIcon from '@mui/icons-material/LocalMovies'
+import PersonIcon from '@mui/icons-material/Person'
 
 import {
   ScriptBlock,
@@ -41,9 +39,13 @@ import {
   SCREENPLAY_ZOOM_MIN,
   SCREENPLAY_ZOOM_STEP,
 } from './ScreenplayDocumentToolbar'
-import { SceneCard } from '@/components/SceneCard'
-import { CharacterCard } from '@/components/CharacterCard'
 import { updateCharacter as updateCharacterAction } from '@/app/actions/characters'
+import {
+  ScreenplaySidePanel,
+  type ProjectScene,
+  type SceneCardStepOption,
+  type SceneVersion,
+} from './ScreenplaySidePanel'
 import { OUTLINE_FRAMEWORKS_QUERY } from '@/queries/OutlineQueries'
 import { PROJECT_CHARACTERS_QUERY } from '@/queries/CharacterQueries'
 import { PROJECT_SCENES_QUERY } from '@/queries/SceneQueries'
@@ -73,10 +75,6 @@ import {
  */
 /** Matches `ProjectDetailsLayout` outer `Container` `pl` so the editor can bleed edge-to-edge under the header. */
 const PROJECT_LAYOUT_CONTENT_INSET_LEFT_PX = 13
-/** Vertical Scenes / Characters tabs on the left edge of the screenplay area. */
-const SIDE_PANEL_TABS_W_PX = 55
-/** Space between the tab rail and the scenes/characters list panel. */
-const SIDE_PANEL_LIST_OFFSET_LEFT_PX = 20
 /** Extra right inset so `.screenplay-page` box-shadow isn’t lost at the scroll edge. */
 const SCREENPLAY_PAGE_SHADOW_INSET_PX = 12
 const WORKSPACE_H_INSET_PX = 20 + SCREENPLAY_PAGE_SHADOW_INSET_PX
@@ -88,25 +86,12 @@ const SCREENPLAY_WORKSPACE_SCROLL_GUTTER_SX = {
   pr: `${SCREENPLAY_SCROLL_GUTTER_RIGHT_PX + SCREENPLAY_PAGE_SHADOW_INSET_PX}px`,
 }
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-interface SceneVersion {
-  sceneHeading?: string
-  version?: number
-  step?: string
-  act?: number
-}
-
-interface ProjectScene {
-  _id: string
-  activeVersion?: number
-  lockedVersion?: number | null
-  versions?: SceneVersion[]
-}
-
 // ─── Element icon map ─────────────────────────────────────────────────────────
 
 export const ELEMENT_ICONS: Record<ScreenplayElementType, React.ReactNode> = {
+  title:         <TitleIcon sx={{ fontSize: 14 }} />,
+  author:        <EditNoteIcon sx={{ fontSize: 14 }} />,
+  contact:       <ContactMailIcon sx={{ fontSize: 14 }} />,
   slugline:      <LocalMoviesIcon sx={{ fontSize: 14 }} />,
   action:        <NotesIcon sx={{ fontSize: 14 }} />,
   character:     <PersonIcon sx={{ fontSize: 14 }} />,
@@ -116,6 +101,9 @@ export const ELEMENT_ICONS: Record<ScreenplayElementType, React.ReactNode> = {
 }
 
 export const ELEMENT_ORDER: ScreenplayElementType[] = [
+  'title',
+  'author',
+  'contact',
   'slugline',
   'action',
   'character',
@@ -130,6 +118,9 @@ export const ELEMENT_ORDER: ScreenplayElementType[] = [
  * Enter: character→dialogue · parenthetical→dialogue · dialogue→action · slugline→action
  */
 export const ELEMENT_SHORTCUTS: Record<ScreenplayElementType, string> = {
+  title:         'Enter → Author  ·  Title page',
+  author:        'Enter → Contact',
+  contact:       'Enter → Action',
   slugline:      'Tab ×2 from Action',
   action:        'Tab ×1  ·  Enter after Dialogue or Scene Heading',
   character:     'Tab ×3 from Action',
@@ -259,12 +250,6 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
 
 // ─── Middle Layer — collab resource gate ───────────────────────────────────────
 
-interface SceneCardStepOption {
-  name: string
-  number: number
-  act: string
-}
-
 interface CollabGateProps {
   projectId?: string
   canEdit: boolean
@@ -325,7 +310,6 @@ function ScreenplayEditorCore({
   ydoc,
   provider,
 }: ScreenplayEditorCoreProps) {
-  const theme = useTheme()
   const [navigatorOpen, setNavigatorOpen] = React.useState(true)
   /** Wide list vs. narrow strip (scene INT/EXT chips or character initials). */
   const [sidePanelExpanded, setSidePanelExpanded] = React.useState(true)
@@ -681,7 +665,6 @@ function ScreenplayEditorCore({
         overflow: 'hidden',
         minHeight: 0,
         // Cancel project layout left inset so side tabs + panel sit flush left; header stays padded in `ProjectDetailsLayout`.
-        marginLeft: `-${PROJECT_LAYOUT_CONTENT_INSET_LEFT_PX}px`,
         width: `calc(100% + ${PROJECT_LAYOUT_CONTENT_INSET_LEFT_PX}px)`,
         minWidth: 0,
         boxSizing: 'border-box',
@@ -700,285 +683,26 @@ function ScreenplayEditorCore({
         }}
       >
 
-        {/* ── Side tabs + panel (scenes or character cards) — flush with layout’s left content edge via root bleed ─ */}
+        {/* ── Side tabs + panel (scenes or character cards) — flush with layout's left content edge via root bleed ─ */}
         {navigatorOpen && (
-          <Box
-            sx={{
-              display: 'flex',
-              flexDirection: 'row',
-              alignSelf: 'stretch',
-              minHeight: 0,
-              minWidth: 0,
-              ...(navigatorSplitProportions
-                ? { flex: '0.7 1 0%' }
-                : { flex: '0 0 auto' }),
-            }}
-          >
-            <Box
-              sx={{
-                width: SIDE_PANEL_TABS_W_PX,
-                flexShrink: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'stretch',
-                alignSelf: 'stretch',
-                minHeight: 0,
-                boxSizing: 'border-box',
-                bgcolor: 'background.paper',
-              }}
-            >
-              <Box
-                role="tablist"
-                aria-label="Screenplay side panel"
-                aria-orientation="vertical"
-                sx={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'stretch',
-                  py: 1.25,
-                  pl: 0,
-                  pr: 0.5,
-                  gap: 0.75,
-                  minHeight: 0,
-                }}
-              >
-                {(
-                  [
-                    { id: 'scenes' as const, label: 'Scenes', Icon: LocalMoviesIcon },
-                    { id: 'characters' as const, label: 'Characters', Icon: PersonIcon },
-                  ] as const
-                ).map(({ id, label, Icon }) => {
-                  const selected = sidePanelTab === id
-                  return (
-                    <ButtonBase
-                      key={id}
-                      role="tab"
-                      aria-selected={selected}
-                      id={`screenplay-side-tab-${id}`}
-                      onClick={() => {
-                        setSidePanelTab(id)
-                      }}
-                      focusRipple
-                      sx={{
-                        flex: 1,
-                        minHeight: 72,
-                        maxHeight: 120,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        borderRadius: '0 12px 12px 0',
-                        color: 'text.primary',
-                        bgcolor: selected ? 'background.default' : 'transparent',
-                        border: (t) => `1px solid ${t.palette.divider}`,
-                        boxShadow: 'none',
-                        transition: (t) => t.transitions.create(['background-color', 'color'], {
-                          duration: t.transitions.duration.shorter,
-                        }),
-                        '&:hover': {
-                          bgcolor: selected ? 'background.default' : 'action.hover',
-                        },
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          gap: 0.5,
-                          py: 0.5,
-                        }}
-                      >
-                        <Icon
-                          sx={{
-                            fontSize: 18,
-                            color: selected ? 'text.primary' : 'text.secondary',
-                          }}
-                        />
-                        <Typography
-                          component="span"
-                          variant="caption"
-                          sx={{
-                            fontWeight: 800,
-                            letterSpacing: 0.2,
-                            lineHeight: 1.1,
-                            writingMode: 'vertical-rl',
-                            textOrientation: 'mixed',
-                            fontSize: '0.68rem',
-                            textTransform: 'uppercase',
-                          }}
-                        >
-                          {label}
-                        </Typography>
-                      </Box>
-                    </ButtonBase>
-                  )
-                })}
-              </Box>
-              <Box
-                sx={{
-                  flexShrink: 0,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 0.5,
-                  py: 1,
-                }}
-              >
-                {sidePanelExpanded ? (
-                  <Tooltip title="Hide list">
-                    <IconButton
-                      size="small"
-                      onClick={() => setSidePanelExpanded(false)}
-                      aria-label="Hide list"
-                      aria-expanded
-                    >
-                      <ChevronLeftIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                ) : (
-                  <Tooltip title="Show list">
-                    <IconButton
-                      size="small"
-                      onClick={() => setSidePanelExpanded(true)}
-                      aria-label="Show list"
-                      aria-expanded={false}
-                    >
-                      <ChevronRightIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                )}
-              </Box>
-            </Box>
-
-            {sidePanelExpanded && (
-              <Paper
-                className="screenplay-navigator"
-                elevation={0}
-                sx={{
-                  minHeight: 0,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignSelf: 'stretch',
-                  flex: '1 1 0%',
-                  minWidth: 0,
-                  mr: 1.5,
-                  ml: `${SIDE_PANEL_LIST_OFFSET_LEFT_PX}px`,
-                  border: 'none',
-                  borderRadius: 2,
-                  mb: 5,
-                  boxShadow:
-                    '3px 0 12px -6px rgba(0, 0, 0, 0.2), 0 -3px 12px -6px rgba(0, 0, 0, 0.2), 0 8px 12px -6px rgba(0, 0, 0, 0.2)',
-                  overflow: 'hidden',
-                  transition: theme.transitions.create(['box-shadow', 'border-color'], {
-                    duration: theme.transitions.duration.shorter,
-                  }),
-                }}
-              >
-                <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
-                  {sidePanelTab === 'scenes' && (
-                    <>
-                      {projectScenes.length === 0 ? (
-                        <Box sx={{ px: 2, py: 3, textAlign: 'center' }}>
-                          <Typography variant="caption" color="text.disabled">
-                            No scenes in your outline yet.
-                            <br />
-                            Add scenes in the Outline tab to see them here.
-                          </Typography>
-                        </Box>
-                      ) : (
-                        <Box
-                          sx={{
-                            p: 1,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 1,
-                            width: '100%',
-                            minWidth: 0,
-                            boxSizing: 'border-box',
-                          }}
-                        >
-                          {projectScenes.map((scene, i) => {
-                            const activeVersion = scene.activeVersion ?? 1
-                            const avIdx = Math.max(0, activeVersion - 1)
-                            const v = scene.versions?.[avIdx] ?? scene.versions?.[0]
-                            return (
-                              <SceneCard
-                                key={scene._id ?? i}
-                                sceneId={scene._id}
-                                number={i + 1}
-                                newScene={false}
-                                versions={scene.versions ?? []}
-                                activeVersion={activeVersion}
-                                lockedVersion={scene.lockedVersion ?? null}
-                                projectId={projectId}
-                                step={v?.step ?? ''}
-                                act={v?.act}
-                                steps={sceneCardSteps}
-                                fullWidthInParent
-                              />
-                            )
-                          })}
-                        </Box>
-                      )}
-                    </>
-                  )}
-
-                  {sidePanelTab === 'characters' && (
-                    <>
-                      {projectCharacters.length === 0 ? (
-                        <Box sx={{ px: 2, py: 3, textAlign: 'center' }}>
-                          <Typography variant="caption" color="text.disabled">
-                            No characters yet.
-                            <br />
-                            Add characters on the Characters page.
-                          </Typography>
-                        </Box>
-                      ) : (
-                        <Box
-                          sx={{
-                            p: 1,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 1,
-                            width: '100%',
-                            minWidth: 0,
-                            boxSizing: 'border-box',
-                          }}
-                        >
-                          {projectCharacters.map((character, index) => {
-                            const cardId = index + 1
-                            return (
-                              <CharacterCard
-                                key={character._id ?? `character-${index}`}
-                                id={cardId}
-                                name={character.name}
-                                imageUrl={character.imageUrl}
-                                details={character.details}
-                                expanded={characterCardExpandedId === cardId}
-                                onExpandClick={() =>
-                                  setCharacterCardExpandedId((prev) => (prev === cardId ? undefined : cardId))
-                                }
-                                locked={character.lockedVersion != null}
-                                onToggleLock={() =>
-                                  updateCharacterLockMutation.mutate({
-                                    characterId: character._id,
-                                    locked: character.lockedVersion == null,
-                                  })
-                                }
-                                fullWidthInParent
-                              />
-                            )
-                          })}
-                        </Box>
-                      )}
-                    </>
-                  )}
-                </Box>
-              </Paper>
-            )}
-          </Box>
+          <ScreenplaySidePanel
+            navigatorSplitProportions={navigatorSplitProportions}
+            sidePanelTab={sidePanelTab}
+            onTabChange={setSidePanelTab}
+            sidePanelExpanded={sidePanelExpanded}
+            onExpandedChange={setSidePanelExpanded}
+            characterCardExpandedId={characterCardExpandedId}
+            onCharacterCardExpandedChange={setCharacterCardExpandedId}
+            projectScenes={projectScenes}
+            projectCharacters={projectCharacters}
+            projectId={projectId}
+            sceneCardSteps={sceneCardSteps}
+            onToggleCharacterLock={(characterId, locked) =>
+              updateCharacterLockMutation.mutate({ characterId, locked })
+            }
+          />
         )}
+
 
         {/* ── SCREENPLAY: column with optional “show side panel” row; single scroll with sticky element toolbar (matches page width) ─ */}
         <Box
@@ -1059,9 +783,7 @@ function ScreenplayEditorCore({
                   width: '100%',
                   boxSizing: 'border-box',
                   flexShrink: 0,
-                  bgcolor: '#ffffff',
-                  pt: 2,
-                  mt: -2,
+                  bgcolor: '#ffffff'
                 }}
               >
                 <Box sx={SCREENPLAY_WORKSPACE_SCROLL_GUTTER_SX}>

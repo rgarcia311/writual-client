@@ -41,27 +41,47 @@ async function forwardPlainTextToAi(
     throw new Error('AI service not configured');
   }
 
-  const res = await fetch(`${cfg.baseUrl}/v1/parse-screenplay-text`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Writual-Internal-Secret': cfg.secret,
-    },
-    body: JSON.stringify({ plainText, pageCount }),
-    signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS),
-  });
+  const url = `${cfg.baseUrl}/v1/parse-screenplay-text`;
 
-  const text = await res.text();
+  let upstream: globalThis.Response;
+  try {
+    upstream = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Writual-Internal-Secret': cfg.secret,
+      },
+      body: JSON.stringify({ plainText, pageCount }),
+      signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS),
+    });
+  } catch (e) {
+    const cause = (e as { cause?: unknown })?.cause;
+    const causeCode =
+      cause && typeof cause === 'object' && 'code' in cause
+        ? String((cause as { code: unknown }).code)
+        : undefined;
+    const causeMsg =
+      cause instanceof Error ? cause.message : cause ? String(cause) : undefined;
+    const baseMsg = e instanceof Error ? e.message : String(e);
+    const detail = [baseMsg, causeCode, causeMsg].filter(Boolean).join(' / ');
+    throw new Error(
+      `Cannot reach writual-ai at ${url} (${detail}). ` +
+        'Start `@writual/writual-ai` (e.g. `npm run dev:ai`), and set AI_SERVICE_URL in the API env (e.g. http://127.0.0.1:8790). ' +
+        'AI_SERVICE_SECRET must match INTERNAL_SERVICE_SECRET on writual-ai.',
+    );
+  }
+
+  const text = await upstream.text();
   let body: unknown;
   try {
     body = text ? JSON.parse(text) : {};
   } catch {
-    throw new Error(`AI service returned non-JSON (${res.status})`);
+    throw new Error(`AI service returned non-JSON (${upstream.status})`);
   }
 
-  if (!res.ok) {
+  if (!upstream.ok) {
     const err = (body as { error?: string })?.error ?? text;
-    throw new Error(typeof err === 'string' ? err : `AI service error ${res.status}`);
+    throw new Error(typeof err === 'string' ? err : `AI service error ${upstream.status}`);
   }
 
   return body as AiParseJson;

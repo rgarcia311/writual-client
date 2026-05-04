@@ -12,6 +12,9 @@ const elementTypeSchema = z.enum([
   'parenthetical',
   'dialogue',
   'transition',
+  'title',
+  'author',
+  'contact',
 ]);
 
 export const scriptBlockSchema = z.object({
@@ -36,6 +39,9 @@ export const groqImportResponseSchema = z.object({
 export const groqChunkResponseSchema = z.object({
   content: z.array(scriptBlockSchema),
   titleHint: z.string().nullable().optional(),
+  logline: z.string().nullable().optional(),
+  authors: z.array(z.string()).nullable().optional(),
+  genre: z.string().nullable().optional(),
 });
 
 export type ScreenplayDoc = z.infer<typeof screenplayDocSchema>;

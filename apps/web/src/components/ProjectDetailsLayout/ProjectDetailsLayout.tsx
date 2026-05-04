@@ -47,7 +47,7 @@ export function ProjectDetailsLayout({
         /* Match sidenav logo row: StyledSideNav padding 5px + logo strip pt 8px */
         pt: '13px',
         pr: 2,
-        pb: 2,
+        pb: 0,
         pl: 0,
       }}
     >

@@ -392,6 +392,37 @@
   margin-bottom: 0;
 }
 
+/* ── TITLE PAGE ELEMENTS ─────────────────────────────────────────────────── */
+.script-block[data-element-type='title'] {
+  text-align: center;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding-top: calc(var(--sp-line-single) * 15);
+  padding-bottom: var(--sp-line-single);
+  margin: 0;
+}
+
+.script-block[data-element-type='author'] {
+  text-align: center;
+  padding-top: 0;
+  padding-bottom: var(--sp-line-single);
+  margin: 0;
+}
+
+.script-block[data-element-type='contact'] {
+  text-align: left;
+  padding-top: calc(var(--sp-line-single) * 20);
+  padding-bottom: var(--sp-line-single);
+  margin: 0;
+}
+
+/* Consecutive contact lines (e.g. address then phone) stack without the
+   repeated 20-line top offset — only the first contact block anchors to
+   the lower-left corner of the title page. */
+.script-block[data-element-type='contact'] + .script-block[data-element-type='contact'] {
+  padding-top: 0;
+}
+
 /* ── Cursor / selection appearance ──────────────────────────────────────── */
 .screenplay-page .ProseMirror ::selection {
   background-color: rgba(100, 140, 200, 0.35);

@@ -102,23 +102,37 @@ export function CreateProjectWrapper() {
             }),
             signal: AbortSignal.timeout(600_000),
           });
+          const responseText = await r.text();
           let body: {
             error?: string;
             entityErrors?: string[];
             ok?: boolean;
           } = {};
-          try {
-            body = (await r.json()) as typeof body;
-          } catch {
-            /* ignore */
+          if (responseText) {
+            try {
+              body = JSON.parse(responseText) as typeof body;
+            } catch {
+              body = {
+                error: responseText.trim().slice(0, 500) || undefined,
+              };
+            }
           }
           if (!r.ok) {
-            console.error('[CreateProjectWrapper] AI import failed:', body);
+            const apiError =
+              typeof body.error === 'string' && body.error.trim() !== ''
+                ? body.error.trim()
+                : null;
+            const fallback =
+              apiError ??
+              (responseText.trim() !== ''
+                ? responseText.trim().slice(0, 400)
+                : `HTTP ${r.status}`);
+            console.error('[CreateProjectWrapper] AI import failed:', r.status, fallback);
             setAlertSeverity('error');
             setAlertMessage(
-              typeof body.error === 'string'
-                ? body.error
-                : 'AI screenplay import failed. The project was created.',
+              apiError !== null
+                ? `${apiError} The project was created — you can retry from the project page.`
+                : `AI screenplay import failed (${fallback}). The project was created.`,
             );
             setAlertOpen(true);
           } else {

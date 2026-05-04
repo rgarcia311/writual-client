@@ -17,6 +17,9 @@ const LAYOUT: Record<
   ScreenplayElementType,
   { x: number; w: number; rightEdge?: number; oneLine?: boolean; upper?: boolean }
 > = {
+  title: { x: 1.5, w: 6.0 },
+  author: { x: 1.5, w: 6.0 },
+  contact: { x: 1.5, w: 6.0 },
   action: { x: 1.5, w: 6.0 },
   slugline: { x: 1.5, w: 6.0, upper: true },
   character: { x: 3.7, w: 4.0, oneLine: true },
@@ -33,7 +36,10 @@ function normalizeType(raw: unknown): ScreenplayElementType {
     s === 'character' ||
     s === 'parenthetical' ||
     s === 'dialogue' ||
-    s === 'transition'
+    s === 'transition' ||
+    s === 'title' ||
+    s === 'author' ||
+    s === 'contact'
   ) {
     return s
   }
@@ -54,25 +60,85 @@ function interBlockGapInches(prev: ScreenplayElementType, next: ScreenplayElemen
   return LINE_HEIGHT_IN
 }
 
+const TITLE_PAGE_TYPES_PDF = new Set<ScreenplayElementType>(['title', 'author', 'contact'])
+
 /**
  * Build a Letter-size PDF with WGA inch-based layout and line-level pagination.
+ * Title-page blocks (title / author / contact) at the start of the document are
+ * rendered on a dedicated unnumbered page; the screenplay body begins on page 1.
  */
 export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
   const doc = new jsPDF({ unit: 'in', format: 'letter', orientation: 'portrait' })
   doc.setFont('courier', 'normal')
   doc.setFontSize(12)
 
-  const blocks: { type: ScreenplayElementType; text: string }[] = []
+  // ── Partition blocks into title-page and body ────────────────────────────
+  const titleBlocks: { type: ScreenplayElementType; text: string }[] = []
+  const bodyBlocks: { type: ScreenplayElementType; text: string }[] = []
+  let inTitlePage = true
+
   editor.state.doc.forEach((node) => {
     if (node.type.name !== 'scriptBlock') return
     const type = normalizeType(node.attrs.elementType)
     let text = node.textContent ?? ''
     if (type === 'slugline') text = text.toUpperCase()
-    blocks.push({ type, text })
+
+    if (inTitlePage && TITLE_PAGE_TYPES_PDF.has(type)) {
+      titleBlocks.push({ type, text })
+    } else {
+      inTitlePage = false
+      bodyBlocks.push({ type, text })
+    }
   })
+
+  // ── Render title page ────────────────────────────────────────────────────
+  if (titleBlocks.length > 0) {
+    const titleAuthorLines: { type: ScreenplayElementType; text: string }[] = []
+    const contactLines: { type: ScreenplayElementType; text: string }[] = []
+    for (const b of titleBlocks) {
+      if (b.type === 'contact') {
+        contactLines.push(b)
+      } else {
+        titleAuthorLines.push(b)
+      }
+    }
+
+    // Title + author group: centered, starting ~1/3 down the page
+    let tay = 3.5
+    for (const { text } of titleAuthorLines) {
+      const lines = doc.splitTextToSize(text || ' ', 5.0)
+      for (const line of lines) {
+        doc.text(line, 4.25, tay, { align: 'center', maxWidth: 5.0 })
+        tay += LINE_HEIGHT_IN
+      }
+    }
+
+    // Contact info: bottom-left
+    let cy = 9.0
+    for (const { text } of contactLines) {
+      const lines = doc.splitTextToSize(text || ' ', 3.0)
+      for (const line of lines) {
+        doc.text(line, 1.5, cy)
+        cy += LINE_HEIGHT_IN
+      }
+    }
+
+    if (bodyBlocks.length > 0) {
+      doc.addPage()
+      doc.setFont('courier', 'normal')
+      doc.setFontSize(12)
+    }
+  }
+
+  // ── Render screenplay body ────────────────────────────────────────────────
+  const blocksToRender = bodyBlocks
 
   let y = TOP_CONTENT_IN
   let pageNum = 1
+
+  if (titleBlocks.length > 0 && blocksToRender.length > 0) {
+    doc.text(`${pageNum}.`, 7.5, 0.5, { align: 'right' })
+  }
 
   const newPage = () => {
     doc.addPage()
@@ -91,8 +157,8 @@ export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
 
   let prevType: ScreenplayElementType | null = null
 
-  for (let i = 0; i < blocks.length; i++) {
-    const { type, text } = blocks[i]
+  for (let i = 0; i < blocksToRender.length; i++) {
+    const { type, text } = blocksToRender[i]
     if (i > 0 && prevType != null) {
       const gap = interBlockGapInches(prevType, type)
       if (gap > 0) {
@@ -105,7 +171,8 @@ export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
     }
     prevType = type
 
-    const spec = LAYOUT[type]
+    // Stipulation: safe fallback for any unexpected element types in body
+    const spec = LAYOUT[type] ?? LAYOUT['action']
     const trimmed = text.replace(/\r\n/g, '\n').trimEnd()
 
     if (type === 'transition') {

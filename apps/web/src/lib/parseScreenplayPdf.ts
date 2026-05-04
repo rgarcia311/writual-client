@@ -72,6 +72,15 @@ function isAllCaps(text: string): boolean {
 const TITLE_PAGE_NOISE_RE =
   /^(written\s+by|by\b|draft|revised|revision|copyright|©|\d{1,2}[\/\-]\d|wga\b|registered|contact|address|phone|email|tel\b|fax\b|based\s+on|adapted)/i
 
+const WRITTEN_BY_RE = /^(written\s+by|by)\b/i
+
+/**
+ * Matches common contact-info patterns: phone numbers, postal addresses
+ * (street number + street type), email addresses, and "City, ST ZIP" strings.
+ */
+const CONTACT_LINE_RE =
+  /^\(?\d{3}\)?[\s\-\.]?\d{3}[\s\-\.]\d{4}$|@\w+\.\w{2,}|\d{3,5}\s+\w+\s+(st\.?|street|ave\.?|avenue|blvd\.?|boulevard|rd\.?|road|dr\.?|drive|ln\.?|lane|way|pl\.?|place)\b|[A-Z]{2}\s+\d{5}|,\s*(CA|NY|TX|FL|IL|WA|GA|PA|OH|NC|MA|AZ|MI|TN|VA|NJ|IN|MO|MD|WI|CO|MN|SC|AL|LA|KY|OR|OK|CT|UT|IA|NV|AR|MS|KS|NM|NE|WV|ID|HI|NH|ME|RI|MT|DE|SD|ND|AK|VT|WY|DC)\s+\d{5}/i
+
 function isTitlePage(lines: LineGroup[]): boolean {
   if (lines.length === 0) return true
 
@@ -178,6 +187,61 @@ function classifyLine(
   return 'action'
 }
 
+// ─── Title page parser ────────────────────────────────────────────────────────
+
+function makeBlock(elementType: ScreenplayElementType, text: string): ScriptBlockNode {
+  return {
+    type: 'scriptBlock',
+    attrs: { elementType },
+    content: [{ type: 'text', text }],
+  }
+}
+
+/**
+ * Classify lines from a detected title page into title / author / contact
+ * blocks. Lines are already sorted top-to-bottom by the page parser.
+ *
+ * Strategy:
+ *  - Lines matching contact patterns (phone, address, email) → contact
+ *  - Lines matching "Written by" / "by" → author
+ *  - First non-noise, non-page-number line → title
+ *  - Subsequent non-contact, non-noise lines → author
+ */
+function parseTitlePageLines(lines: LineGroup[]): ScriptBlockNode[] {
+  const blocks: ScriptBlockNode[] = []
+  let foundTitle = false
+
+  for (const line of lines) {
+    const text = line.text.trim()
+    if (!text || text.length < 2) continue
+    if (PAGE_NUMBER_RE.test(text)) continue
+
+    if (CONTACT_LINE_RE.test(text)) {
+      blocks.push(makeBlock('contact', text))
+      continue
+    }
+
+    if (WRITTEN_BY_RE.test(text)) {
+      blocks.push(makeBlock('author', text))
+      continue
+    }
+
+    if (!foundTitle) {
+      if (TITLE_PAGE_NOISE_RE.test(text)) continue
+      blocks.push(makeBlock('title', text))
+      foundTitle = true
+      continue
+    }
+
+    // After the title: skip copyright / date noise; remaining lines are author names
+    if (!TITLE_PAGE_NOISE_RE.test(text)) {
+      blocks.push(makeBlock('author', text))
+    }
+  }
+
+  return blocks
+}
+
 // ─── Main parser ─────────────────────────────────────────────────────────────
 
 export async function parseScreenplayPdf(file: File): Promise<{
@@ -203,6 +267,7 @@ export async function parseScreenplayPdf(file: File): Promise<{
   const pageCount = pdf.numPages
 
   const allLines: LineGroup[] = []
+  const titlePageBlocks: ScriptBlockNode[] = []
   let skippedTitlePage = false
   let extractedTitle: string | null = null
 
@@ -251,6 +316,7 @@ export async function parseScreenplayPdf(file: File): Promise<{
 
     if (pageNum === 1 && !skippedTitlePage && isTitlePage(pageLines)) {
       extractedTitle = extractTitleFromTitlePage(pageLines)
+      titlePageBlocks.push(...parseTitlePageLines(pageLines))
       skippedTitlePage = true
       continue
     }
@@ -307,10 +373,11 @@ export async function parseScreenplayPdf(file: File): Promise<{
     prevType = elementType
   }
 
+  const allBlocks = [...titlePageBlocks, ...blocks]
   const title = extractedTitle ?? titleFromFilename(file.name)
 
   return {
-    doc: { type: 'doc', content: blocks },
+    doc: { type: 'doc', content: allBlocks },
     pageCount,
     title,
   }

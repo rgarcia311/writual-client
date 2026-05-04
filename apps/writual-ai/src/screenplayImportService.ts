@@ -1,7 +1,5 @@
 import type { Buffer } from 'node:buffer';
-import Groq from 'groq-sdk';
 import {
-  groqChunkResponseSchema,
   screenplayDocSchema,
   type ScreenplayDoc,
   type ScriptBlock,
@@ -11,38 +9,15 @@ import {
   type ImportCharacter,
   type ImportScene,
 } from './entitiesFromDoc';
-
-/** Conservative default: ~1–1.5k tokens user text; Groq on_demand ~6k TPM per request (input+reserved output). */
-const DEFAULT_MAX_CHUNK_CHARS = 4_500;
-/** Aligned to low-TPM tiers: input + max_tokens + system must stay under ~6k. */
-const DEFAULT_GROQ_MAX_OUTPUT_TOKENS_PER_CHUNK = 2_048;
-/** If sum of (maxChunkChars/3) + maxOut exceeds this, log a pre-flight warning. */
-const TPM_WARNING_THRESHOLD = 6_000;
+import type { AIProvider, CompletionParams } from './providers/types';
+import { isRetryableError, getRetryAfterMs, buildProviderErrorDetail } from './providers/errorUtils';
+import { calculateRoughTokenEstimate } from './tokenEstimate';
 
 const MAX_RETRIES_PER_CHUNK = 4;
 const RETRY_BASE_MS = 800;
+const TITLE_SEARCH_DEPTH = 3;
 
-function getChunkInterDelayMs(): number {
-  const raw = process.env.GROQ_CHUNK_INTER_DELAY_MS ?? '200';
-  const n = Number(raw);
-  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 200;
-}
-
-/**
- * Per-completion cap (one chunk, not the whole screenplay). Overridable for TPM tuning.
- * @see https://console.groq.com/docs/rate-limits
- */
-function getMaxOutputTokensPerChunk(): number {
-  const raw = process.env.GROQ_MAX_OUTPUT_TOKENS_PER_CHUNK ?? String(DEFAULT_GROQ_MAX_OUTPUT_TOKENS_PER_CHUNK);
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : DEFAULT_GROQ_MAX_OUTPUT_TOKENS_PER_CHUNK;
-}
-
-function getMaxChunkChars(): number {
-  const raw = process.env.SCREENPLAY_CHUNK_MAX_CHARS ?? String(DEFAULT_MAX_CHUNK_CHARS);
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : DEFAULT_MAX_CHUNK_CHARS;
-}
+const END_MARKERS = /^(FADE\s+OUT\.?|THE\s+END\.?|FADE\s+TO\s+BLACK\.?)$/i;
 
 /** Hard cap on characters of full plain text (defensive; PDF text is already bounded by page count). */
 export const MAX_PLAINTEXT_CHARS = 200_000;
@@ -62,11 +37,14 @@ const CHUNK_SYSTEM_BASE = `You convert a segment of screenplay plain text into s
 Output a single top-level JSON object with this shape:
 - "content": an array of scriptBlocks.
 - "titleHint": string or null. Guess from a title page if this segment is the very front of the script.
+- "logline": string or null. A one-sentence story summary, only if found in a title page or opening.
+- "authors": array of strings or null. Writer names from a title page, only if found.
+- "genre": string or null. Genre label if explicitly stated.
 
 Each item in "content" must be a scriptBlock exactly like this:
 { "type": "scriptBlock", "attrs": { "elementType": "<type>" }, "content": [{ "type": "text", "text": "..." }] }
 
-elementType must be exactly one of: action, slugline, character, parenthetical, dialogue, transition.
+elementType must be exactly one of: action, slugline, character, parenthetical, dialogue, transition, title, author, contact.
 
 CRITICAL RULES:
 1. SEPARATION: "character", "parenthetical", and "dialogue" MUST ALWAYS be in separate, consecutive scriptBlocks. NEVER combine a character name and their dialogue into a single block.
@@ -74,7 +52,8 @@ CRITICAL RULES:
 3. DIALOGUE BLOCKS: The "dialogue" block contains only the spoken words. Merge multi-line dialogue from the same speaker into one dialogue block.
 4. NEWLINES: Do not use literal "\\n" characters to separate distinct screenplay elements. Distinct elements require distinct JSON objects. Use "\\n" only for line breaks within a single "action" or "dialogue" block.
 5. SLUGLINES: Scene headings (INT., EXT., I/E, etc.) are "slugline".
-6. TITLE PAGE: If the text contains title page information (Title, Written by, Contact info), format it as "action" blocks, but extract the title to the "titleHint" property.
+6. TITLE PAGE: Format the main script title as a "title" block, the "Written by" lines and author names as "author" blocks, and any contact information (address, phone, email) as "contact" blocks. Also extract the title to the "titleHint" property.
+7. NO TRUNCATION: You MUST process the ENTIRE segment of text provided. Convert every single line into a scriptBlock. Do not omit or summarize anything.
 
 EXAMPLE INPUT:
 EXT. WOODS - NIGHT
@@ -143,9 +122,6 @@ const CHUNK_SYSTEM_FIRST = `
 
 [Internal] This is the first segment of a multi-part import. If a title is obvious, set "titleHint" to a short string; otherwise null.`;
 
-/**
- * Trims end-of-line spaces only; preserves leading margin whitespace (screenplay layout).
- */
 function trimEndPerLine(s: string): string {
   return s
     .split('\n')
@@ -153,20 +129,13 @@ function trimEndPerLine(s: string): string {
     .join('\n');
 }
 
-/**
- * Trims only trailing newlines/space at the very end; does not touch leading line indentation.
- */
 function trimDocumentTrailingEdges(s: string): string {
   return s.replace(/\n+$/, '').replace(/ +$/, '');
 }
 
-/**
- * `pdf-parse` string only, never the PDF buffer, is sent to Groq. Removes PDF noise; does not strip
- * leading spaces on lines (margins for character/dialogue).
- */
 function normalizeScreenplayPlainText(raw: string): string {
   let t = raw.replace(/\0/g, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  t = t.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\u00AD/g, '');
+  t = t.replace(/[​-‍﻿]/g, '').replace(/­/g, '');
   t = trimEndPerLine(t);
   t = cleanPdfPlainTextForGroqImport(t);
   t = t.replace(/\n{3,}/g, '\n\n');
@@ -174,10 +143,6 @@ function normalizeScreenplayPlainText(raw: string): string {
   return trimDocumentTrailingEdges(t);
 }
 
-/**
- * Pre-processing for PDF-extracted text before chunking and before Groq: removes page markers,
- * footer page numbers, and parser-generated page-break tags/characters.
- */
 export function cleanPdfPlainTextForGroqImport(plain: string): string {
   const PAGE_FENCE_RE = /^---\s*PAGE\s+\d+(?:\s+of\s+\d+)?\s*---\s*$/i;
   const STANDALONE_PAGE_NUM_RE = /^\d{1,4}\.?\s*$/;
@@ -190,12 +155,8 @@ export function cleanPdfPlainTextForGroqImport(plain: string): string {
   const kept: string[] = [];
   for (const line of lines) {
     const t = line.trim();
-    if (PAGE_FENCE_RE.test(t)) {
-      continue;
-    }
-    if (STANDALONE_PAGE_NUM_RE.test(t) && t.length > 0) {
-      continue;
-    }
+    if (PAGE_FENCE_RE.test(t)) continue;
+    if (STANDALONE_PAGE_NUM_RE.test(t) && t.length > 0) continue;
     kept.push(line);
   }
   s = kept.join('\n');
@@ -204,68 +165,9 @@ export function cleanPdfPlainTextForGroqImport(plain: string): string {
 }
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
+  return new Promise((resolve) => { setTimeout(resolve, ms); });
 }
 
-function getHttpStatus(err: unknown): number | undefined {
-  if (!err || typeof err !== 'object') return undefined;
-  const o = err as { status?: number; response?: { status?: number } };
-  if (typeof o.status === 'number') return o.status;
-  if (typeof o.response?.status === 'number') return o.response.status;
-  return undefined;
-}
-
-/** Groq: retry 429 and 5xx only; never retry 413 (payload / TPM preflight will fail the same). */
-function isRetryableGroqHttpError(err: unknown): boolean {
-  const s = getHttpStatus(err);
-  if (s === 413) return false;
-  if (s === 429) return true;
-  if (s !== undefined && s >= 500) return true;
-  return false;
-}
-
-function getRetryAfterMsFromError(err: unknown): number | null {
-  if (!err || typeof err !== 'object') return null;
-  const o = err as { response?: { headers?: unknown } } & { headers?: unknown };
-  const h = o.response && typeof o.response === 'object' && o.response !== null
-    ? (o.response as { headers?: unknown }).headers
-    : o.headers;
-  if (h == null) return null;
-
-  const getHeader = (name: string): string | undefined => {
-    if (typeof (h as Headers).get === 'function') {
-      return (h as Headers).get(name) ?? (h as Headers).get(name.toLowerCase()) ?? undefined;
-    }
-    const rec = h as Record<string, string | undefined>;
-    return rec[name] ?? rec[name.toLowerCase()];
-  };
-
-  const ra = getHeader('retry-after');
-  if (ra != null) {
-    const sec = Number(ra);
-    if (Number.isFinite(sec) && sec >= 0) {
-      return sec * 1000;
-    }
-  }
-  return null;
-}
-
-function logPreflightTpmIfRisky(maxChunkChars: number, maxOut: number): void {
-  const rough = Math.ceil(maxChunkChars / 3) + maxOut;
-  if (rough > TPM_WARNING_THRESHOLD) {
-    console.warn(
-      `[screenplay import] Per-request size may exceed low-tier Groq TPM (rough estimate ${rough} vs ~${TPM_WARNING_THRESHOLD}): ` +
-        `lower SCREENPLAY_CHUNK_MAX_CHARS (now ${maxChunkChars}) and/or GROQ_MAX_OUTPUT_TOKENS_PER_CHUNK (now ${maxOut}).`,
-    );
-  }
-}
-
-/**
- * Split into scene-sized sections, then sub-split so no chunk exceeds `maxChunkChars` (stays
- * within model input window with room for the system prompt and JSON output).
- */
 function buildPlainTextChunks(plain: string, maxChunkChars: number): string[] {
   if (!plain) return [];
 
@@ -310,9 +212,7 @@ function subSplitOversizedSection(section: string, maxChars: number): string[] {
     if (relBreak < maxChars * 0.1) {
       relBreak = window.lastIndexOf('\n', maxChars - 1);
     }
-    if (relBreak <= 0) {
-      relBreak = maxChars;
-    }
+    if (relBreak <= 0) relBreak = maxChars;
     const piece = trimEndPerLine(section.slice(i, i + relBreak));
     if (piece) parts.push(piece);
     i = i + relBreak;
@@ -323,229 +223,22 @@ function subSplitOversizedSection(section: string, maxChars: number): string[] {
   return parts;
 }
 
-export interface ParseScreenplayWithGroqResult {
-  doc: ScreenplayDoc;
-  pageCount: number;
-  titleHint: string | null;
-  characters: ImportCharacter[];
-  scenes: ImportScene[];
-}
-
-/**
- * Step 1: read bytes with pdf-parse and return only data.text (never pass the buffer to the LLM).
- */
-export async function extractScriptPlainTextFromPdf(
-  fileBuffer: Buffer,
-): Promise<{ text: string; pageCount: number }> {
-  if (!fileBuffer || fileBuffer.length === 0) {
-    throw new Error('Empty PDF buffer');
-  }
-  const data = await pdfParse(fileBuffer);
-  const raw = typeof data.text === 'string' ? data.text : String(data.text ?? '');
-  const text = normalizeScreenplayPlainText(raw);
-  const pageCount = typeof data.numpages === 'number' && data.numpages >= 0 ? data.numpages : 0;
-  return { text, pageCount };
-}
-
-const VALID_ELEMENT_TYPES = new Set([
-  'action',
-  'slugline',
-  'character',
-  'parenthetical',
-  'dialogue',
-  'transition',
-]);
-
-/**
- * Groq sometimes omits `content` on a scriptBlock or returns an empty array; Zod requires
- * `content` with ≥1 text node. Coerce so validation matches what the editor needs.
- */
-function normalizeGroqChunkPayload(parsed: unknown): unknown {
-  if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return parsed;
-  }
-  const o = parsed as Record<string, unknown>;
-  const rawContent = o.content;
-  if (!Array.isArray(rawContent)) {
-    return parsed;
-  }
-  const content = rawContent.map((item) => {
-    if (item == null || typeof item !== 'object' || Array.isArray(item)) {
-      return {
-        type: 'scriptBlock' as const,
-        attrs: { elementType: 'action' as const },
-        content: [{ type: 'text' as const, text: '' }],
-      };
-    }
-    const b = item as Record<string, unknown>;
-    if (b.type !== 'scriptBlock') {
-      return {
-        type: 'scriptBlock' as const,
-        attrs: { elementType: 'action' as const },
-        content: [{ type: 'text' as const, text: String(b.text ?? '') }],
-      };
-    }
-    const attrs = b.attrs;
-    const elementType =
-      attrs &&
-      typeof attrs === 'object' &&
-      !Array.isArray(attrs) &&
-      typeof (attrs as { elementType?: unknown }).elementType === 'string' &&
-      VALID_ELEMENT_TYPES.has(
-        (attrs as { elementType: string }).elementType.trim().toLowerCase(),
-      )
-        ? ((attrs as { elementType: string }).elementType
-            .trim()
-            .toLowerCase() as
-            | 'action'
-            | 'slugline'
-            | 'character'
-            | 'parenthetical'
-            | 'dialogue'
-            | 'transition')
-        : ('action' as const);
-
-    let inner = b.content;
-    if (!Array.isArray(inner) || inner.length === 0) {
-      inner = [{ type: 'text' as const, text: '' }];
-    } else {
-      inner = inner.map((node) => {
-        if (node == null || typeof node !== 'object' || Array.isArray(node)) {
-          return { type: 'text' as const, text: '' };
-        }
-        const n = node as Record<string, unknown>;
-        if (n.type === 'text' && typeof n.text === 'string') {
-          return { type: 'text' as const, text: n.text };
-        }
-        return { type: 'text' as const, text: String(n.text ?? '') };
-      });
-    }
-    return {
-      type: 'scriptBlock' as const,
-      attrs: { elementType },
-      content: inner,
-    };
-  });
-  return { ...o, content };
-}
-
-async function parseOneChunk(
-  groq: Groq,
-  params: {
-    model: string;
-    userMessage: string;
-    chunkIndex: number;
-    totalChunks: number;
-  },
-): Promise<{ content: ScreenplayDoc['content']; titleHint?: string | null }> {
-  const { model, userMessage, chunkIndex, totalChunks } = params;
-  const isFirst = chunkIndex === 0;
-  const segmentNote =
-    totalChunks > 1
-      ? `\n\n[Internal] This is segment ${chunkIndex + 1} of ${totalChunks} of one screenplay. The user message contains only this segment. Do not echo segment numbers, "P1/5", or any part labels in the JSON.`
-      : '';
-  const system =
-    CHUNK_SYSTEM_BASE +
-    (totalChunks > 1 && isFirst ? CHUNK_SYSTEM_FIRST : '') +
-    (totalChunks > 1 && !isFirst ? CHUNK_SYSTEM_MIDDLE : '') +
-    segmentNote;
-
-  const maxTokens = getMaxOutputTokensPerChunk();
-  const completion = await groq.chat.completions.create({
-    model,
-    temperature: 0.15,
-    max_tokens: maxTokens,
-    response_format: { type: 'json_object' },
-    messages: [
-      { role: 'system', content: system },
-      { role: 'user', content: userMessage },
-    ],
-  });
-
-  const raw = completion.choices[0]?.message?.content;
-  if (!raw) {
-    throw new Error('Empty response from Groq');
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw) as unknown;
-  } catch {
-    throw new Error('Groq returned non-JSON');
-  }
-
-  const coerced = normalizeGroqChunkPayload(parsed);
-  const validated = groqChunkResponseSchema.safeParse(coerced);
-  if (!validated.success) {
-    throw new Error(`Invalid chunk JSON from model: ${validated.error.message}`);
-  }
-  return {
-    content: validated.data.content,
-    titleHint: validated.data.titleHint,
-  };
-}
-
-function chunkBackoffMs(attempt: number, err: unknown): number {
-  const fromHeader = getRetryAfterMsFromError(err);
-  const exponential = RETRY_BASE_MS * 2 ** attempt;
-  return Math.max(exponential, fromHeader ?? 0, 1_000);
-}
-
-async function parseOneChunkWithRetries(
-  groq: Groq,
-  input: {
-    model: string;
-    userMessage: string;
-    chunkIndex: number;
-    totalChunks: number;
-  },
-): Promise<{ content: ScreenplayDoc['content']; titleHint?: string | null }> {
-  let lastError: unknown;
-  for (let attempt = 0; attempt < MAX_RETRIES_PER_CHUNK; attempt++) {
-    try {
-      return await parseOneChunk(groq, input);
-    } catch (e) {
-      lastError = e;
-      if (!isRetryableGroqHttpError(e)) {
-        throw e;
-      }
-      if (attempt < MAX_RETRIES_PER_CHUNK - 1) {
-        const delay = chunkBackoffMs(attempt, e);
-        await sleep(delay);
-      }
-    }
-  }
-  throw lastError instanceof Error
-    ? lastError
-    : new Error('Chunk conversion failed after retries');
-}
-
-/** Strip leaked chunk markers (e.g. from older prompts) and fix stuck character+dialogue in one text. */
 const SEGMENT_TAG_RE = /\bP\d+\/\d+:\s*/g;
 
-function stripLeakedImportMarkersInBlocks(
-  blocks: ScriptBlock[],
-): ScriptBlock[] {
+function stripLeakedImportMarkersInBlocks(blocks: ScriptBlock[]): ScriptBlock[] {
   return blocks.map((b) => ({
     ...b,
     content: b.content.map((n) => ({
       ...n,
       text:
         typeof n.text === 'string'
-          ? n.text
-              .replace(SEGMENT_TAG_RE, '')
-              .replace(/^\s*P\d+\/\d+:\s*/gm, '')
+          ? n.text.replace(SEGMENT_TAG_RE, '').replace(/^\s*P\d+\/\d+:\s*/gm, '')
           : n.text,
     })),
   }));
 }
 
-/**
- * If the model put "CLAIRE" and "Why…" in one character block, split at TitleCase word start.
- */
-function splitStuckCharacterNameAndDialogue(
-  blocks: ScriptBlock[],
-): ScriptBlock[] {
+function splitStuckCharacterNameAndDialogue(blocks: ScriptBlock[]): ScriptBlock[] {
   const out: ScriptBlock[] = [];
   for (const b of blocks) {
     if (b.type !== 'scriptBlock' || b.attrs?.elementType !== 'character') {
@@ -569,16 +262,10 @@ function splitStuckCharacterNameAndDialogue(
         break;
       }
     }
-    if (splitAt < 0) {
-      out.push(b);
-      continue;
-    }
+    if (splitAt < 0) { out.push(b); continue; }
     const namePart = t.slice(0, splitAt).trim();
     const rest = t.slice(splitAt).trim();
-    if (!namePart || !rest) {
-      out.push(b);
-      continue;
-    }
+    if (!namePart || !rest) { out.push(b); continue; }
     out.push({
       type: 'scriptBlock',
       attrs: { elementType: 'character' },
@@ -593,21 +280,218 @@ function splitStuckCharacterNameAndDialogue(
   return out;
 }
 
-/**
- * Chunks the extracted plain text, runs one JSON-validated conversion per chunk (with retries on
- * parse/validate/API failure), then merges into a full TipTap doc.
- */
-export async function parseScreenplayWithGroq(params: {
-  /** Plain text only; must not be a buffer, base64, or binary. */
+function ensureClosingTransition(blocks: ScriptBlock[]): ScriptBlock[] {
+  const lastText = blocks[blocks.length - 1]?.content[0]?.text?.trim() ?? '';
+  if (END_MARKERS.test(lastText)) {
+    if (blocks[blocks.length - 1]!.attrs.elementType !== 'transition') {
+      const updated = [...blocks];
+      updated[updated.length - 1] = {
+        ...updated[updated.length - 1]!,
+        attrs: { elementType: 'transition' },
+      };
+      return updated;
+    }
+    return blocks;
+  }
+  // Check last 5 blocks for buried end markers
+  const start = Math.max(0, blocks.length - 5);
+  for (let i = blocks.length - 1; i >= start; i--) {
+    const text = blocks[i]!.content[0]?.text?.trim() ?? '';
+    if (END_MARKERS.test(text) && blocks[i]!.attrs.elementType !== 'transition') {
+      const updated = [...blocks];
+      updated[i] = { ...updated[i]!, attrs: { elementType: 'transition' } };
+      return updated;
+    }
+  }
+  return blocks;
+}
+
+function chunkBackoffMs(attempt: number, err: unknown): number {
+  const fromHeader = getRetryAfterMs(err);
+  const exponential = RETRY_BASE_MS * 2 ** attempt;
+  return Math.max(exponential, fromHeader ?? 0, 1_000);
+}
+
+interface ChunkCallInput {
+  provider: AIProvider;
+  model: string;
+  maxOutputTokens: number;
+  temperature: number;
+  requestTimeoutMs: number;
+  contextWindowTokens: number;
+  tokensPerChar: number;
+  userMessage: string;
+  chunkIndex: number;
+  totalChunks: number;
+  correlationId: string;
+  projectId?: string;
+}
+
+async function parseOneChunk(input: ChunkCallInput): Promise<{
+  content: ScreenplayDoc['content'];
+  titleHint?: string | null;
+  logline?: string | null;
+  authors?: string[] | null;
+  genre?: string | null;
+}> {
+  const { chunkIndex, totalChunks } = input;
+  const isFirst = chunkIndex === 0;
+  const isLast = chunkIndex === totalChunks - 1;
+
+  const segmentNote =
+    totalChunks > 1
+      ? `\n\n[Internal] This is segment ${chunkIndex + 1} of ${totalChunks} of one screenplay. The user message contains only this segment. Do not echo segment numbers, "P1/5", or any part labels in the JSON.${isLast ? ' This is the final segment.' : ''}`
+      : '';
+
+  const systemPrompt =
+    CHUNK_SYSTEM_BASE +
+    (totalChunks > 1 && isFirst ? CHUNK_SYSTEM_FIRST : '') +
+    (totalChunks > 1 && !isFirst ? CHUNK_SYSTEM_MIDDLE : '') +
+    segmentNote;
+
+  const params: CompletionParams = {
+    systemPrompt,
+    userMessage: input.userMessage,
+    model: input.model,
+    maxOutputTokens: input.maxOutputTokens,
+    temperature: input.temperature,
+    requestTimeoutMs: input.requestTimeoutMs,
+    contextWindowTokens: input.contextWindowTokens,
+    tokensPerChar: input.tokensPerChar,
+    chunkIndex,
+    totalChunks,
+    isLastChunk: isLast,
+    correlationId: input.correlationId,
+    projectId: input.projectId,
+  };
+
+  const result = await input.provider.generateCompletion(params);
+  return {
+    content: result.content,
+    titleHint: result.titleHint,
+    logline: result.logline,
+    authors: result.authors,
+    genre: result.genre,
+  };
+}
+
+async function parseOneChunkWithRetries(
+  input: ChunkCallInput,
+  providerName: string,
+): Promise<{
+  content: ScreenplayDoc['content'];
+  titleHint?: string | null;
+  logline?: string | null;
+  authors?: string[] | null;
+  genre?: string | null;
+}> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < MAX_RETRIES_PER_CHUNK; attempt++) {
+    try {
+      return await parseOneChunk(input);
+    } catch (e) {
+      lastError = e;
+      if (!isRetryableError(e)) throw e;
+      if (attempt < MAX_RETRIES_PER_CHUNK - 1) {
+        await sleep(chunkBackoffMs(attempt, e));
+      }
+    }
+  }
+  const detail = buildProviderErrorDetail(lastError, {
+    provider: providerName,
+    model: input.model,
+    chunkIndex: input.chunkIndex,
+  });
+  console.error(JSON.stringify({ event: 'chunk_error', ...detail }));
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`Chunk ${input.chunkIndex} failed after retries`);
+}
+
+async function runWithConcurrency<T>(
+  tasks: (() => Promise<T>)[],
+  maxConcurrency: number,
+): Promise<T[]> {
+  const results: T[] = new Array(tasks.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < tasks.length) {
+      const i = nextIndex++;
+      results[i] = await tasks[i]!();
+    }
+  }
+
+  const workers = Array.from(
+    { length: Math.min(maxConcurrency, tasks.length) },
+    worker,
+  );
+  await Promise.all(workers);
+  return results;
+}
+
+export interface ParseScreenplayResult {
+  doc: ScreenplayDoc;
+  pageCount: number;
+  titleHint: string | null;
+  logline: string | null;
+  authors: string[] | null;
+  genre: string | null;
+  characters: ImportCharacter[];
+  scenes: ImportScene[];
+  status: 'OK' | 'PARTIAL';
+  unprocessedChunkIndices: number[];
+  totalUsage: {
+    promptTokens: number;
+    completionTokens: number;
+    cacheCreationTokens: number;
+    cacheReadTokens: number;
+    latencyMs: number;
+  };
+}
+
+export interface ParseScreenplayParams {
   plainText: string;
   pageCount: number;
-  apiKey: string;
+  provider: AIProvider;
+  providerName: string;
   model: string;
-}): Promise<ParseScreenplayWithGroqResult> {
-  const { plainText, pageCount, apiKey, model } = params;
-  const maxChunkChars = getMaxChunkChars();
-  const maxOut = getMaxOutputTokensPerChunk();
-  logPreflightTpmIfRisky(maxChunkChars, maxOut);
+  maxChunkChars: number;
+  maxOutputTokensPerChunk: number;
+  contextWindowTokens: number;
+  tokensPerChar: number;
+  chunkInterDelayMs: number;
+  temperature: number;
+  requestTimeoutMs: number;
+  maxConcurrency: number;
+  maxTotalChunksPerRequest: number;
+  maxTotalTokensPerRequest: number;
+  correlationId: string;
+  projectId?: string;
+}
+
+export async function parseScreenplay(
+  params: ParseScreenplayParams,
+): Promise<ParseScreenplayResult> {
+  const {
+    plainText,
+    pageCount,
+    provider,
+    providerName,
+    model,
+    maxChunkChars,
+    maxOutputTokensPerChunk,
+    contextWindowTokens,
+    tokensPerChar,
+    chunkInterDelayMs,
+    temperature,
+    requestTimeoutMs,
+    maxConcurrency,
+    maxTotalChunksPerRequest,
+    maxTotalTokensPerRequest,
+    correlationId,
+    projectId,
+  } = params;
 
   const rawSlice =
     plainText.length > MAX_PLAINTEXT_CHARS
@@ -619,41 +503,133 @@ export async function parseScreenplayWithGroq(params: {
     throw new Error('No extractable text in PDF');
   }
 
-  const groq = new Groq({ apiKey });
   const chunkTexts = buildPlainTextChunks(trimmed, maxChunkChars);
   if (chunkTexts.length === 0) {
     throw new Error('No text chunks to convert');
   }
 
-  const allBlocks: ScreenplayDoc['content'] = [];
-  let titleHint: string | null = null;
+  // Global safety caps
+  if (chunkTexts.length > maxTotalChunksPerRequest) {
+    throw new Error(
+      `Screenplay splits into ${chunkTexts.length} chunks, exceeding maxTotalChunksPerRequest=${maxTotalChunksPerRequest}. ` +
+        `Increase chunkMaxChars or raise the cap in ai-config.json.`,
+    );
+  }
+  const roughInputTokens = chunkTexts.reduce(
+    (s, c) => s + calculateRoughTokenEstimate(c, tokensPerChar),
+    0,
+  );
+  const roughTotalTokens = roughInputTokens + chunkTexts.length * maxOutputTokensPerChunk;
+  if (roughTotalTokens > maxTotalTokensPerRequest) {
+    throw new Error(
+      `Estimated ${roughTotalTokens} tokens exceeds maxTotalTokensPerRequest=${maxTotalTokensPerRequest}. ` +
+        `Adjust limits in ai-config.json.`,
+    );
+  }
+
   const total = chunkTexts.length;
-  const interDelay = getChunkInterDelayMs();
+  const allBlocks: ScreenplayDoc['content'] = [];
+  const unprocessedChunkIndices: number[] = [];
 
-  for (let i = 0; i < total; i += 1) {
-    if (i > 0 && interDelay > 0) {
-      await sleep(interDelay);
-    }
-    const segment = chunkTexts[i]!;
-    // Segment index lives in the system prompt only; prefixing the user text with "P1/5:" leaked
-    // into saved screenplay. User message = raw segment only.
-    const userMessage = segment;
-    if (typeof userMessage !== 'string') {
-      throw new Error('Internal error: user message to Groq must be plain string text');
-    }
+  let titleHint: string | null = null;
+  let logline: string | null = null;
+  let authors: string[] | null = null;
+  let genre: string | null = null;
+  let titleLocked = false;
+  let loglineLocked = false;
+  let authorsLocked = false;
+  let genreLocked = false;
 
-    const { content, titleHint: th } = await parseOneChunkWithRetries(groq, {
-      model,
-      userMessage,
-      chunkIndex: i,
-      totalChunks: total,
-    });
-    for (const b of content) {
-      allBlocks.push(b);
+  const totalUsage = {
+    promptTokens: 0,
+    completionTokens: 0,
+    cacheCreationTokens: 0,
+    cacheReadTokens: 0,
+    latencyMs: 0,
+  };
+
+  const buildTask = (i: number, segment: string) => async () => {
+    try {
+      const result = await parseOneChunkWithRetries(
+        {
+          provider,
+          model,
+          maxOutputTokens: maxOutputTokensPerChunk,
+          temperature,
+          requestTimeoutMs,
+          contextWindowTokens,
+          tokensPerChar,
+          userMessage: segment,
+          chunkIndex: i,
+          totalChunks: total,
+          correlationId,
+          projectId,
+        },
+        providerName,
+      );
+      return { i, result, skipped: false as const };
+    } catch (e) {
+      const detail = buildProviderErrorDetail(e, { provider: providerName, model, chunkIndex: i });
+      console.error(JSON.stringify({ event: 'chunk_skipped', ...detail }));
+      return { i, result: null, skipped: true as const };
     }
-    if (i === 0 && th !== undefined && th !== null) {
-      const t = String(th).trim();
-      if (t) titleHint = t;
+  };
+
+  if (maxConcurrency === 1) {
+    // Sequential path: respect chunkInterDelayMs between calls
+    for (let i = 0; i < total; i++) {
+      if (i > 0 && chunkInterDelayMs > 0) await sleep(chunkInterDelayMs);
+      const { result, skipped } = await buildTask(i, chunkTexts[i]!)();
+      if (skipped || !result) {
+        unprocessedChunkIndices.push(i);
+        continue;
+      }
+      for (const b of result.content) allBlocks.push(b);
+      // Capture and lock metadata
+      if (!titleLocked && i < TITLE_SEARCH_DEPTH && result.titleHint) {
+        const t = String(result.titleHint).trim();
+        if (t) { titleHint = t; titleLocked = true; }
+      }
+      if (!loglineLocked && i < TITLE_SEARCH_DEPTH && result.logline) {
+        const t = String(result.logline).trim();
+        if (t) { logline = t; loglineLocked = true; }
+      }
+      if (!authorsLocked && i < TITLE_SEARCH_DEPTH && result.authors?.length) {
+        authors = result.authors; authorsLocked = true;
+      }
+      if (!genreLocked && i < TITLE_SEARCH_DEPTH && result.genre) {
+        const t = String(result.genre).trim();
+        if (t) { genre = t; genreLocked = true; }
+      }
+    }
+  } else {
+    // Concurrent path: run up to maxConcurrency tasks at a time
+    const tasks = chunkTexts.map((segment, i) => buildTask(i, segment));
+    const outcomes = await runWithConcurrency(tasks, maxConcurrency);
+
+    for (const outcome of outcomes) {
+      if (outcome.skipped || !outcome.result) {
+        unprocessedChunkIndices.push(outcome.i);
+        continue;
+      }
+      for (const b of outcome.result.content) allBlocks.push(b);
+      const i = outcome.i;
+      const result = outcome.result;
+      if (!titleLocked && i < TITLE_SEARCH_DEPTH && result.titleHint) {
+        const t = String(result.titleHint).trim();
+        if (t) { titleHint = t; titleLocked = true; }
+      }
+      if (!loglineLocked && i < TITLE_SEARCH_DEPTH && result.logline) {
+        const t = String(result.logline).trim();
+        if (t) { logline = t; loglineLocked = true; }
+      }
+      if (!authorsLocked && i < TITLE_SEARCH_DEPTH && result.authors?.length) {
+        authors = result.authors; authorsLocked = true;
+      }
+      if (!genreLocked && i < TITLE_SEARCH_DEPTH && result.genre) {
+        const t = String(result.genre).trim();
+        if (t) { genre = t; genreLocked = true; }
+      }
     }
   }
 
@@ -661,37 +637,62 @@ export async function parseScreenplayWithGroq(params: {
     throw new Error('Model produced no script blocks for this screenplay');
   }
 
-  const blocksSanitized = splitStuckCharacterNameAndDialogue(
-    stripLeakedImportMarkersInBlocks(allBlocks),
+  const blocksSanitized = ensureClosingTransition(
+    splitStuckCharacterNameAndDialogue(
+      stripLeakedImportMarkersInBlocks(allBlocks),
+    ),
   );
+
   const doc: ScreenplayDoc = { type: 'doc', content: blocksSanitized };
   screenplayDocSchema.parse(doc);
   const { characters, scenes } = entitiesFromDoc(doc);
+
+  console.log(JSON.stringify({
+    event: 'request_complete',
+    correlationId,
+    projectId: projectId ?? null,
+    status: unprocessedChunkIndices.length > 0 ? 'PARTIAL' : 'OK',
+    totalChunks: total,
+    unprocessedChunks: unprocessedChunkIndices.length,
+    totalUsage,
+  }));
 
   return {
     doc,
     pageCount,
     titleHint,
+    logline,
+    authors,
+    genre,
     characters,
     scenes,
+    status: unprocessedChunkIndices.length > 0 ? 'PARTIAL' : 'OK',
+    unprocessedChunkIndices,
+    totalUsage,
   };
 }
 
-/**
- * End-to-end: buffer → pdf-parse text → Groq in chunks → merged doc. The LLM never sees the PDF buffer.
- */
+export async function extractScriptPlainTextFromPdf(
+  fileBuffer: Buffer,
+): Promise<{ text: string; pageCount: number }> {
+  if (!fileBuffer || fileBuffer.length === 0) {
+    throw new Error('Empty PDF buffer');
+  }
+  const data = await pdfParse(fileBuffer);
+  const raw = typeof data.text === 'string' ? data.text : String(data.text ?? '');
+  const text = normalizeScreenplayPlainText(raw);
+  const pageCount =
+    typeof data.numpages === 'number' && data.numpages >= 0 ? data.numpages : 0;
+  return { text, pageCount };
+}
+
 export async function importScreenplayFromPdfBuffer(
   fileBuffer: Buffer,
-  options: { apiKey: string; model: string },
-): Promise<ParseScreenplayWithGroqResult> {
+  options: Omit<ParseScreenplayParams, 'plainText' | 'pageCount'>,
+): Promise<ParseScreenplayResult> {
   const { text, pageCount } = await extractScriptPlainTextFromPdf(fileBuffer);
   if (!text.trim()) {
     throw new Error('No extractable text (scanned PDF?). Use a text-based PDF.');
   }
-  return parseScreenplayWithGroq({
-    plainText: text,
-    pageCount,
-    apiKey: options.apiKey,
-    model: options.model,
-  });
+  return parseScreenplay({ plainText: text, pageCount, ...options });
 }
