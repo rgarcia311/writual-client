@@ -5,21 +5,19 @@ import cors from 'cors';
 import { loadAIConfig } from './aiConfig';
 import { createProvider } from './providers/factory';
 import {
-  parseScreenplay,
-  MAX_PLAINTEXT_CHARS,
-} from './screenplayImportService';
+  enrichScreenplayImport,
+  MAX_ENRICHMENT_BODY_CHARS,
+} from './screenplayEnrichmentService';
 import { calculateRoughTokenEstimate } from './tokenEstimate';
 
 const PORT = Number(process.env.PORT) || 8790;
 const INTERNAL_SECRET = process.env.INTERNAL_SERVICE_SECRET ?? '';
 
-// Load config and create provider at startup — throws if misconfigured.
 const aiConfig = loadAIConfig();
 const provider = createProvider(aiConfig);
 
 const json50mb = express.json({ limit: '50mb' });
 
-// In-memory analytics (reset on restart)
 let totalRequestsProcessed = 0;
 let totalTokensConsumed = 0;
 
@@ -41,7 +39,7 @@ app.get('/health', (_req, res) => {
       ? Boolean(process.env.GROQ_API_KEY)
       : aiConfig.provider === 'claude'
         ? Boolean(process.env.ANTHROPIC_API_KEY)
-        : true; // mock provider has no key requirement
+        : true;
 
   const providerStatus = provider.getProviderStatus?.() ?? null;
 
@@ -64,71 +62,90 @@ app.get('/health', (_req, res) => {
 });
 
 app.post(
-  '/v1/parse-screenplay-text',
+  '/v1/enrich-screenplay-import',
   json50mb,
   async (req, res) => {
     if (!requireSecret(req, res)) return;
 
-    const plainText = req.body?.plainText;
-    if (typeof plainText !== 'string') {
-      res.status(400).json({ error: 'Missing or invalid plainText' });
-      return;
-    }
-    if (plainText.length > MAX_PLAINTEXT_CHARS) {
-      res
-        .status(400)
-        .json({ error: `plainText exceeds ${MAX_PLAINTEXT_CHARS} characters` });
-      return;
-    }
-    if (!plainText.trim()) {
-      res
-        .status(400)
-        .json({ error: 'No extractable text (scanned PDF?). Use a text-based PDF.' });
-      return;
-    }
-
-    // Pre-flight cost budget check — reject before any API call
-    const inputTokenEstimate = calculateRoughTokenEstimate(
-      plainText,
-      aiConfig.activeLimits.tokensPerChar,
-    );
-    if (inputTokenEstimate > aiConfig.maxInputTokensPerRequest) {
+    const rawBody = JSON.stringify(req.body ?? {});
+    if (rawBody.length > MAX_ENRICHMENT_BODY_CHARS) {
       res.status(413).json({
-        error: `Input too large: ~${inputTokenEstimate} estimated tokens exceeds maxInputTokensPerRequest=${aiConfig.maxInputTokensPerRequest}`,
+        error: `Request body exceeds ${MAX_ENRICHMENT_BODY_CHARS} characters`,
       });
       return;
     }
 
-    const pageCountRaw = req.body?.pageCount;
-    const pageCount =
-      typeof pageCountRaw === 'number' &&
-      Number.isFinite(pageCountRaw) &&
-      pageCountRaw >= 0
-        ? Math.floor(pageCountRaw)
-        : 0;
+    const characterNamesRaw = req.body?.characterNames;
+    const scenesRaw = req.body?.scenes;
+
+    if (!Array.isArray(characterNamesRaw) || !Array.isArray(scenesRaw)) {
+      res.status(400).json({ error: 'Expected characterNames[] and scenes[]' });
+      return;
+    }
+
+    const characterNames = characterNamesRaw.filter(
+      (n: unknown): n is string => typeof n === 'string',
+    );
+    const scenes: Array<{
+      index: number;
+      sceneHeading: string;
+      synopsis?: string;
+      scenePlainText: string;
+    }> = [];
+
+    for (const row of scenesRaw) {
+      if (row === null || typeof row !== 'object' || Array.isArray(row)) {
+        res.status(400).json({ error: 'Invalid scenes[] entry' });
+        return;
+      }
+      const r = row as Record<string, unknown>;
+      if (typeof r.index !== 'number' || !Number.isFinite(r.index)) {
+        res.status(400).json({ error: 'Each scene needs numeric index' });
+        return;
+      }
+      if (typeof r.sceneHeading !== 'string' || !r.sceneHeading.trim()) {
+        res.status(400).json({ error: 'Each scene needs sceneHeading string' });
+        return;
+      }
+      if (typeof r.scenePlainText !== 'string') {
+        res.status(400).json({ error: 'Each scene needs scenePlainText string' });
+        return;
+      }
+      let synopsis: string | undefined;
+      if (typeof r.synopsis === 'string' && r.synopsis.trim()) {
+        synopsis = r.synopsis.trim();
+      }
+      scenes.push({
+        index: Math.floor(r.index),
+        sceneHeading: r.sceneHeading.trim(),
+        synopsis,
+        scenePlainText: r.scenePlainText,
+      });
+    }
+
+    const inputTokenEstimate = calculateRoughTokenEstimate(
+      rawBody,
+      aiConfig.activeLimits.tokensPerChar,
+    );
+    if (inputTokenEstimate > aiConfig.maxInputTokensPerRequest) {
+      res.status(413).json({
+        error: `Payload too large: ~${inputTokenEstimate} estimated tokens exceeds maxInputTokensPerRequest=${aiConfig.maxInputTokensPerRequest}`,
+      });
+      return;
+    }
 
     const projectId =
       typeof req.body?.projectId === 'string' ? req.body.projectId : undefined;
-
     const correlationId = crypto.randomUUID();
 
     try {
-      const result = await parseScreenplay({
-        plainText,
-        pageCount,
+      const result = await enrichScreenplayImport({
         provider,
         providerName: aiConfig.provider,
         model: aiConfig.model,
-        maxChunkChars: aiConfig.activeLimits.chunkMaxChars,
-        maxOutputTokensPerChunk: aiConfig.activeLimits.maxOutputTokensPerChunk,
-        contextWindowTokens: aiConfig.activeLimits.contextWindowTokens,
-        tokensPerChar: aiConfig.activeLimits.tokensPerChar,
-        chunkInterDelayMs: aiConfig.chunkInterDelayMs,
-        temperature: aiConfig.temperature,
-        requestTimeoutMs: aiConfig.requestTimeoutMs,
-        maxConcurrency: aiConfig.maxConcurrency,
-        maxTotalChunksPerRequest: aiConfig.maxTotalChunksPerRequest,
-        maxTotalTokensPerRequest: aiConfig.maxTotalTokensPerRequest,
+        aiConfig,
+        characterNames,
+        scenes,
         correlationId,
         projectId,
       });
@@ -138,26 +155,21 @@ app.post(
         result.totalUsage.promptTokens + result.totalUsage.completionTokens;
 
       res.json({
-        doc: result.doc,
-        pageCount: result.pageCount,
-        titleHint: result.titleHint,
-        logline: result.logline,
-        authors: result.authors,
-        genre: result.genre,
         characters: result.characters,
-        scenes: result.scenes,
-        status: result.status,
-        unprocessedChunkIndices: result.unprocessedChunkIndices,
+        sceneAnalyses: result.sceneAnalyses,
+        warnings: result.warnings,
         totalUsage: result.totalUsage,
       });
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Parse failed';
-      console.error(JSON.stringify({
-        event: 'request_error',
-        correlationId,
-        projectId: projectId ?? null,
-        message,
-      }));
+      const message = e instanceof Error ? e.message : 'Enrichment failed';
+      console.error(
+        JSON.stringify({
+          event: 'enrichment_request_error',
+          correlationId,
+          projectId: projectId ?? null,
+          message,
+        }),
+      );
       res.status(500).json({ error: message });
     }
   },
@@ -167,24 +179,28 @@ const HOST = process.env.HOST?.trim();
 
 if (HOST) {
   app.listen(PORT, HOST, () => {
-    console.log(JSON.stringify({
-      event: 'startup',
-      service: 'writual-ai',
-      provider: aiConfig.provider,
-      model: aiConfig.model,
-      host: HOST,
-      port: PORT,
-    }));
+    console.log(
+      JSON.stringify({
+        event: 'startup',
+        service: 'writual-ai',
+        provider: aiConfig.provider,
+        model: aiConfig.model,
+        host: HOST,
+        port: PORT,
+      }),
+    );
   });
 } else {
   app.listen(PORT, () => {
-    console.log(JSON.stringify({
-      event: 'startup',
-      service: 'writual-ai',
-      provider: aiConfig.provider,
-      model: aiConfig.model,
-      port: PORT,
-      binding: 'dual-stack',
-    }));
+    console.log(
+      JSON.stringify({
+        event: 'startup',
+        service: 'writual-ai',
+        provider: aiConfig.provider,
+        model: aiConfig.model,
+        port: PORT,
+        binding: 'dual-stack',
+      }),
+    );
   });
 }

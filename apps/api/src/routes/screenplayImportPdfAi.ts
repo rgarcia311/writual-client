@@ -9,20 +9,24 @@ import { requireTier } from '../utils/tierUtils';
 import { saveScreenplay } from '../mutations/project-mutations';
 import { createCharacter as createCharacterService } from '../services/CharacterService';
 import { createScene as createSceneService } from '../services/SceneService';
-
-/** Must match writual-ai `MAX_PLAINTEXT_CHARS`. */
-const MAX_AI_PLAINTEXT_CHARS = 200_000;
+import {
+  extractDialogueCueCharacters,
+  extractOutlineScenesForEnrichment,
+} from '../lib/entitiesFromScreenplayDoc';
 
 const AI_REQUEST_TIMEOUT_MS = 600_000;
 
 const json50mb = express.json({ limit: '50mb' });
 
-interface AiParseJson {
-  doc?: unknown;
-  pageCount?: number;
-  titleHint?: string | null;
-  characters?: Array<{ name: string }>;
-  scenes?: Array<{ sceneHeading: string; synopsis?: string }>;
+interface EnrichScreenplayImportResponse {
+  characters?: Array<{ name?: string }>;
+  sceneAnalyses?: Array<{
+    index?: number;
+    thesis?: string;
+    antithesis?: string;
+    synthesis?: string;
+  }>;
+  warnings?: string[];
 }
 
 function getAiConfig(): { baseUrl: string; secret: string } | null {
@@ -32,16 +36,15 @@ function getAiConfig(): { baseUrl: string; secret: string } | null {
   return { baseUrl, secret };
 }
 
-async function forwardPlainTextToAi(
-  plainText: string,
-  pageCount: number,
-): Promise<AiParseJson> {
+async function forwardEnrichmentToAi(
+  body: Record<string, unknown>,
+): Promise<EnrichScreenplayImportResponse> {
   const cfg = getAiConfig();
   if (!cfg) {
     throw new Error('AI service not configured');
   }
 
-  const url = `${cfg.baseUrl}/v1/parse-screenplay-text`;
+  const url = `${cfg.baseUrl}/v1/enrich-screenplay-import`;
 
   let upstream: globalThis.Response;
   try {
@@ -51,7 +54,7 @@ async function forwardPlainTextToAi(
         'Content-Type': 'application/json',
         'X-Writual-Internal-Secret': cfg.secret,
       },
-      body: JSON.stringify({ plainText, pageCount }),
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS),
     });
   } catch (e) {
@@ -72,19 +75,22 @@ async function forwardPlainTextToAi(
   }
 
   const text = await upstream.text();
-  let body: unknown;
+  let parsed: unknown;
   try {
-    body = text ? JSON.parse(text) : {};
+    parsed = text ? JSON.parse(text) : {};
   } catch {
     throw new Error(`AI service returned non-JSON (${upstream.status})`);
   }
 
   if (!upstream.ok) {
-    const err = (body as { error?: string })?.error ?? text;
+    const err = (parsed as { error?: string })?.error ?? text;
     throw new Error(typeof err === 'string' ? err : `AI service error ${upstream.status}`);
   }
 
-  return body as AiParseJson;
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Invalid AI enrichment response');
+  }
+  return parsed as EnrichScreenplayImportResponse;
 }
 
 export function registerScreenplayImportPdfAiRoute(app: Express): void {
@@ -131,22 +137,9 @@ export function registerScreenplayImportPdfAiRoute(app: Express): void {
         throw e;
       }
 
-      const plainText = req.body?.plainText;
-      if (typeof plainText !== 'string') {
-        res.status(400).json({ error: 'Missing or invalid plainText' });
-        return;
-      }
-      if (plainText.length > MAX_AI_PLAINTEXT_CHARS) {
-        res.status(400).json({
-          error: `Screenplay text exceeds ${MAX_AI_PLAINTEXT_CHARS} characters`,
-        });
-        return;
-      }
-      if (!plainText.trim()) {
-        res.status(400).json({
-          error:
-            'No extractable text (scanned PDF?). Use a text-based PDF.',
-        });
+      const doc = req.body?.doc;
+      if (!doc || typeof doc !== 'object' || doc === null) {
+        res.status(400).json({ error: 'Missing or invalid doc' });
         return;
       }
 
@@ -158,22 +151,6 @@ export function registerScreenplayImportPdfAiRoute(app: Express): void {
           ? Math.floor(pageCountRaw)
           : 0;
 
-      let parsed: AiParseJson;
-      try {
-        parsed = await forwardPlainTextToAi(plainText, pageCount);
-      } catch (e) {
-        const message = e instanceof Error ? e.message : 'AI parse failed';
-        console.error('[import-pdf-ai] forward to AI:', message);
-        res.status(502).json({ error: message });
-        return;
-      }
-
-      const doc = parsed.doc;
-      if (!doc || typeof doc !== 'object') {
-        res.status(502).json({ error: 'AI response missing doc' });
-        return;
-      }
-
       try {
         await saveScreenplay(null, { projectId, content: doc });
       } catch (e) {
@@ -182,24 +159,68 @@ export function registerScreenplayImportPdfAiRoute(app: Express): void {
         return;
       }
 
-      const pageCountOut =
-        typeof parsed.pageCount === 'number' && Number.isFinite(parsed.pageCount)
-          ? parsed.pageCount
-          : undefined;
-      if (pageCountOut != null && pageCountOut >= 0) {
-        await Projects.findByIdAndUpdate(projectId, {
-          $set: { pageCountEstimate: pageCountOut },
-        }).exec();
+      await Projects.findByIdAndUpdate(projectId, {
+        $set: { pageCountEstimate: pageCount },
+      }).exec();
+
+      const deterministicChars = extractDialogueCueCharacters(doc);
+      const outlineScenes = extractOutlineScenesForEnrichment(doc);
+
+      let finalChars = deterministicChars;
+      let sceneAnalyses: NonNullable<EnrichScreenplayImportResponse['sceneAnalyses']> = [];
+      const enrichmentWarnings: string[] = [];
+
+      try {
+        const enriched = await forwardEnrichmentToAi({
+          projectId,
+          characterNames: deterministicChars.map((c) => c.name),
+          scenes: outlineScenes.map((s) => ({
+            index: s.index,
+            sceneHeading: s.sceneHeading,
+            synopsis: s.synopsis,
+            scenePlainText: s.scenePlainText,
+          })),
+        });
+        const aiChars =
+          Array.isArray(enriched.characters) && enriched.characters.length > 0
+            ? enriched.characters
+                .filter((c) => c && typeof c.name === 'string' && c.name.trim() !== '')
+                .map((c) => ({ name: (c.name as string).trim() }))
+            : [];
+        if (aiChars.length > 0) {
+          finalChars = aiChars;
+        } else {
+          finalChars = deterministicChars;
+        }
+        sceneAnalyses = Array.isArray(enriched.sceneAnalyses) ? enriched.sceneAnalyses : [];
+        if (Array.isArray(enriched.warnings)) {
+          enrichmentWarnings.push(...enriched.warnings);
+        }
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'AI enrichment unavailable';
+        console.error('[import-pdf-ai] forward to AI:', message);
+        enrichmentWarnings.push(message);
+        finalChars = deterministicChars;
+        sceneAnalyses = [];
       }
 
-      const characters = Array.isArray(parsed.characters) ? parsed.characters : [];
-      const scenes = Array.isArray(parsed.scenes) ? parsed.scenes : [];
+      const analysisByIndex = new Map<number, NonNullable<(typeof sceneAnalyses)[number]>>();
+      for (const a of sceneAnalyses) {
+        if (
+          !a ||
+          typeof a.index !== 'number' ||
+          !Number.isFinite(a.index)
+        ) {
+          continue;
+        }
+        analysisByIndex.set(Math.floor(a.index), a);
+      }
 
       const entityErrors: string[] = [];
       let charactersCreated = 0;
       let scenesCreated = 0;
 
-      for (const c of characters) {
+      for (const c of finalChars) {
         const name = typeof c?.name === 'string' ? c.name.trim() : '';
         if (!name) continue;
         try {
@@ -215,14 +236,15 @@ export function registerScreenplayImportPdfAiRoute(app: Express): void {
         }
       }
 
-      for (const s of scenes) {
-        const sceneHeading =
-          typeof s?.sceneHeading === 'string' ? s.sceneHeading.trim() : '';
+      for (const meta of outlineScenes) {
+        const sceneHeading = meta.sceneHeading.trim();
         if (!sceneHeading) continue;
         const synopsis =
-          typeof s?.synopsis === 'string' && s.synopsis.trim()
-            ? s.synopsis.trim()
+          typeof meta.synopsis === 'string' && meta.synopsis.trim()
+            ? meta.synopsis.trim()
             : undefined;
+        const ana = analysisByIndex.get(meta.index);
+
         try {
           await createSceneService(projectId, {
             activeVersion: 1,
@@ -231,15 +253,23 @@ export function registerScreenplayImportPdfAiRoute(app: Express): void {
                 version: 1,
                 sceneHeading,
                 synopsis,
+                thesis:
+                  ana && typeof ana.thesis === 'string' ? ana.thesis.trim() : undefined,
+                antithesis:
+                  ana && typeof ana.antithesis === 'string'
+                    ? ana.antithesis.trim()
+                    : undefined,
+                synthesis:
+                  ana && typeof ana.synthesis === 'string'
+                    ? ana.synthesis.trim()
+                    : undefined,
               },
             ],
           });
           scenesCreated++;
         } catch (err) {
           const label =
-            sceneHeading.length > 40
-              ? `${sceneHeading.slice(0, 40)}…`
-              : sceneHeading;
+            sceneHeading.length > 40 ? `${sceneHeading.slice(0, 40)}…` : sceneHeading;
           entityErrors.push(
             `scene "${label}": ${err instanceof Error ? err.message : 'failed'}`,
           );
@@ -255,10 +285,13 @@ export function registerScreenplayImportPdfAiRoute(app: Express): void {
           ? (doc as { content: unknown[] }).content
           : [];
 
+      for (const w of enrichmentWarnings.slice(0, 12)) {
+        entityErrors.push(`enrichment: ${w}`);
+      }
+
       res.json({
         ok: true,
-        titleHint:
-          typeof parsed.titleHint === 'string' ? parsed.titleHint : null,
+        titleHint: null,
         screenplayBlockCount: contentArr.length,
         charactersCreated,
         scenesCreated,

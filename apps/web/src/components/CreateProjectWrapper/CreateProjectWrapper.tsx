@@ -14,10 +14,7 @@ import type { OutlineFrameworkItem } from '@/state/outlineFrameworks';
 import { authRequest } from '@/lib/authRequest';
 import { useUserProfileStore } from '@/state/user';
 import { getFirebaseAuth } from '@/lib/firebase';
-import {
-  extractPlainTextForAiScreenplayImport,
-  parseScreenplayPdf,
-} from '@/lib/parseScreenplayPdf';
+import { parseScreenplayPdf } from '@/lib/parseScreenplayPdf';
 import { TIER_RANK, type Tier } from '@/types/tier';
 import { PROJECT_SCENES_QUERY_KEY } from 'hooks';
 
@@ -85,10 +82,8 @@ export function CreateProjectWrapper() {
 
       if (useServerPdf && wantsCompleteWritualProject) {
         try {
-          const { plainText, pageCount } =
-            await extractPlainTextForAiScreenplayImport(pdfFile);
+          const { doc, pageCount } = await parseScreenplayPdf(pdfFile);
           const token = await getFirebaseAuth().currentUser?.getIdToken();
-          // Same-origin path (Next rewrites to API) sends parsed text to writual-ai (no binary hop).
           const r = await fetch('/api/screenplay/import-pdf-ai', {
             method: 'POST',
             headers: {
@@ -97,7 +92,7 @@ export function CreateProjectWrapper() {
             },
             body: JSON.stringify({
               projectId: newProjectId,
-              plainText,
+              doc,
               pageCount,
             }),
             signal: AbortSignal.timeout(600_000),

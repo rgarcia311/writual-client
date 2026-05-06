@@ -103,9 +103,16 @@ export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
       }
     }
 
-    // Title + author group: centered, starting ~1/3 down the page
+    // Title + author group: centered, starting ~1/3 down the page.
+    // Each block is separated by one blank line (LINE_HEIGHT_IN) to mirror the
+    // CSS padding-bottom:12pt applied to title/author blocks in the editor.
     let tay = 3.5
+    let isFirstTitleBlock = true
     for (const { text } of titleAuthorLines) {
+      if (!isFirstTitleBlock) {
+        tay += LINE_HEIGHT_IN // one blank line between successive title-area blocks
+      }
+      isFirstTitleBlock = false
       const lines = doc.splitTextToSize(text || ' ', 5.0)
       for (const line of lines) {
         doc.text(line, 4.25, tay, { align: 'center', maxWidth: 5.0 })
@@ -113,12 +120,14 @@ export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
       }
     }
 
-    // Contact info: bottom-left
+    // Contact info: bottom-left. Use the full LAYOUT width so that a single-line
+    // address (one contact block = one PDF line) is never word-wrapped.
+    const contactSpec = LAYOUT['contact']
     let cy = 9.0
     for (const { text } of contactLines) {
-      const lines = doc.splitTextToSize(text || ' ', 3.0)
+      const lines = doc.splitTextToSize(text || ' ', contactSpec.w)
       for (const line of lines) {
-        doc.text(line, 1.5, cy)
+        doc.text(line, contactSpec.x, cy)
         cy += LINE_HEIGHT_IN
       }
     }

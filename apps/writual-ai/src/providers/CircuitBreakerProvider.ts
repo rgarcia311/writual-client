@@ -1,4 +1,10 @@
-import type { AIProvider, CircuitState, CompletionParams, CompletionResult, ProviderStatus } from './types';
+import type {
+  AIProvider,
+  CircuitState,
+  JsonEnrichmentParams,
+  JsonEnrichmentResult,
+  ProviderStatus,
+} from './types';
 import type { CircuitBreakerConfig } from '../aiConfig';
 
 export class CircuitBreakerProvider implements AIProvider {
@@ -12,7 +18,9 @@ export class CircuitBreakerProvider implements AIProvider {
     private readonly cfg: CircuitBreakerConfig,
   ) {}
 
-  async generateCompletion(params: CompletionParams): Promise<CompletionResult> {
+  async generateJsonEnrichment(
+    params: JsonEnrichmentParams,
+  ): Promise<JsonEnrichmentResult> {
     if (this.state === 'OPEN') {
       if (Date.now() < (this.openUntil ?? 0)) {
         throw new Error(
@@ -31,12 +39,14 @@ export class CircuitBreakerProvider implements AIProvider {
     }
 
     try {
-      const result = await this.inner.generateCompletion(params);
+      const result = await this.inner.generateJsonEnrichment(params);
       this.record(true);
       if (this.state === 'HALF_OPEN') {
         this.state = 'CLOSED';
         this.halfOpenInProgress = false;
-        console.log(JSON.stringify({ event: 'circuit_closed', correlationId: params.correlationId }));
+        console.log(
+          JSON.stringify({ event: 'circuit_closed', correlationId: params.correlationId }),
+        );
       }
       return result;
     } catch (e) {
@@ -55,16 +65,18 @@ export class CircuitBreakerProvider implements AIProvider {
     if (this.recentOutcomes.length > this.cfg.windowSize) this.recentOutcomes.shift();
 
     if (this.state === 'CLOSED' && this.recentOutcomes.length >= this.cfg.windowSize) {
-      const errors = this.recentOutcomes.filter(s => !s).length;
+      const errors = this.recentOutcomes.filter((s) => !s).length;
       const rate = errors / this.recentOutcomes.length;
       if (rate >= this.cfg.errorThresholdRate) {
         this.state = 'OPEN';
         this.openUntil = Date.now() + this.cfg.cooldownMs;
-        console.error(JSON.stringify({
-          event: 'circuit_open',
-          errorRate: rate,
-          cooldownMs: this.cfg.cooldownMs,
-        }));
+        console.error(
+          JSON.stringify({
+            event: 'circuit_open',
+            errorRate: rate,
+            cooldownMs: this.cfg.cooldownMs,
+          }),
+        );
       }
     }
   }
@@ -72,7 +84,7 @@ export class CircuitBreakerProvider implements AIProvider {
   getProviderStatus(): ProviderStatus {
     const innerStatus = this.inner.getProviderStatus?.();
     const n = this.recentOutcomes.length;
-    const errors = this.recentOutcomes.filter(s => !s).length;
+    const errors = this.recentOutcomes.filter((s) => !s).length;
     return {
       isReady: this.state === 'CLOSED',
       circuitState: this.state,

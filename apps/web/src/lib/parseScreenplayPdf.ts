@@ -1,9 +1,6 @@
 import type { ScreenplayElementType } from '@/components/ScreenplayEditor/ScreenplayExtension'
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20 MB
-/** Must match writual-ai / API `MAX_PLAINTEXT_CHARS` for AI import. */
-const MAX_AI_PLAINTEXT_CHARS = 200_000
-
 interface TextItem {
   str: string
   transform: number[] // [scaleX, skewX, skewY, scaleY, x, y]
@@ -70,9 +67,22 @@ function isAllCaps(text: string): boolean {
 }
 
 const TITLE_PAGE_NOISE_RE =
-  /^(written\s+by|by\b|draft|revised|revision|copyright|©|\d{1,2}[\/\-]\d|wga\b|registered|contact|address|phone|email|tel\b|fax\b|based\s+on|adapted)/i
+  /^(written\s+by|screenplay\s+by|story\s+by|by\b|draft|revised|revision|copyright|©|\d{1,2}[\/\-]\d|wga\b|registered|contact|address|phone|email|tel\b|fax\b|based\s+on|based\s+upon|adapted)/i
 
-const WRITTEN_BY_RE = /^(written\s+by|by)\b/i
+const WRITTEN_BY_RE = /^(written\s+by|screenplay\s+by|story\s+by|by)\b/i
+
+const BASED_ON_RE = /^(based\s+on|based\s+upon|adapted\s+from)\b/i
+
+/**
+ * Matches common date formats found on title pages.
+ * Intentionally excludes bare 4-digit years to avoid swallowing numerical titles
+ * like "1917", "1984", or "2001".
+ */
+const DATE_LINE_RE =
+  /^(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+(\d{1,2}(?:st|nd|rd|th)?,?\s+)?\d{4}$|^(spring|summer|fall|winter|autumn)\s+\d{4}$|^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/i
+
+/** Fraction of the page's Y range (bottom-up) that is treated as the contact/date corner zone. */
+const CONTACT_ZONE_FRACTION = 0.18
 
 /**
  * Matches common contact-info patterns: phone numbers, postal addresses
@@ -106,17 +116,40 @@ function extractTitleFromTitlePage(lines: LineGroup[]): string | null {
   const pageWidth = Math.max(...lines.map((l) => l.x)) + 200
   const center = pageWidth / 2
 
+  const yValues = lines.map((l) => l.y)
+  const yMin = Math.min(...yValues)
+  const yMax = Math.max(...yValues)
+  const pageRange = yMax - yMin
+  const contactYThreshold =
+    pageRange > 0 ? yMin + pageRange * CONTACT_ZONE_FRACTION : -Infinity
+
+  // Centered lines that are not in the bottom contact corner
   const centeredLines = lines.filter((line) => {
     const estimatedLineWidth = line.text.length * 5.5
     const lineCenter = line.x + estimatedLineWidth / 2
-    return Math.abs(lineCenter - center) < 80
+    return Math.abs(lineCenter - center) < 80 && line.y >= contactYThreshold
   })
 
+  // s === s.toUpperCase() treats numeric titles (e.g. "1917") as "all caps"
+  const looksAllCaps = (s: string) => s === s.toUpperCase()
+
+  // Pass 1: prefer an ALL CAPS centered line (standard title format)
   for (const line of centeredLines) {
     const text = line.text.trim()
     if (!text || text.length < 2) continue
     if (TITLE_PAGE_NOISE_RE.test(text)) continue
     if (PAGE_NUMBER_RE.test(text)) continue
+    if (DATE_LINE_RE.test(text)) continue
+    if (looksAllCaps(text)) return text
+  }
+
+  // Pass 2: fallback — first non-noise, non-date centered line
+  for (const line of centeredLines) {
+    const text = line.text.trim()
+    if (!text || text.length < 2) continue
+    if (TITLE_PAGE_NOISE_RE.test(text)) continue
+    if (PAGE_NUMBER_RE.test(text)) continue
+    if (DATE_LINE_RE.test(text)) continue
     return text
   }
 
@@ -202,8 +235,10 @@ function makeBlock(elementType: ScreenplayElementType, text: string): ScriptBloc
  * blocks. Lines are already sorted top-to-bottom by the page parser.
  *
  * Strategy:
- *  - Lines matching contact patterns (phone, address, email) → contact
- *  - Lines matching "Written by" / "by" → author
+ *  - Date lines (month/season patterns) → skipped (spec scripts omit dates)
+ *  - Bottom-corner lines (Y < contactYThreshold) or contact patterns → contact
+ *  - Lines matching "written by" / "screenplay by" / "story by" / "by" → author
+ *  - Lines matching "based on…" / "adapted from…" → author (preserved credits)
  *  - First non-noise, non-page-number line → title
  *  - Subsequent non-contact, non-noise lines → author
  */
@@ -211,17 +246,35 @@ function parseTitlePageLines(lines: LineGroup[]): ScriptBlockNode[] {
   const blocks: ScriptBlockNode[] = []
   let foundTitle = false
 
+  // PDF Y-axis is bottom-up; compute zone thresholds from the text range on this page.
+  const yValues = lines.map((l) => l.y)
+  const yMin = yValues.length > 0 ? Math.min(...yValues) : 0
+  const yMax = yValues.length > 0 ? Math.max(...yValues) : 0
+  const pageRange = yMax - yMin
+  const contactYThreshold =
+    pageRange > 0 ? yMin + pageRange * CONTACT_ZONE_FRACTION : -Infinity
+
   for (const line of lines) {
     const text = line.text.trim()
     if (!text || text.length < 2) continue
     if (PAGE_NUMBER_RE.test(text)) continue
 
-    if (CONTACT_LINE_RE.test(text)) {
+    // Skip date lines — spec scripts should omit dates to avoid dating the material
+    if (DATE_LINE_RE.test(text)) continue
+
+    // Bottom-corner lines → contact (covers name-only lines with no email/phone pattern)
+    if (line.y < contactYThreshold || CONTACT_LINE_RE.test(text)) {
       blocks.push(makeBlock('contact', text))
       continue
     }
 
     if (WRITTEN_BY_RE.test(text)) {
+      blocks.push(makeBlock('author', text))
+      continue
+    }
+
+    // "Based on…" is a valid credits line; preserve it as author before noise guard fires
+    if (BASED_ON_RE.test(text)) {
       blocks.push(makeBlock('author', text))
       continue
     }
@@ -233,7 +286,7 @@ function parseTitlePageLines(lines: LineGroup[]): ScriptBlockNode[] {
       continue
     }
 
-    // After the title: skip copyright / date noise; remaining lines are author names
+    // After the title: skip noise; remaining lines are author names
     if (!TITLE_PAGE_NOISE_RE.test(text)) {
       blocks.push(makeBlock('author', text))
     }
@@ -381,101 +434,4 @@ export async function parseScreenplayPdf(file: File): Promise<{
     pageCount,
     title,
   }
-}
-
-/**
- * Full-document plain text for server-side AI structuring (one logical line per PDF line, `\n` between lines).
- * Includes all pages (e.g. title page). Does not build TipTap `doc` — Groq does that.
- */
-export async function extractPlainTextForAiScreenplayImport(file: File): Promise<{
-  plainText: string
-  pageCount: number
-}> {
-  if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
-    throw new Error('Please select a PDF file.')
-  }
-
-  if (file.size > MAX_FILE_SIZE) {
-    throw new Error(
-      `File size (${(file.size / 1024 / 1024).toFixed(1)}MB) exceeds the 20MB limit.`,
-    )
-  }
-
-  const { getDocument, GlobalWorkerOptions } = await import('pdfjs-dist')
-  GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
-
-  const arrayBuffer = await file.arrayBuffer()
-  const pdf = await getDocument({ data: arrayBuffer }).promise
-  const pageCount = pdf.numPages
-
-  const outLines: string[] = []
-
-  for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
-    const page = await pdf.getPage(pageNum)
-    const textContent = await page.getTextContent()
-
-    const items = (textContent.items as TextItem[]).filter(
-      (item) => item.str.trim().length > 0,
-    )
-
-    if (items.length === 0) continue
-
-    const lineMap = new Map<number, Array<{ x: number; str: string }>>()
-
-    for (const item of items) {
-      const x = Math.round(item.transform[4])
-      const y = Math.round(item.transform[5])
-
-      let matchedY: number | null = null
-      for (const existingY of Array.from(lineMap.keys())) {
-        if (Math.abs(existingY - y) <= 3) {
-          matchedY = existingY
-          break
-        }
-      }
-
-      const key = matchedY ?? y
-      const existing = lineMap.get(key)
-      if (existing) {
-        existing.push({ x, str: item.str })
-      } else {
-        lineMap.set(key, [{ x, str: item.str }])
-      }
-    }
-
-    const pageLines: LineGroup[] = Array.from(lineMap.entries())
-      .sort(([yA], [yB]) => yB - yA)
-      .map(([y, rowItems]) => ({
-        x: Math.min(...rowItems.map((r) => r.x)),
-        y,
-        text: joinTextRunsToLine(rowItems),
-      }))
-      .filter((line) => line.text.length > 0)
-
-    const filtered = pageLines.filter((line) => {
-      if (PAGE_NUMBER_RE.test(line.text.trim())) return false
-      if (/^page\s+\d+/i.test(line.text.trim())) return false
-      return true
-    })
-
-    for (const line of filtered) {
-      outLines.push(line.text.trim())
-    }
-  }
-
-  const plainText = outLines.join('\n')
-
-  if (!plainText.trim()) {
-    throw new Error(
-      'No extractable text (scanned PDF?). Use a text-based PDF.',
-    )
-  }
-
-  if (plainText.length > MAX_AI_PLAINTEXT_CHARS) {
-    throw new Error(
-      `This screenplay is too long after extraction (${plainText.length} characters). Max is ${MAX_AI_PLAINTEXT_CHARS}.`,
-    )
-  }
-
-  return { plainText, pageCount }
 }

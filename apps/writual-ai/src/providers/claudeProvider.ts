@@ -1,55 +1,55 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { AIProvider, CompletionParams, CompletionResult, CompletionUsage, ProviderStatus } from './types';
-import { normalizeChunkPayload } from '../chunkNormalize';
-import { groqChunkResponseSchema } from '../screenplaySchema';
+import type {
+  AIProvider,
+  JsonEnrichmentParams,
+  JsonEnrichmentResult,
+  CompletionUsage,
+  ProviderStatus,
+} from './types';
 
 const PROVIDER_NAME = 'claude';
 const WINDOW = 20;
 
-const SCREENPLAY_CHUNK_TOOL: Anthropic.Tool = {
-  name: 'format_screenplay_chunk',
-  description: 'Output the parsed screenplay chunk as structured JSON.',
+const CHARACTER_ENRICHMENT_TOOL: Anthropic.Tool = {
+  name: 'screenplay_character_refine',
+  description: 'Return refined screenplay character cues as JSON.',
   input_schema: {
     type: 'object',
     properties: {
-      content: {
+      characters: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: { name: { type: 'string' } },
+          required: ['name'],
+        },
+      },
+    },
+    required: ['characters'],
+  },
+};
+
+const SCENE_ENRICHMENT_TOOL: Anthropic.Tool = {
+  name: 'screenplay_scene_batch_enrich',
+  description: 'Return thesis/antithesis/synthesis per scene index for this batch.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      sceneAnalyses: {
         type: 'array',
         items: {
           type: 'object',
           properties: {
-            type: { type: 'string', enum: ['scriptBlock'] },
-            attrs: {
-              type: 'object',
-              properties: {
-                elementType: {
-                  type: 'string',
-                  enum: ['action', 'slugline', 'character', 'parenthetical', 'dialogue', 'transition'],
-                },
-              },
-              required: ['elementType'],
-            },
-            content: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  type: { type: 'string', enum: ['text'] },
-                  text: { type: 'string' },
-                },
-                required: ['type', 'text'],
-              },
-              minItems: 1,
-            },
+            index: { type: 'number' },
+            thesis: { type: 'string' },
+            antithesis: { type: 'string' },
+            synthesis: { type: 'string' },
           },
-          required: ['type', 'attrs', 'content'],
+          required: ['index', 'thesis', 'antithesis', 'synthesis'],
         },
       },
-      titleHint: { type: 'string' },
-      logline: { type: 'string' },
-      authors: { type: 'array', items: { type: 'string' } },
-      genre: { type: 'string' },
     },
-    required: ['content'],
+    required: ['sceneAnalyses'],
   },
 };
 
@@ -71,13 +71,22 @@ export class ClaudeProvider implements AIProvider {
     if (!key) throw new Error('ANTHROPIC_API_KEY env var is not set');
   }
 
-  async generateCompletion(params: CompletionParams): Promise<CompletionResult> {
-    const estimatedInput = Math.ceil(params.userMessage.length * params.tokensPerChar);
+  async generateJsonEnrichment(
+    params: JsonEnrichmentParams,
+  ): Promise<JsonEnrichmentResult> {
+    const estimatedInput = Math.ceil(
+      (params.systemPrompt.length + params.userMessage.length) * params.tokensPerChar,
+    );
     if (estimatedInput + params.maxOutputTokens > params.contextWindowTokens * 0.85) {
       throw new Error(
-        `Chunk ~${estimatedInput} estimated tokens exceeds 85% of ${params.contextWindowTokens} context window for "${params.model}". Lower chunkMaxChars in ai-config.json.`,
+        `Enrichment input ~${estimatedInput} estimated tokens exceeds 85% of ${params.contextWindowTokens} context window for "${params.model}".`,
       );
     }
+
+    const tool =
+      params.kind === 'character_refine'
+        ? CHARACTER_ENRICHMENT_TOOL
+        : SCENE_ENRICHMENT_TOOL;
 
     const systemContent: Anthropic.TextBlockParam =
       this.cachingEnabled
@@ -91,8 +100,8 @@ export class ClaudeProvider implements AIProvider {
         max_tokens: params.maxOutputTokens,
         temperature: params.temperature,
         system: [systemContent],
-        tools: [SCREENPLAY_CHUNK_TOOL],
-        tool_choice: { type: 'tool', name: 'format_screenplay_chunk' },
+        tools: [tool],
+        tool_choice: { type: 'tool', name: tool.name },
         messages: [{ role: 'user', content: params.userMessage }],
       },
       { signal: AbortSignal.timeout(this.timeoutMs) },
@@ -102,14 +111,8 @@ export class ClaudeProvider implements AIProvider {
     const toolUse = response.content.find(
       (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use',
     );
-    if (!toolUse) {
-      throw new Error('Claude did not call the format_screenplay_chunk tool');
-    }
-
-    const coerced = normalizeChunkPayload(toolUse.input);
-    const validated = groqChunkResponseSchema.safeParse(coerced);
-    if (!validated.success) {
-      throw new Error(`Invalid chunk JSON from Claude: ${validated.error.message}`);
+    if (!toolUse || toolUse.name !== tool.name) {
+      throw new Error(`Claude did not call enrichment tool (${tool.name})`);
     }
 
     const { usage: apiUsage } = response;
@@ -128,36 +131,30 @@ export class ClaudeProvider implements AIProvider {
 
     this.recordResult(latencyMs, true);
 
-    console.log(JSON.stringify({
-      event: 'chunk_complete',
-      correlationId: params.correlationId,
-      projectId: params.projectId ?? null,
-      provider: PROVIDER_NAME,
-      model: params.model,
-      chunkIndex: params.chunkIndex,
-      totalChunks: params.totalChunks,
-      tokens: {
-        prompt: usage.promptTokens,
-        completion: usage.completionTokens,
-        cacheRead: usage.cacheReadTokens ?? null,
-        cacheWrite: usage.cacheCreationTokens ?? null,
-      },
-      latencyMs,
-    }));
+    console.log(
+      JSON.stringify({
+        event: 'enrichment_complete',
+        correlationId: params.correlationId,
+        projectId: params.projectId ?? null,
+        provider: PROVIDER_NAME,
+        model: params.model,
+        kind: params.kind,
+        tokens: {
+          prompt: usage.promptTokens,
+          completion: usage.completionTokens,
+          cacheRead: usage.cacheReadTokens ?? null,
+          cacheWrite: usage.cacheCreationTokens ?? null,
+        },
+        latencyMs,
+      }),
+    );
 
-    return {
-      content: validated.data.content,
-      titleHint: validated.data.titleHint,
-      logline: validated.data.logline,
-      authors: validated.data.authors,
-      genre: validated.data.genre,
-      usage,
-    };
+    return { json: toolUse.input, usage };
   }
 
   getProviderStatus(): ProviderStatus {
     const n = this.recentOutcomes.length;
-    const errors = this.recentOutcomes.filter(s => !s).length;
+    const errors = this.recentOutcomes.filter((s) => !s).length;
     const avgLatencyMs =
       this.recentLatencies.length > 0
         ? this.recentLatencies.reduce((s, v) => s + v, 0) / this.recentLatencies.length

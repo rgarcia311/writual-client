@@ -1,20 +1,4 @@
-import type { ScreenplayDoc } from '../screenplaySchema';
-
-export interface CompletionParams {
-  systemPrompt: string;
-  userMessage: string;
-  model: string;
-  maxOutputTokens: number;
-  temperature: number;
-  requestTimeoutMs: number;
-  contextWindowTokens: number;
-  tokensPerChar: number;
-  chunkIndex: number;
-  totalChunks: number;
-  isLastChunk: boolean;
-  correlationId: string;
-  projectId?: string;
-}
+export type EnrichmentKind = 'character_refine' | 'scene_batch';
 
 export interface CompletionUsage {
   promptTokens: number;
@@ -34,17 +18,27 @@ export interface ProviderStatus {
   totalCompletions: number;
 }
 
-export interface CompletionResult {
-  content: ScreenplayDoc['content'];
-  titleHint?: string | null;
-  logline?: string | null;
-  authors?: string[] | null;
-  genre?: string | null;
-  usage?: CompletionUsage;
+export interface JsonEnrichmentParams {
+  systemPrompt: string;
+  userMessage: string;
+  model: string;
+  maxOutputTokens: number;
+  temperature: number;
+  requestTimeoutMs: number;
+  contextWindowTokens: number;
+  tokensPerChar: number;
+  correlationId: string;
+  projectId?: string;
+  kind: EnrichmentKind;
+}
+
+export interface JsonEnrichmentResult {
+  json: unknown;
+  usage: CompletionUsage;
 }
 
 export interface AIProvider {
-  generateCompletion(params: CompletionParams): Promise<CompletionResult>;
+  generateJsonEnrichment(params: JsonEnrichmentParams): Promise<JsonEnrichmentResult>;
   validateConfig?(): void;
   getProviderStatus?(): ProviderStatus;
   getSupportedModels?(): string[];

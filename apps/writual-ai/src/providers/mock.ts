@@ -1,31 +1,67 @@
-import type { AIProvider, CompletionParams, CompletionResult, ProviderStatus } from './types';
-import type { ScriptBlock } from '../screenplaySchema';
-
-const DEFAULT_BLOCKS: ScriptBlock[] = [
-  {
-    type: 'scriptBlock',
-    attrs: { elementType: 'action' },
-    content: [{ type: 'text', text: 'Mock action block.' }],
-  },
-];
+import type {
+  AIProvider,
+  JsonEnrichmentParams,
+  JsonEnrichmentResult,
+  ProviderStatus,
+} from './types';
 
 export class MockProvider implements AIProvider {
-  private readonly blocks: ScriptBlock[];
+  async generateJsonEnrichment(
+    params: JsonEnrichmentParams,
+  ): Promise<JsonEnrichmentResult> {
+    if (params.kind === 'character_refine') {
+      let names: string[] = [];
+      try {
+        const parsed = JSON.parse(params.userMessage) as { characterNames?: unknown };
+        if (
+          Array.isArray(parsed.characterNames) &&
+          parsed.characterNames.every((n) => typeof n === 'string')
+        ) {
+          names = parsed.characterNames.filter((s) => s.trim().length > 0);
+        }
+      } catch {
+        names = [];
+      }
+      const characters = names.map((name) => ({ name }));
+      return {
+        json: { characters },
+        usage: {
+          promptTokens: 8,
+          completionTokens: 12,
+          latencyMs: 0,
+        },
+      };
+    }
 
-  constructor(blocks?: ScriptBlock[]) {
-    this.blocks = blocks ?? DEFAULT_BLOCKS;
-  }
+    let scenesIn: Array<{ index: number }> = [];
+    try {
+      const parsed = JSON.parse(params.userMessage) as { scenes?: unknown };
+      if (Array.isArray(parsed.scenes)) {
+        for (const row of parsed.scenes) {
+          if (row && typeof row === 'object' && !Array.isArray(row)) {
+            const idx = (row as { index?: unknown }).index;
+            if (typeof idx === 'number' && Number.isFinite(idx)) {
+              scenesIn.push({ index: idx });
+            }
+          }
+        }
+      }
+    } catch {
+      scenesIn = [];
+    }
 
-  async generateCompletion(params: CompletionParams): Promise<CompletionResult> {
+    const sceneAnalyses = scenesIn.map(({ index }) => ({
+      index,
+      thesis: 'Protagonist needs a concrete outcome before the scene ends.',
+      antithesis: 'A rival force shuts down the quickest path.',
+      synthesis: 'They pivot through a risky backup plan. They advance but owe a visible cost.',
+    }));
+
     return {
-      content: this.blocks,
-      titleHint: params.chunkIndex === 0 ? 'Mock Title' : null,
-      logline: params.chunkIndex === 0 ? 'A mock logline for testing.' : null,
-      authors: params.chunkIndex === 0 ? ['Mock Author'] : null,
-      genre: params.chunkIndex === 0 ? 'Drama' : null,
+      json: { sceneAnalyses },
       usage: {
-        promptTokens: 10,
-        completionTokens: 20,
+        promptTokens: 24,
+        completionTokens: 64,
         latencyMs: 0,
       },
     };

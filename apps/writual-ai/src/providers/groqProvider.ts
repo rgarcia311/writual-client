@@ -1,6 +1,12 @@
 import Groq from 'groq-sdk';
-import type { AIProvider, CompletionParams, CompletionResult, CompletionUsage, ProviderStatus } from './types';
-import { parseAndValidateChunkJSON } from '../chunkNormalize';
+import { stripMarkdownJsonWrapper } from '../jsonStrings';
+import type {
+  AIProvider,
+  JsonEnrichmentParams,
+  JsonEnrichmentResult,
+  CompletionUsage,
+  ProviderStatus,
+} from './types';
 
 const PROVIDER_NAME = 'groq';
 const WINDOW = 20;
@@ -21,11 +27,15 @@ export class GroqProvider implements AIProvider {
     if (!key) throw new Error('GROQ_API_KEY env var is not set');
   }
 
-  async generateCompletion(params: CompletionParams): Promise<CompletionResult> {
-    const estimatedInput = Math.ceil(params.userMessage.length * params.tokensPerChar);
+  async generateJsonEnrichment(
+    params: JsonEnrichmentParams,
+  ): Promise<JsonEnrichmentResult> {
+    const estimatedInput = Math.ceil(
+      (params.systemPrompt.length + params.userMessage.length) * params.tokensPerChar,
+    );
     if (estimatedInput + params.maxOutputTokens > params.contextWindowTokens * 0.85) {
       throw new Error(
-        `Chunk ~${estimatedInput} estimated tokens exceeds 85% of ${params.contextWindowTokens} context window for "${params.model}". Lower chunkMaxChars in ai-config.json.`,
+        `Enrichment input ~${estimatedInput} estimated tokens exceeds 85% of ${params.contextWindowTokens} context window for "${params.model}".`,
       );
     }
 
@@ -46,9 +56,15 @@ export class GroqProvider implements AIProvider {
     const latencyMs = Date.now() - start;
 
     const raw = completion.choices[0]?.message?.content;
-    if (!raw) throw new Error('Empty response from Groq');
+    if (!raw) throw new Error('Empty enrichment response from Groq');
 
-    const parsed = parseAndValidateChunkJSON(raw);
+    const sanitized = stripMarkdownJsonWrapper(raw.trim());
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(sanitized) as unknown;
+    } catch {
+      throw new Error('Groq enrichment returned non-JSON');
+    }
 
     const usage: CompletionUsage = {
       promptTokens: completion.usage?.prompt_tokens ?? 0,
@@ -58,29 +74,30 @@ export class GroqProvider implements AIProvider {
 
     this.recordResult(latencyMs, true);
 
-    console.log(JSON.stringify({
-      event: 'chunk_complete',
-      correlationId: params.correlationId,
-      projectId: params.projectId ?? null,
-      provider: PROVIDER_NAME,
-      model: params.model,
-      chunkIndex: params.chunkIndex,
-      totalChunks: params.totalChunks,
-      tokens: {
-        prompt: usage.promptTokens,
-        completion: usage.completionTokens,
-        cacheRead: null,
-        cacheWrite: null,
-      },
-      latencyMs,
-    }));
+    console.log(
+      JSON.stringify({
+        event: 'enrichment_complete',
+        correlationId: params.correlationId,
+        projectId: params.projectId ?? null,
+        provider: PROVIDER_NAME,
+        model: params.model,
+        kind: params.kind,
+        tokens: {
+          prompt: usage.promptTokens,
+          completion: usage.completionTokens,
+          cacheRead: null,
+          cacheWrite: null,
+        },
+        latencyMs,
+      }),
+    );
 
-    return { ...parsed, usage };
+    return { json: parsed, usage };
   }
 
   getProviderStatus(): ProviderStatus {
     const n = this.recentOutcomes.length;
-    const errors = this.recentOutcomes.filter(s => !s).length;
+    const errors = this.recentOutcomes.filter((s) => !s).length;
     const avgLatencyMs =
       this.recentLatencies.length > 0
         ? this.recentLatencies.reduce((s, v) => s + v, 0) / this.recentLatencies.length
