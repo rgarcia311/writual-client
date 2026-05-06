@@ -77,6 +77,7 @@ interface GapOpts {
 }
 
 function createGapElement(opts: GapOpts): HTMLElement {
+  // <PROTECTED>
   const wrapper = document.createElement('div')
   wrapper.className = 'page-break-gap'
   wrapper.contentEditable = 'false'
@@ -111,6 +112,7 @@ function createGapElement(opts: GapOpts): HTMLElement {
   leadingSheet.appendChild(topMargin)
 
   wrapper.append(trailingSheet, gap, leadingSheet)
+  // </PROTECTED>
   return wrapper
 }
 
@@ -345,6 +347,7 @@ export const PageBreakExtension = Extension.create({
           measuring = true
 
           try {
+            // <PROTECTED>
             const workspace = editorView.dom.closest('.screenplay-workspace') as HTMLElement | null
             const savedScrollTop = workspace?.scrollTop ?? 0
             const savedScrollLeft = workspace?.scrollLeft ?? 0
@@ -365,6 +368,7 @@ export const PageBreakExtension = Extension.create({
               workspace.scrollTop = savedScrollTop
               workspace.scrollLeft = savedScrollLeft
             }
+            // </PROTECTED>
           } finally {
             measuring = false
           }

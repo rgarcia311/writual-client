@@ -49,6 +49,7 @@ export function ScreenplayToolbar({ orientation = 'horizontal' }: ScreenplayTool
               value={type}
               aria-label={SCREENPLAY_ELEMENT_LABELS[type]}
               sx={{
+                // <PROTECTED>
                 gap: isVertical ? 0 : 0.5,
                 px: isVertical ? 0.75 : 1.25,
                 py: isVertical ? 0.75 : 0.5,
@@ -57,6 +58,7 @@ export function ScreenplayToolbar({ orientation = 'horizontal' }: ScreenplayTool
                 fontWeight: activeType === type ? 700 : 400,
                 lineHeight: 1.2,
                 minWidth: 0,
+                // </PROTECTED>
               }}
             >
               {ELEMENT_ICONS[type]}

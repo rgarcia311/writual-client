@@ -92,12 +92,13 @@ export function ScreenplaySidePanel({
   return (
     <Box
       sx={{
+        border: "1px solid green",
         display: 'flex',
         flexDirection: 'row',
         alignSelf: 'stretch',
         minHeight: 0,
         minWidth: 0,
-        ...(navigatorSplitProportions ? { flex: '0.7 1 0%' } : { flex: '0 0 auto' }),
+        ...(navigatorSplitProportions ? { flex: '1 1 0%' } : { flex: '0 0 auto' }),
       }}
     >
       {/* ── Tab rail ──────────────────────────────────────────────────── */}
@@ -250,7 +251,6 @@ export function ScreenplaySidePanel({
             ml: `${SIDE_PANEL_LIST_OFFSET_LEFT_PX}px`,
             border: 'none',
             borderRadius: 2,
-            boxShadow: SCREENPLAY_FLOATING_SURFACE_SHADOW,
             overflow: 'hidden',
             transition: theme.transitions.create(['box-shadow', 'border-color'], {
               duration: theme.transitions.duration.shorter,

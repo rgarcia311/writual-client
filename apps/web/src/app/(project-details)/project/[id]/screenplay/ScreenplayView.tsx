@@ -11,6 +11,7 @@ export function ScreenplayView({ projectId }: { projectId: string }) {
     <ProjectDetailsLayout
       accordionAdornment={<ScreenplayHeaderChrome />}
       contentSx={{
+        // <PROTECTED>
         display: 'flex',
         flexDirection: 'column',
         minHeight: 0,
@@ -18,6 +19,7 @@ export function ScreenplayView({ projectId }: { projectId: string }) {
         pt: 0,
         paddingTop: '0 !important',
         overflow: 'hidden',
+        // </PROTECTED>
       }}
     >
       <FeatureGate minTier="spec" variant="page">

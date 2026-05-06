@@ -63,6 +63,7 @@ import { GRAPHQL_ENDPOINT } from '@/lib/config'
 import type { HocuspocusProvider } from '@hocuspocus/provider'
 import type * as Y from 'yjs'
 import './Screenplay.css'
+// <PROTECTED>
 import {
   SCREENPLAY_DISPLAY_SCALE,
   SCREENPLAY_EDITOR_COLUMN_WIDTH_PX,
@@ -72,15 +73,17 @@ import {
   SCREENPLAY_SCROLL_GUTTER_LEFT_PX,
   SCREENPLAY_SCROLL_GUTTER_RIGHT_PX,
 } from './screenplayPaperLayout'
+// </PROTECTED>
 // ─── Scene navigator width (flex — reflows editor; do not use absolute + padding sync) ─
 /**
  * When the list is expanded, the list `Paper` flex-grows within the navigator column (0.7 vs editor 1.3).
  * Do not use overflowX: hidden on the main row to mask editor overflow.
  */
+// <PROTECTED>
 /** Matches `ProjectDetailsLayout` outer `Container` `pl` so the editor can bleed edge-to-edge under the header. */
 const PROJECT_LAYOUT_CONTENT_INSET_LEFT_PX = 13
-/** Extra right inset so `.screenplay-page` box-shadow isn’t lost at the scroll edge. */
-const SCREENPLAY_PAGE_SHADOW_INSET_PX = 12
+/** Small cushion so `.screenplay-page` rim shadow isn’t fully lost at the scroll edge. */
+const SCREENPLAY_PAGE_SHADOW_INSET_PX = 4
 const WORKSPACE_H_INSET_PX = 20 + SCREENPLAY_PAGE_SHADOW_INSET_PX
 
 /** Horizontal insets for the scroll inner that wraps `stageRef`. Left is 0 — the vertical toolbar is the left visual boundary. */
@@ -89,6 +92,7 @@ const SCREENPLAY_WORKSPACE_SCROLL_GUTTER_SX = {
   pl: 0,
   pr: `${SCREENPLAY_SCROLL_GUTTER_RIGHT_PX + SCREENPLAY_PAGE_SHADOW_INSET_PX}px`,
 }
+// </PROTECTED>
 
 // ─── Element icon map ─────────────────────────────────────────────────────────
 
@@ -339,12 +343,14 @@ function ScreenplayEditorCore({
   zoomRef.current = zoom
 
   const applyStageDimensions = React.useCallback(() => {
+    // <PROTECTED>
     const stage = stageRef.current
     if (!stage) return
     const z = zoomRef.current
     const { width, height } = paperLayoutRef.current
     stage.style.width = `${width * z}px`
     stage.style.height = `${height * z}px`
+    // </PROTECTED>
   }, [])
 
   React.useLayoutEffect(() => {
@@ -353,6 +359,7 @@ function ScreenplayEditorCore({
 
   /** Calculate the zoom factor that fits exactly one paper height into the workspace. */
   const calcAutoFitZoom = React.useCallback((workspaceEl: HTMLElement): number => {
+    // <PROTECTED>
     const availableHeight = workspaceEl.clientHeight - 40
     const availableWidth =
       workspaceEl.clientWidth - SCREENPLAY_SCROLL_GUTTER_LEFT_PX - SCREENPLAY_SCROLL_GUTTER_RIGHT_PX
@@ -363,10 +370,12 @@ function ScreenplayEditorCore({
     // Cap at SCREENPLAY_DISPLAY_SCALE so auto-fit never makes the page larger than 709 × 917 px.
     // On viewports too small for that size, the viewport-fit constraint still shrinks further.
     return Math.min(SCREENPLAY_DISPLAY_SCALE, Math.max(SCREENPLAY_ZOOM_MIN, targetScale))
+    // </PROTECTED>
   }, [])
 
   /** Apply auto-fit zoom on first mount (before paint). */
   React.useLayoutEffect(() => {
+    // <PROTECTED>
     const workspaceEl = workspaceRef.current
     if (!workspaceEl) return
     const fitted = calcAutoFitZoom(workspaceEl)
@@ -376,11 +385,13 @@ function ScreenplayEditorCore({
     if (fitted < SCREENPLAY_DISPLAY_SCALE - 0.001) {
       setAutoZoomSnackbarOpen(true)
     }
+    // </PROTECTED>
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // intentionally empty — runs once on mount
 
 
   React.useEffect(() => {
+    // <PROTECTED>
     const page = pageRef.current
     if (!page) return
     const ro = new ResizeObserver(() => {
@@ -391,6 +402,7 @@ function ScreenplayEditorCore({
       applyStageDimensions()
     })
     ro.observe(page)
+    // </PROTECTED>
     return () => {
       ro.disconnect()
     }
@@ -398,6 +410,7 @@ function ScreenplayEditorCore({
 
   /** Reapply auto-fit whenever the workspace resizes, as long as the user hasn't overridden zoom. */
   React.useEffect(() => {
+    // <PROTECTED>
     const workspaceEl = workspaceRef.current
     if (!workspaceEl) return
     const ro = new ResizeObserver(() => {
@@ -405,11 +418,13 @@ function ScreenplayEditorCore({
       setZoom(calcAutoFitZoom(workspaceEl))
     })
     ro.observe(workspaceEl)
+    // </PROTECTED>
     return () => { ro.disconnect() }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [calcAutoFitZoom]) // calcAutoFitZoom is stable (useCallback with no deps)
 
   React.useEffect(() => {
+    // <PROTECTED>
     const el = workspaceRef.current
     if (!el) return
     const onWheel = (e: WheelEvent) => {
@@ -427,6 +442,7 @@ function ScreenplayEditorCore({
       })
     }
     el.addEventListener('wheel', onWheel, { passive: false })
+    // </PROTECTED>
     return () => {
       el.removeEventListener('wheel', onWheel)
     }
@@ -652,6 +668,7 @@ function ScreenplayEditorCore({
   const setHeaderChrome = useScreenplayHeaderChromeStore((s) => s.setChrome)
   React.useEffect(() => {
     setHeaderChrome({
+      // <PROTECTED>
       zoom,
       collabActive,
       handlers: editor
@@ -678,6 +695,7 @@ function ScreenplayEditorCore({
             print: () => void printScreenplayHidden(editor),
           }
         : null,
+      // </PROTECTED>
     })
     return () => {
       setHeaderChrome({ handlers: null, collabActive: false, zoom: 1 })
@@ -694,15 +712,17 @@ function ScreenplayEditorCore({
   return (
     <Box
       sx={{
+        // <PROTECTED>
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
         overflow: 'hidden',
         minHeight: 0,
         // Cancel project layout left inset so side tabs + panel sit flush left; header stays padded in `ProjectDetailsLayout`.
-        width: `calc(100% + ${PROJECT_LAYOUT_CONTENT_INSET_LEFT_PX}px)`,
+        width: "100%",
         minWidth: 0,
         boxSizing: 'border-box',
+        // </PROTECTED>
         
       }}
     >
@@ -715,8 +735,10 @@ function ScreenplayEditorCore({
           minHeight: 0,
           overflow: 'hidden',
           alignItems: 'stretch',
+          justifyContent: 'space-between',
           pt: 1,
           pb: 1,
+          border: "3px solid orange",
         }}
       >
 
@@ -744,10 +766,8 @@ function ScreenplayEditorCore({
         {/* ── SCREENPLAY: column with optional show-side-panel row; vertical toolbar attached left of page ─ */}
         <Box
           sx={{
-            ...(navigatorSplitProportions
-              ? { flex: '1.3 1 0%' }
-              : { flex: 1 }),
-            minWidth: 0,
+            // <PROTECTED>
+            width: "max-content",
             minHeight: 0,
             overflowX: 'clip',
             overflowY: 'visible',
@@ -756,24 +776,27 @@ function ScreenplayEditorCore({
             alignItems: 'stretch',
             backgroundColor: '#ffffff',
             pl: 0,
-            pr: `${WORKSPACE_H_INSET_PX}px`,
+            //pr: `${WORKSPACE_H_INSET_PX}px`,
             pt: 0,
             boxSizing: 'border-box',
+            border: "2px solid purple",
+            // </PROTECTED>
             
           }}
         >
           <Box
             sx={{
-              flex: 1,
-              minHeight: 0,
-              width: '100%',
-              maxWidth: SCREENPLAY_EDITOR_COLUMN_WIDTH_PX,
+              // <PROTECTED>
+              //flex: 1,
+              border: "1px solid yellow",
+              minHeight: "100%",
+              //minWidth: SCREENPLAY_EDITOR_COLUMN_WIDTH_PX,
               alignSelf: centerEditorColumn ? 'center' : 'flex-end',
-              minWidth: 0,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'stretch',
               ...(centerEditorColumn ? { marginLeft: 'auto', marginRight: 'auto' } : {}),
+              // </PROTECTED>
               
             }}
           >
@@ -802,7 +825,14 @@ function ScreenplayEditorCore({
               </Box>
             )}
             {/* Flex row: vertical toolbar (non-scrolling) + scroll workspace */}
-            <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'row', alignItems: 'stretch',  }}>
+            {/* <PROTECTED> */}
+            <Box sx={{ 
+              border: "1px solid red", 
+              width: "753px",
+              minHeight: "100%", 
+              display: 'flex', 
+              flexDirection: 'row', 
+              alignItems: 'stretch',  }}>
               {/* Vertical toolbar — outside the scroll container; does not scroll with pages */}
               <ScreenplayDocumentToolbar
                 orientation="vertical"
@@ -815,51 +845,62 @@ function ScreenplayEditorCore({
                 ref={workspaceRef}
                 className="screenplay-workspace"
                 sx={{
-                  flex: 1,
+                  // <PROTECTED>
                   minHeight: 0,
                   minWidth: 0,
                   overflowY: 'auto',
                   overflowX: 'auto',
                   backgroundColor: '#ffffff',
                   WebkitOverflowScrolling: 'touch',
+                  border: "1px solid blue",
+                  // </PROTECTED>
                   
                 }}
               >
                 <Box
                   sx={{
+                    // <PROTECTED>
                     ...SCREENPLAY_WORKSPACE_SCROLL_GUTTER_SX,
+                    // </PROTECTED>
                     
                   }}
                 >
                   <Box
                     ref={stageRef}
                     sx={{
+                      // <PROTECTED>
                       position: 'relative',
                       marginLeft: 0,
                       marginRight: 'auto',
                       flexShrink: 0,
                       boxShadow: SCREENPLAY_FLOATING_SURFACE_SHADOW,
+                      // </PROTECTED>
                     }}
                   >
                     <Box
                       sx={{
+                        // <PROTECTED>
                         position: 'absolute',
                         top: 0,
                         left: 0,
                         right: 'auto',
                         transform: `scale(${zoom})`,
                         transformOrigin: 'top left',
+                        // </PROTECTED>
                       }}
                     >
                       <Box ref={pageRef} className="screenplay-page" data-zoom={zoom}>
                         <EditorContent editor={editor} />
+                        {/* </PROTECTED> */}
                         <BlockAltsToolbar editor={editor} canEdit={canEdit} userId={user} />
+                        {/* <PROTECTED> */}
                       </Box>
                     </Box>
                   </Box>
                 </Box>
               </Box>
             </Box>
+            {/* </PROTECTED> */}
           </Box>
         </Box>
       </Box>

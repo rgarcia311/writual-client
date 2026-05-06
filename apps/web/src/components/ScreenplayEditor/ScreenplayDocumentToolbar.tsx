@@ -7,12 +7,14 @@ import { useScreenplayEditorStore } from '@/state/screenplayEditor'
 import { ScreenplayToolbar } from './ScreenplayToolbar'
 import { SCREENPLAY_TOOLBAR_SHADOW } from './screenplayPaperLayout'
 
+// <PROTECTED>
 export const SCREENPLAY_ZOOM_MIN = 0.5
 export const SCREENPLAY_ZOOM_MAX = 2
 export const SCREENPLAY_ZOOM_STEP = 0.1
 
 /** Width of the vertical document toolbar in pixels. */
 export const SCREENPLAY_VERTICAL_TOOLBAR_W_PX = 44
+// </PROTECTED>
 
 export interface ScreenplayDocumentToolbarProps {
   collabActive: boolean
@@ -43,6 +45,7 @@ export function ScreenplayDocumentToolbar({
         className="screenplay-toolbar screenplay-toolbar-vertical"
         elevation={0}
         sx={{
+          // <PROTECTED>
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -62,6 +65,7 @@ export function ScreenplayDocumentToolbar({
           '&::-webkit-scrollbar': { display: 'none' },
           py: 1,
           zIndex: 1,
+          // </PROTECTED>
         }}
       >
         {showSaveRow && (
@@ -108,6 +112,7 @@ export function ScreenplayDocumentToolbar({
           className="screenplay-toolbar screenplay-toolbar-elements"
           elevation={0}
           sx={{
+            // <PROTECTED>
             width: '100%',
             display: 'flex',
             alignItems: 'center',
@@ -124,6 +129,7 @@ export function ScreenplayDocumentToolbar({
             borderBottomRightRadius: 0,
             bgcolor: 'background.default',
             boxShadow: 2,
+            // </PROTECTED>
           }}
         >
           <ScreenplayToolbar />
@@ -134,6 +140,7 @@ export function ScreenplayDocumentToolbar({
         <Paper
           elevation={0}
           sx={{
+            // <PROTECTED>
             width: '100%',
             display: 'flex',
             alignItems: 'center',
@@ -150,6 +157,7 @@ export function ScreenplayDocumentToolbar({
                   borderTopRightRadius: 8,
                 }
               : {}),
+            // </PROTECTED>
           }}
         >
           {saveContent}

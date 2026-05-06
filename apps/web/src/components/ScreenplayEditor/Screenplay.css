@@ -26,6 +26,7 @@
 
    ============================================================================= */
 
+/* <PROTECTED> */
 /* ── Google Fonts ─────────────────────────────────────────────────────────── */
 @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 
@@ -36,7 +37,7 @@
   overflow-x: auto;
   background-color: #ffffff;
   /* Reserve scrollbar width so padded content width matches the toolbar column */
-  scrollbar-gutter: stable;
+ scrollbar-gutter: stable;
   /* Vertical padding is set on the workspace Box in WritualEditor.tsx */
   /* Smooth momentum scrolling on iOS */
   -webkit-overflow-scrolling: touch;
@@ -532,6 +533,7 @@
   margin: 0;
   z-index: 2;
 }
+/* </PROTECTED> */
 /* :focus-within ensures touch/keyboard users see the indicator when typing.
    .popover-open locks visibility while the switcher is open. */
 
