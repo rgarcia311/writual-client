@@ -47,6 +47,8 @@ interface SceneCardProps {
    * no outline grid / min-450px constraints.
    */
   fullWidthInParent?: boolean;
+  /** Tighter padding and content height when shown two-per-row (e.g. screenplay side panel). */
+  compactSideBySide?: boolean;
 }
 
 export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
@@ -62,7 +64,9 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
   steps = [],
   onDelete,
   fullWidthInParent = false,
+  compactSideBySide = false,
 }) {
+  const sideBySideCompact = fullWidthInParent && compactSideBySide;
   const initialActiveVersion = Math.max(1, Number(activeVersion ?? 1));
   const [activeVersionLocal, setActiveVersionLocal] = useState<number>(initialActiveVersion);
   const [creatingNewVersion, setCreatingNewVersion] = useState(false);
@@ -368,9 +372,9 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
           alignItems: 'center',
           justifyContent: 'space-between',
           flexWrap: 'wrap',
-          gap: 1,
-          px: 2,
-          py: 1.5,
+          gap: sideBySideCompact ? 0.5 : 1,
+          px: sideBySideCompact ? 1 : 2,
+          py: sideBySideCompact ? 0.75 : 1.5,
           bgcolor: 'background.default',
           borderBottom: `1px solid ${theme.palette.divider}`,
           minWidth: 0,
@@ -386,7 +390,12 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
           }}
         >
           {isLocked ? (
-            <Typography variant="subtitle1" fontWeight={700} component="span" sx={multiLineTruncate(4)}>
+            <Typography
+              variant={sideBySideCompact ? 'subtitle2' : 'subtitle1'}
+              fontWeight={700}
+              component="span"
+              sx={multiLineTruncate(sideBySideCompact ? 2 : 4)}
+            >
               {sceneContent.sceneHeading?.trim() || 'Untitled scene'}
             </Typography>
           ) : (
@@ -404,7 +413,7 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
             />
           )}
         </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: sideBySideCompact ? 0.5 : 1 }}>
           <Chip
             label={`#${number}`}
             size="small"
@@ -443,16 +452,15 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
       {/* Content: Thesis, Antithesis, Synthesis (constrained height) */}
       <CardContent
         sx={{
-         
           flex: '0 1 auto',
-          height: 175,
+          height: sideBySideCompact ? 108 : 175,
           overflowY: 'auto',
-          p: 1,
-          px: 2,
-          '&:last-child': { pb: 1.5 },
+          p: sideBySideCompact ? 0.75 : 1,
+          px: sideBySideCompact ? 1 : 2,
+          '&:last-child': { pb: sideBySideCompact ? 0.75 : 1.5 },
         }}
       >
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1}}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: sideBySideCompact ? 0.5 : 1 }}>
           <Box>
             <Typography component="span" fontWeight={700} sx={{ display: 'block', mb: 0.25 }} variant="body2">
               Thesis:
@@ -466,8 +474,8 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
                 fullWidth
                 size="small"
                 multiline
-                minRows={2}
-                maxRows={4}
+                minRows={sideBySideCompact ? 1 : 2}
+                maxRows={sideBySideCompact ? 2 : 4}
                 value={sceneContent.thesis ?? ''}
                 onChange={handleContentChange('thesis')}
                 placeholder="—"
@@ -489,8 +497,8 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
                 fullWidth
                 size="small"
                 multiline
-                minRows={2}
-                maxRows={4}
+                minRows={sideBySideCompact ? 1 : 2}
+                maxRows={sideBySideCompact ? 2 : 4}
                 value={sceneContent.antithesis ?? ''}
                 onChange={handleContentChange('antithesis')}
                 placeholder="—"
@@ -512,8 +520,8 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
                 fullWidth
                 size="small"
                 multiline
-                minRows={2}
-                maxRows={4}
+                minRows={sideBySideCompact ? 1 : 2}
+                maxRows={sideBySideCompact ? 2 : 4}
                 value={sceneContent.synthesis ?? ''}
                 onChange={handleContentChange('synthesis')}
                 placeholder="—"
@@ -532,9 +540,9 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 1,
-          minHeight: 30,
-          px: 2,
-          py: 1.5,
+          minHeight: sideBySideCompact ? 0 : 30,
+          px: sideBySideCompact ? 1 : 2,
+          py: sideBySideCompact ? 0.75 : 1.5,
           flexShrink: 0,
           minWidth: 0,
         }}
@@ -566,7 +574,11 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
               sx={{
                 minWidth: fullWidthInParent ? 0 : 160,
                 maxWidth: fullWidthInParent ? '100%' : 'none',
-                flex: fullWidthInParent ? '1 1 120px' : 'none',
+                flex: fullWidthInParent
+                  ? sideBySideCompact
+                    ? '1 1 72px'
+                    : '1 1 120px'
+                  : 'none',
               }}
             >
               <Select

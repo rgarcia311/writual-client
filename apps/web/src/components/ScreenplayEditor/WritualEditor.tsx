@@ -737,8 +737,7 @@ function ScreenplayEditorCore({
           alignItems: 'stretch',
           justifyContent: 'space-between',
           pt: 1,
-          pb: 1,
-          border: "3px solid orange",
+          pb: 1
         }}
       >
 
@@ -779,7 +778,6 @@ function ScreenplayEditorCore({
             //pr: `${WORKSPACE_H_INSET_PX}px`,
             pt: 0,
             boxSizing: 'border-box',
-            border: "2px solid purple",
             // </PROTECTED>
             
           }}
@@ -788,7 +786,6 @@ function ScreenplayEditorCore({
             sx={{
               // <PROTECTED>
               //flex: 1,
-              border: "1px solid yellow",
               minHeight: "100%",
               //minWidth: SCREENPLAY_EDITOR_COLUMN_WIDTH_PX,
               alignSelf: centerEditorColumn ? 'center' : 'flex-end',
@@ -827,7 +824,6 @@ function ScreenplayEditorCore({
             {/* Flex row: vertical toolbar (non-scrolling) + scroll workspace */}
             {/* <PROTECTED> */}
             <Box sx={{ 
-              border: "1px solid red", 
               width: "753px",
               minHeight: "100%", 
               display: 'flex', 
@@ -852,7 +848,6 @@ function ScreenplayEditorCore({
                   overflowX: 'auto',
                   backgroundColor: '#ffffff',
                   WebkitOverflowScrolling: 'touch',
-                  border: "1px solid blue",
                   // </PROTECTED>
                   
                 }}

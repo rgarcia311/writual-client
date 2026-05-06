@@ -49,9 +49,7 @@ interface ProjectCharacter {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 /** Vertical Scenes / Characters tabs on the left edge of the screenplay area. */
-const SIDE_PANEL_TABS_W_PX = 55
-/** Space between the tab rail and the scenes/characters list panel. */
-const SIDE_PANEL_LIST_OFFSET_LEFT_PX = 20
+const SIDE_PANEL_TABS_W_PX = 35
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -92,7 +90,6 @@ export function ScreenplaySidePanel({
   return (
     <Box
       sx={{
-        border: "1px solid green",
         display: 'flex',
         flexDirection: 'row',
         alignSelf: 'stretch',
@@ -247,8 +244,6 @@ export function ScreenplaySidePanel({
             alignSelf: 'stretch',
             flex: '1 1 0%',
             minWidth: 0,
-            mr: 1.5,
-            ml: `${SIDE_PANEL_LIST_OFFSET_LEFT_PX}px`,
             border: 'none',
             borderRadius: 2,
             overflow: 'hidden',
@@ -272,8 +267,8 @@ export function ScreenplaySidePanel({
                   <Box
                     sx={{
                       p: 1,
-                      display: 'flex',
-                      flexDirection: 'column',
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
                       gap: 1,
                       width: '100%',
                       minWidth: 0,
@@ -285,20 +280,29 @@ export function ScreenplaySidePanel({
                       const avIdx = Math.max(0, activeVersion - 1)
                       const v = scene.versions?.[avIdx] ?? scene.versions?.[0]
                       return (
-                        <SceneCard
+                        <Box
                           key={scene._id ?? i}
-                          sceneId={scene._id}
-                          number={i + 1}
-                          newScene={false}
-                          versions={scene.versions ?? []}
-                          activeVersion={activeVersion}
-                          lockedVersion={scene.lockedVersion ?? null}
-                          projectId={projectId}
-                          step={v?.step ?? ''}
-                          act={v?.act}
-                          steps={sceneCardSteps}
-                          fullWidthInParent
-                        />
+                          sx={{
+                            minWidth: 0,
+                            width: '100%',
+                            '& > .MuiCard-root': { mb: 0 },
+                          }}
+                        >
+                          <SceneCard
+                            sceneId={scene._id}
+                            number={i + 1}
+                            newScene={false}
+                            versions={scene.versions ?? []}
+                            activeVersion={activeVersion}
+                            lockedVersion={scene.lockedVersion ?? null}
+                            projectId={projectId}
+                            step={v?.step ?? ''}
+                            act={v?.act}
+                            steps={sceneCardSteps}
+                            fullWidthInParent
+                            compactSideBySide
+                          />
+                        </Box>
                       )
                     })}
                   </Box>
