@@ -324,8 +324,8 @@ export function ScreenplaySidePanel({
                   <Box
                     sx={{
                       p: 1,
-                      display: 'flex',
-                      flexDirection: 'column',
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
                       gap: 1,
                       width: '100%',
                       minWidth: 0,
@@ -335,24 +335,32 @@ export function ScreenplaySidePanel({
                     {projectCharacters.map((character, index) => {
                       const cardId = index + 1
                       return (
-                        <CharacterCard
+                        <Box
                           key={character._id ?? `character-${index}`}
-                          id={cardId}
-                          name={character.name}
-                          imageUrl={character.imageUrl}
-                          details={character.details}
-                          expanded={characterCardExpandedId === cardId}
-                          onExpandClick={() =>
-                            onCharacterCardExpandedChange(
-                              characterCardExpandedId === cardId ? undefined : cardId,
-                            )
-                          }
-                          locked={character.lockedVersion != null}
-                          onToggleLock={() =>
-                            onToggleCharacterLock(character._id, character.lockedVersion == null)
-                          }
-                          fullWidthInParent
-                        />
+                          sx={{
+                            minWidth: 0,
+                            width: '100%',
+                            '& > .MuiCard-root': { mb: 0 },
+                          }}
+                        >
+                          <CharacterCard
+                            id={cardId}
+                            name={character.name}
+                            imageUrl={character.imageUrl}
+                            details={character.details}
+                            expanded={characterCardExpandedId === cardId}
+                            onExpandClick={() =>
+                              onCharacterCardExpandedChange(
+                                characterCardExpandedId === cardId ? undefined : cardId,
+                              )
+                            }
+                            locked={character.lockedVersion != null}
+                            onToggleLock={() =>
+                              onToggleCharacterLock(character._id, character.lockedVersion == null)
+                            }
+                            fullWidthInParent
+                          />
+                        </Box>
                       )
                     })}
                   </Box>

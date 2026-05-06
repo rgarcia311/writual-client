@@ -453,8 +453,8 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
       <CardContent
         sx={{
           flex: '0 1 auto',
-          height: sideBySideCompact ? 108 : 175,
-          overflowY: 'auto',
+          height: sideBySideCompact ? 'auto' : 175,
+          overflowY: sideBySideCompact ? 'visible' : 'auto',
           p: sideBySideCompact ? 0.75 : 1,
           px: sideBySideCompact ? 1 : 2,
           '&:last-child': { pb: sideBySideCompact ? 0.75 : 1.5 },
@@ -474,8 +474,8 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
                 fullWidth
                 size="small"
                 multiline
-                minRows={sideBySideCompact ? 1 : 2}
-                maxRows={sideBySideCompact ? 2 : 4}
+                minRows={2}
+                maxRows={4}
                 value={sceneContent.thesis ?? ''}
                 onChange={handleContentChange('thesis')}
                 placeholder="—"
@@ -497,8 +497,8 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
                 fullWidth
                 size="small"
                 multiline
-                minRows={sideBySideCompact ? 1 : 2}
-                maxRows={sideBySideCompact ? 2 : 4}
+                minRows={2}
+                maxRows={4}
                 value={sceneContent.antithesis ?? ''}
                 onChange={handleContentChange('antithesis')}
                 placeholder="—"
@@ -520,8 +520,8 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
                 fullWidth
                 size="small"
                 multiline
-                minRows={sideBySideCompact ? 1 : 2}
-                maxRows={sideBySideCompact ? 2 : 4}
+                minRows={2}
+                maxRows={4}
                 value={sceneContent.synthesis ?? ''}
                 onChange={handleContentChange('synthesis')}
                 placeholder="—"
