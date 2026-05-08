@@ -17,7 +17,19 @@ export default function ProjectLayout({
     children: React.ReactNode
   }) {
     return (
-      <Box sx={{ p: 1, flex: 1, minHeight: 0, overflow: 'hidden', minWidth: 0 }} gap={2} display="flex" flexDirection="row" position="relative">
+      <Box
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          minWidth: 0,
+          overflow: 'hidden',
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'row',
+          gap: 1,
+          p: 1,
+        }}
+      >
           <SideNavComponent />
         <Paper elevation={1} sx={{
           display: "flex",

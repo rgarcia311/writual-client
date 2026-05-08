@@ -7,6 +7,16 @@ import Typography from '@mui/material/Typography';
 import { ProjectHeader } from '@/components/ProjectHeader';
 import type { SxProps, Theme } from '@mui/material/styles';
 
+/** Inner scroll/content region below `ProjectHeader` — padded on most routes; Screenplay overrides via `contentSx`. */
+const MAIN_CONTENT_CONTAINER_SX = {
+  flex: 1,
+  width: '100%',
+  minWidth: 0,
+  pl: 2,
+  pt: 2,
+  overflow: 'hidden',
+} as const;
+
 interface ProjectDetailsLayoutProps {
   children: React.ReactNode;
   /** Optional sx for the inner content container */
@@ -57,23 +67,8 @@ export function ProjectDetailsLayout({
         disableGutters
         sx={
           contentSx
-            ? ([
-                {
-                  flex: 1,
-                  width: '100%',
-                  minWidth: 0,
-                  paddingTop: (theme) => `max(0px, calc(${theme.spacing(2)} - 15px))`,
-                  overflow: 'hidden',
-                },
-                contentSx,
-              ] as SxProps<Theme>)
-            : {
-                flex: 1,
-                width: '100%',
-                minWidth: 0,
-                paddingTop: (theme) => `max(0px, calc(${theme.spacing(2)} - 15px))`,
-                overflow: 'hidden',
-              }
+            ? ([MAIN_CONTENT_CONTAINER_SX, contentSx] as SxProps<Theme>)
+            : { ...MAIN_CONTENT_CONTAINER_SX }
         }
       >
         {showHeader && (

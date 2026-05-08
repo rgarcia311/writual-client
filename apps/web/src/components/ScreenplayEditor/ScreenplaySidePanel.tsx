@@ -266,7 +266,7 @@ export function ScreenplaySidePanel({
                 ) : (
                   <Box
                     sx={{
-                      p: 1,
+                      pr: 1,
                       display: 'grid',
                       gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
                       gap: 1,

@@ -735,7 +735,7 @@ function ScreenplayEditorCore({
           minHeight: 0,
           overflow: 'hidden',
           alignItems: 'stretch',
-          justifyContent: 'space-between',
+          justifyContent: 'flex-start',
           pt: 1,
           pb: 1
         }}
@@ -761,7 +761,15 @@ function ScreenplayEditorCore({
           />
         )}
 
-
+        {/* Fills remaining row width when centering; marginLeft auto keeps editor right when list expanded */}
+        <Box
+          sx={{
+            display: 'flex',
+            ...(centerEditorColumn
+              ? { flex: '1 1 0%', minWidth: 0, justifyContent: 'center' }
+              : { flex: '0 0 auto', marginLeft: 'auto' }),
+          }}
+        >
         {/* ── SCREENPLAY: column with optional show-side-panel row; vertical toolbar attached left of page ─ */}
         <Box
           sx={{
@@ -897,6 +905,7 @@ function ScreenplayEditorCore({
             </Box>
             {/* </PROTECTED> */}
           </Box>
+        </Box>
         </Box>
       </Box>
 
