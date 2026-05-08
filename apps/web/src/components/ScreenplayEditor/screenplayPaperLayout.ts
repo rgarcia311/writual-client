@@ -33,7 +33,7 @@ export const SCREENPLAY_PARENTHETICAL_RIGHT_PAD_PX = 230
 export const SCREENPLAY_CHARACTER_INDENT_PX = 211
 export const SCREENPLAY_GUTTER_BLEED_PX = 36
 
-/** Yields exactly 864px (fits exactly 54 lines of 12pt Courier) */
+/** Exactly 864px = 54 × 16px lines within top/bottom margins (see SCREENPLAY_LINE_HEIGHT_PX). */
 export const SCREENPLAY_CONTENT_HEIGHT_PX =
   SCREENPLAY_PAPER_HEIGHT_PX - SCREENPLAY_MARGIN_TOP_PX - SCREENPLAY_MARGIN_BOTTOM_PX
 

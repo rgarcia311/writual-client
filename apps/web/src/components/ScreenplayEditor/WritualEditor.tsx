@@ -37,6 +37,7 @@ import { printScreenplayHidden } from './screenplayPdfPrint'
 import { BlockAltsToolbar } from './BlockAltsToolbar'
 import {
   ScreenplayDocumentToolbar,
+  SCREENPLAY_VERTICAL_TOOLBAR_W_PX,
   SCREENPLAY_ZOOM_MAX,
   SCREENPLAY_ZOOM_MIN,
   SCREENPLAY_ZOOM_STEP,
@@ -66,7 +67,6 @@ import './Screenplay.css'
 // <PROTECTED>
 import {
   SCREENPLAY_DISPLAY_SCALE,
-  SCREENPLAY_EDITOR_COLUMN_WIDTH_PX,
   SCREENPLAY_FLOATING_SURFACE_SHADOW,
   SCREENPLAY_PAPER_HEIGHT_PX,
   SCREENPLAY_PAPER_WIDTH_PX,
@@ -86,11 +86,26 @@ const PROJECT_LAYOUT_CONTENT_INSET_LEFT_PX = 13
 const SCREENPLAY_PAGE_SHADOW_INSET_PX = 4
 const WORKSPACE_H_INSET_PX = 20 + SCREENPLAY_PAGE_SHADOW_INSET_PX
 
+/**
+ * Classic / overlay vertical scrollbars sit on the workspace’s right; reserve width so the
+ * lateral rim shadow isn’t painted under the thumb / track (scrollbar-gutter alone is not enough).
+ */
+const SCREENPLAY_WORKSPACE_SCROLLBAR_SHADOW_PAD_PX = 16
+
+/** Total right inset for the scroll inner (gutter + shadow bleed + scrollbar column). */
+const SCREENPLAY_WORKSPACE_SCROLL_INNER_PAD_RIGHT_PX =
+  SCREENPLAY_SCROLL_GUTTER_RIGHT_PX +
+  SCREENPLAY_PAGE_SHADOW_INSET_PX +
+  SCREENPLAY_WORKSPACE_SCROLLBAR_SHADOW_PAD_PX
+
+/** Outward bleed for SCREENPLAY_FLOATING_SURFACE_SHADOW lateral layer (offset + blur − spread cushion). */
+const SCREENPLAY_STAGE_RIM_HORIZONTAL_OUTSET_PX = 18
+
 /** Horizontal insets for the scroll inner that wraps `stageRef`. Left is 0 — the vertical toolbar is the left visual boundary. */
 const SCREENPLAY_WORKSPACE_SCROLL_GUTTER_SX = {
   boxSizing: 'border-box' as const,
   pl: 0,
-  pr: `${SCREENPLAY_SCROLL_GUTTER_RIGHT_PX + SCREENPLAY_PAGE_SHADOW_INSET_PX}px`,
+  pr: `${SCREENPLAY_WORKSPACE_SCROLL_INNER_PAD_RIGHT_PX}px`,
 }
 // </PROTECTED>
 
@@ -362,7 +377,9 @@ function ScreenplayEditorCore({
     // <PROTECTED>
     const availableHeight = workspaceEl.clientHeight - 40
     const availableWidth =
-      workspaceEl.clientWidth - SCREENPLAY_SCROLL_GUTTER_LEFT_PX - SCREENPLAY_SCROLL_GUTTER_RIGHT_PX
+      workspaceEl.clientWidth -
+      SCREENPLAY_SCROLL_GUTTER_LEFT_PX -
+      SCREENPLAY_WORKSPACE_SCROLL_INNER_PAD_RIGHT_PX
     const targetScale = Math.min(
       availableHeight / SCREENPLAY_PAPER_HEIGHT_PX,
       availableWidth / SCREENPLAY_PAPER_WIDTH_PX,
@@ -707,6 +724,13 @@ function ScreenplayEditorCore({
   /** When list is off or only the narrow strip: center the screenplay column; expanded list hugs the right. */
   const centerEditorColumn = !navigatorOpen || (navigatorOpen && !sidePanelExpanded)
 
+  /** Toolbar + scaled paper + gutter + lateral rim shadow must fit workspace width (`flex: 1`), or horizontal overflow clips the right halo. */
+  const screenplayToolbarPaperRowMinWidthPx =
+    SCREENPLAY_VERTICAL_TOOLBAR_W_PX +
+    Math.ceil(SCREENPLAY_PAPER_WIDTH_PX * zoom) +
+    SCREENPLAY_WORKSPACE_SCROLL_INNER_PAD_RIGHT_PX +
+    SCREENPLAY_STAGE_RIM_HORIZONTAL_OUTSET_PX
+
   if (!editor) return null
 
   return (
@@ -776,6 +800,7 @@ function ScreenplayEditorCore({
             // <PROTECTED>
             width: "max-content",
             minHeight: 0,
+            /* clip keeps horizontal bleed contained; reserve right inset so lateral box-shadow survives */
             overflowX: 'clip',
             overflowY: 'visible',
             display: 'flex',
@@ -783,7 +808,7 @@ function ScreenplayEditorCore({
             alignItems: 'stretch',
             backgroundColor: '#ffffff',
             pl: 0,
-            //pr: `${WORKSPACE_H_INSET_PX}px`,
+            pr: `${SCREENPLAY_WORKSPACE_SCROLL_INNER_PAD_RIGHT_PX}px`,
             pt: 0,
             boxSizing: 'border-box',
             // </PROTECTED>
@@ -810,7 +835,7 @@ function ScreenplayEditorCore({
                 sx={{
                   width: '100%',
                   boxSizing: 'border-box',
-                  pr: `${SCREENPLAY_SCROLL_GUTTER_RIGHT_PX}px`,
+                  pr: `${SCREENPLAY_WORKSPACE_SCROLL_INNER_PAD_RIGHT_PX}px`,
                   mb: 1,
                   flexShrink: 0,
                   minWidth: 0,
@@ -832,11 +857,12 @@ function ScreenplayEditorCore({
             {/* Flex row: vertical toolbar (non-scrolling) + scroll workspace */}
             {/* <PROTECTED> */}
             <Box sx={{ 
-              width: "753px",
-              minHeight: "100%", 
-              display: 'flex', 
-              flexDirection: 'row', 
-              alignItems: 'stretch',  }}>
+              width: `${screenplayToolbarPaperRowMinWidthPx}px`,
+              minHeight: "100%",
+              display: 'flex',
+              flexDirection: 'row',
+              alignItems: 'stretch',
+            }}>
               {/* Vertical toolbar — outside the scroll container; does not scroll with pages */}
               <ScreenplayDocumentToolbar
                 orientation="vertical"

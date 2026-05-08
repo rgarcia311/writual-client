@@ -6,7 +6,7 @@
    -----------------
    All measurements follow the WGA / Final Draft standard for US Letter paper.
 
-   Paper:       8.5" wide; height = width × 1.29  →  816px × 1053px (matches physical aspect)
+   Paper:       8.5" × 11" @ 96dpi  →  816px × 1056px (canonical layout; on-screen may scale to ~709×917)
    On-screen:   The page shell is transparent (white desk). A ::before mask repeats white
                 bands of --sp-paper-height with --sp-inter-page-gap desk between them.
                 ProseMirror + script blocks use opaque white so collapsed margins never
@@ -60,9 +60,9 @@
   --sp-parenthetical-right-pad: 230px;
   --sp-character-indent: 211px;
 
-  /* Vertical rhythm (12pt body, line-height 1) */
-  --sp-line-single: 12pt;
-  --sp-line-double: 24pt;
+  /* Vertical rhythm: 1 line = 16px (12pt / 1/6" @ 96dpi), line-height 1 */
+  --sp-line-single: 16px;
+  --sp-line-double: 32px;
   /* Visible inter-page gap height (screen); matches SCREENPLAY_INTER_PAGE_GAP_PX */
   --sp-inter-page-gap: 28px;
   /* Page numbers: 0.5″ from top of paper (96dpi) */
@@ -84,10 +84,10 @@
   isolation: isolate;
   z-index: 0;
 
-  /* Screenplay typography */
+  /* Screenplay typography — 16px em-square matches 12pt @ 96dpi (strict line grid) */
   font-family: 'Courier Prime', 'Courier New', Courier, monospace;
-  font-size: 12pt; /* industry-standard Courier 12pt */
-  line-height: 1.0; /* monospace baseline; blank lines are added per-element */
+  font-size: 16px;
+  line-height: 16px;
   color: #000000;
 
   position: relative;
@@ -210,8 +210,8 @@
   right: var(--sp-margin-right, 96px);
   top: 48px;
   font-family: 'Courier Prime', 'Courier New', Courier, monospace;
-  font-size: 12pt;
-  line-height: 1;
+  font-size: 16px;
+  line-height: 16px;
   color: #000;
 }
 
@@ -223,8 +223,8 @@
   width: 336px;
   text-align: center;
   font-family: 'Courier Prime', 'Courier New', Courier, monospace;
-  font-size: 12pt;
-  line-height: 1;
+  font-size: 16px;
+  line-height: 16px;
   color: #000;
 }
 
@@ -234,8 +234,8 @@
   left: calc(var(--sp-margin-left, 144px) + var(--sp-character-indent, 211px));
   bottom: 12px;
   font-family: 'Courier Prime', 'Courier New', Courier, monospace;
-  font-size: 12pt;
-  line-height: 1;
+  font-size: 16px;
+  line-height: 16px;
   text-transform: uppercase;
   color: #000;
 }
@@ -245,12 +245,16 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  font-size: 16px;
+  line-height: 16px;
   white-space: pre-wrap;
   word-wrap: break-word;
   /* Opaque fill so the desk / repeating mask never shows through collapsed margins */
   background-color: #ffffff;
   /* Spacing is driven per element-type + adjacency via padding */
   padding-bottom: 0;
+  padding-top: 0;
+  margin-top: 0;
   margin-bottom: 0;
   /* Prevent awkward mid-element page breaks when printing */
   break-inside: avoid;
@@ -275,12 +279,19 @@
 }
 
 /* First block after a page-break widget sits flush at the top of the new page */
-.page-break-gap + .script-block {
+.page-break-gap + .node-scriptBlock > .script-block {
   padding-top: 0 !important;
   margin-top: 0 !important;
 }
 
 /* ── SCENE HEADING (Slugline) ────────────────────────────────────────────── */
+/*
+ * Per spacing table (96dpi): Scene Heading is preceded by 1–2 blank lines (1/6"–1/3")
+ * from Action, Dialogue, or Transition — i.e. previous `padding-bottom` (16px) +
+ * this `padding-top` (16px) = 32px = two blank lines / 1/3". Character/Parenthetical
+ * have no bottom pad, so only this top (16px) = one blank / 1/6".
+ * Never add a *third* 16px (that was the old triple-stack bug).
+ */
 .script-block[data-element-type='slugline'] {
   padding-left: 0;
   padding-right: 0;
@@ -295,16 +306,22 @@
   page-break-after: avoid;
 }
 
-/* First slugline needs no extra top padding */
-.script-block[data-element-type='slugline']:first-child {
+/* Only the first node in the doc: no extra lead above the opening scene heading */
+.screenplay-page .ProseMirror > .node-scriptBlock:first-child > .script-block[data-element-type='slugline'] {
   padding-top: 0;
   margin-top: 0;
+}
+
+/* Action: second & later paragraphs inside one block = 1 blank line (1/6") per table */
+.script-block[data-element-type='action'] p + p {
+  margin-top: var(--sp-line-single);
 }
 
 /* ── ACTION ──────────────────────────────────────────────────────────────── */
 .script-block[data-element-type='action'] {
   padding-left: 0;
   padding-right: 0;
+  padding-top: 0;
   padding-bottom: var(--sp-line-single);
   margin-bottom: 0;
   margin-top: 0;
@@ -331,6 +348,7 @@
 .script-block[data-element-type='parenthetical'] {
   padding-left: var(--sp-parenthetical-indent);
   padding-right: var(--sp-parenthetical-right-pad);
+  padding-top: 0;
   padding-bottom: 0;
   margin-bottom: 0;
   margin-top: 0;
@@ -347,6 +365,7 @@
   flex-wrap: wrap;
   padding-left: var(--sp-dialogue-indent);
   padding-right: var(--sp-dialogue-right-pad);
+  padding-top: 0;
   padding-bottom: var(--sp-line-single);
   margin-bottom: 0;
   margin-top: 0;
@@ -359,8 +378,8 @@
   content: attr(data-page-label);
   position: absolute;
   right: 0;
-  font-size: 12pt;
-  line-height: 1;
+  font-size: 16px;
+  line-height: 16px;
   pointer-events: none;
   user-select: none;
   z-index: 3;
@@ -385,16 +404,32 @@
 }
 
 /* ── TRANSITION ──────────────────────────────────────────────────────────── */
+/*
+ * Action→Transition = 1 blank (1/6") only — gap comes from previous block’s
+ * `padding-bottom`, not `padding-top` here (stacking was 32px = 2 blanks).
+ * Character/Parenthetical→Transition: no bottom pad on prev → add lead here.
+ */
 .script-block[data-element-type='transition'] {
   padding-left: 0;
   padding-right: 0;
   text-align: right;
   text-transform: uppercase;
-  padding-top: var(--sp-line-single);
+  padding-top: 0;
   padding-bottom: var(--sp-line-single);
   margin-top: 0;
   margin-bottom: 0;
 }
+
+.node-scriptBlock:has(> .script-block[data-element-type='character'])
++ .node-scriptBlock
+> .script-block[data-element-type='transition'],
+.node-scriptBlock:has(> .script-block[data-element-type='parenthetical'])
++ .node-scriptBlock
+> .script-block[data-element-type='transition'] {
+  padding-top: var(--sp-line-single);
+}
+
+/* Title / cover blocks: top padding is intentional; base .script-block padding-top:0 is overridden below */
 
 /* ── TITLE PAGE ELEMENTS ─────────────────────────────────────────────────── */
 .script-block[data-element-type='title'] {
@@ -536,6 +571,11 @@
 /* </PROTECTED> */
 /* :focus-within ensures touch/keyboard users see the indicator when typing.
    .popover-open locks visibility while the switcher is open. */
+
+/* TipTap wraps each node — keep spacing fully under .script-block padding only */
+.screenplay-page .ProseMirror > .node-scriptBlock {
+  margin: 0;
+}
 
 /* =============================================================================
    Collaboration Cursors — Remote user carets and labels

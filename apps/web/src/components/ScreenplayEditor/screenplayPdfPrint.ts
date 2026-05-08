@@ -47,15 +47,33 @@ function normalizeType(raw: unknown): ScreenplayElementType {
 }
 
 /**
- * Industry spacing: one empty line between most blocks; no extra line in
- * character → parenthetical → dialogue chains.
+ * Inter-block vertical gaps in inches (Letter, 8.5×11). One blank line = 1/6".
+ * Scene heading: table allows 1–2 blank lines (1/6"–1/3") before the heading;
+ * we use 1/3" (two blanks) after anything with a trailing line except Character/Parenthetical.
  */
-function interBlockGapInches(prev: ScreenplayElementType, next: ScreenplayElementType): number {
+const ONE_LINE_IN = LINE_HEIGHT_IN // 1/6"
+const TWO_LINES_IN = (2 * 12) / 72 // 1/3"
+
+function sluglineGapInches(prev: ScreenplayElementType): number {
+  if (prev === 'character' || prev === 'parenthetical') {
+    return ONE_LINE_IN
+  }
+  return TWO_LINES_IN
+}
+
+function interBlockGapInches(
+  prev: ScreenplayElementType | null,
+  next: ScreenplayElementType,
+): number {
   if (
-    (prev === 'character' && (next === 'parenthetical' || next === 'dialogue')) ||
-    (prev === 'parenthetical' && next === 'dialogue')
+    prev != null &&
+    ((prev === 'character' && (next === 'parenthetical' || next === 'dialogue')) ||
+      (prev === 'parenthetical' && next === 'dialogue'))
   ) {
     return 0
+  }
+  if (prev != null && next === 'slugline') {
+    return sluglineGapInches(prev)
   }
   return LINE_HEIGHT_IN
 }
