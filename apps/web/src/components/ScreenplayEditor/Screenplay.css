@@ -286,24 +286,41 @@
 
 /* ── SCENE HEADING (Slugline) ────────────────────────────────────────────── */
 /*
- * Per spacing table (96dpi): Scene Heading is preceded by 1–2 blank lines (1/6"–1/3")
- * from Action, Dialogue, or Transition — i.e. previous `padding-bottom` (16px) +
- * this `padding-top` (16px) = 32px = two blank lines / 1/3". Character/Parenthetical
- * have no bottom pad, so only this top (16px) = one blank / 1/6".
- * Never add a *third* 16px (that was the old triple-stack bug).
+ * Before scene headings: Character / Parenthetical → 1 blank (prev has no bottom pad): slugline
+ * `padding-top: 1 line`. Action / Dialogue / Transition → 2 blanks (⅓"): prev `padding-bottom`
+ * 1 line + slugline `padding-top` 1 line. Default slugline `padding-top: 0` when not matched below.
  */
 .script-block[data-element-type='slugline'] {
   padding-left: 0;
   padding-right: 0;
   text-transform: uppercase;
-  font-weight: 700;
-  padding-top: var(--sp-line-single);
+  /* Match print/PDF Courier (Courier Prime Bold glyphs can inflate line rhythm vs source PDF). */
+  font-weight: 400;
+  padding-top: 0;
   padding-bottom: var(--sp-line-single);
   margin-top: 0;
   margin-bottom: 0;
   margin-right: -36px;
   break-after: avoid;
   page-break-after: avoid;
+}
+
+.node-scriptBlock:has(> .script-block[data-element-type='character'])
++ .node-scriptBlock
+> .script-block[data-element-type='slugline'],
+.node-scriptBlock:has(> .script-block[data-element-type='parenthetical'])
++ .node-scriptBlock
+> .script-block[data-element-type='slugline'],
+.node-scriptBlock:has(> .script-block[data-element-type='action'])
++ .node-scriptBlock
+> .script-block[data-element-type='slugline'],
+.node-scriptBlock:has(> .script-block[data-element-type='dialogue'])
++ .node-scriptBlock
+> .script-block[data-element-type='slugline'],
+.node-scriptBlock:has(> .script-block[data-element-type='transition'])
++ .node-scriptBlock
+> .script-block[data-element-type='slugline'] {
+  padding-top: var(--sp-line-single);
 }
 
 /* Only the first node in the doc: no extra lead above the opening scene heading */
@@ -331,7 +348,7 @@
 /* ── CHARACTER CUE ───────────────────────────────────────────────────────── */
 .script-block[data-element-type='character'] {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   flex-wrap: nowrap;
   padding-left: var(--sp-character-indent);
   padding-right: 0;

@@ -197,6 +197,7 @@ export const PageBreakExtension = Extension.create({
       view(editorView) {
         let timerId: ReturnType<typeof setTimeout> | null = null
         let rafId: number | null = null
+        let settleTimerId: ReturnType<typeof setTimeout> | null = null
         let resizeObserver: ResizeObserver | null = null
         let zoomAttrObserver: MutationObserver | null = null
         let measuring = false
@@ -359,7 +360,7 @@ export const PageBreakExtension = Extension.create({
               blockTop > pageContentStart + 1
             ) {
               const roomAfter = pageContentEnd - blockBottom
-              if (Math.floor(roomAfter + 1e-6) < 2 * SCREENPLAY_LINE_HEIGHT_PX) {
+              if (Math.floor(roomAfter + 1e-6) < SCREENPLAY_LINE_HEIGHT_PX) {
                 forceBreak = true
               }
             }
@@ -477,11 +478,32 @@ export const PageBreakExtension = Extension.create({
         const onWinResize = () => scheduleRecalc()
         window.addEventListener('resize', onWinResize)
 
-        if (typeof document !== 'undefined' && document.fonts?.ready) {
-          void document.fonts.ready.then(() => scheduleRecalc())
+        /**
+         * First pagination pass often runs before webfonts + `transform: scale(zoom)` settle on
+         * refresh, so block heights differ from a moment later — dialogue drifts to page 2.
+         * Re-run after fonts and again on a short timeout (matches late `data-zoom` / layout).
+         */
+        function recalcAfterLayoutSettled(): void {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              recalculate()
+            })
+          })
         }
 
         scheduleRecalc()
+
+        if (typeof document !== 'undefined') {
+          if (document.fonts?.ready) {
+            void document.fonts.ready.then(() => recalcAfterLayoutSettled())
+          } else {
+            recalcAfterLayoutSettled()
+          }
+          settleTimerId = window.setTimeout(() => {
+            settleTimerId = null
+            recalculate()
+          }, 500)
+        }
 
         return {
           update(view, prevState) {
@@ -491,6 +513,7 @@ export const PageBreakExtension = Extension.create({
           },
           destroy() {
             if (timerId) clearTimeout(timerId)
+            if (settleTimerId) clearTimeout(settleTimerId)
             if (rafId) cancelAnimationFrame(rafId)
             resizeObserver?.disconnect()
             zoomAttrObserver?.disconnect()

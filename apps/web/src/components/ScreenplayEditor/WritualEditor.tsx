@@ -61,6 +61,7 @@ import { useScreenplaySaveStatusStore } from '@/state/screenplaySaveStatus'
 import { useScreenplayEditorStore } from '@/state/screenplayEditor'
 import { useScreenplayHeaderChromeStore } from '@/state/screenplayHeaderChrome'
 import { GRAPHQL_ENDPOINT } from '@/lib/config'
+import { courierPrime } from '../../utils/fonts'
 import type { HocuspocusProvider } from '@hocuspocus/provider'
 import type * as Y from 'yjs'
 import './Screenplay.css'
@@ -918,7 +919,12 @@ function ScreenplayEditorCore({
                         // </PROTECTED>
                       }}
                     >
-                      <Box ref={pageRef} className="screenplay-page" data-zoom={zoom}>
+                      <Box
+                        ref={pageRef}
+                        className="screenplay-page"
+                        data-zoom={zoom}
+                        style={courierPrime.style}
+                      >
                         <EditorContent editor={editor} />
                         {/* </PROTECTED> */}
                         <BlockAltsToolbar editor={editor} canEdit={canEdit} userId={user} />

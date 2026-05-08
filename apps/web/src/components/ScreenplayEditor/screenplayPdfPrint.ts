@@ -4,13 +4,56 @@ import type { Editor } from '@tiptap/core'
 import { jsPDF } from 'jspdf'
 
 import type { ScreenplayElementType } from './ScreenplayExtension'
+import {
+  getScreenplayInterBlockGapInches,
+  SCREENPLAY_LINE_HEIGHT_INCHES,
+} from './screenplaySpacing'
 
-/** 12pt line in inches (72pt = 1in) */
-const LINE_HEIGHT_IN = 12 / 72
+/** Same face as on-screen `next/font` Courier Prime — TTF in /public/fonts (OFL). */
+const COURIER_PRIME_PUBLIC_TTF = '/fonts/CourierPrime-Regular.ttf'
+const COURIER_PRIME_VFS_NAME = 'CourierPrime-Regular.ttf'
+const COURIER_PRIME_PDF_FAMILY = 'CourierPrime'
 
+let courierPrimeRegularBase64: string | null = null
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]!)
+  }
+  return btoa(binary)
+}
+
+async function loadCourierPrimeBase64(): Promise<string> {
+  if (courierPrimeRegularBase64 != null) return courierPrimeRegularBase64
+  const res = await fetch(COURIER_PRIME_PUBLIC_TTF)
+  if (!res.ok) {
+    throw new Error(`Failed to load Courier Prime for PDF (${res.status})`)
+  }
+  courierPrimeRegularBase64 = arrayBufferToBase64(await res.arrayBuffer())
+  return courierPrimeRegularBase64
+}
+
+/** Embeds Courier Prime; returns jsPDF font family name to pass to `setFont`. */
+async function setupScreenplayPdfFont(doc: jsPDF): Promise<'CourierPrime' | 'courier'> {
+  try {
+    const b64 = await loadCourierPrimeBase64()
+    doc.addFileToVFS(COURIER_PRIME_VFS_NAME, b64)
+    doc.addFont(COURIER_PRIME_VFS_NAME, COURIER_PRIME_PDF_FAMILY, 'normal')
+    return COURIER_PRIME_PDF_FAMILY
+  } catch (e) {
+    console.warn('Courier Prime embed failed, using built-in Courier.', e)
+    return 'courier'
+  }
+}
+
+/** @see screenplaySpacing.ts — 12pt line = 1/6" */
 const TOP_CONTENT_IN = 1.0
 /** 11" page, 1" bottom margin → last line must end by 10" */
 const BOTTOM_CONTENT_IN = 10.0
+
+const TITLE_PAGE_TYPES_PDF = new Set<ScreenplayElementType>(['title', 'author', 'contact'])
 
 /** WGA layout: x and max width in inches (8.5" letter). Transition: right edge 7.5" (5.5" + 2.0" wide). */
 const LAYOUT: Record<
@@ -47,47 +90,14 @@ function normalizeType(raw: unknown): ScreenplayElementType {
 }
 
 /**
- * Inter-block vertical gaps in inches (Letter, 8.5×11). One blank line = 1/6".
- * Scene heading: table allows 1–2 blank lines (1/6"–1/3") before the heading;
- * we use 1/3" (two blanks) after anything with a trailing line except Character/Parenthetical.
- */
-const ONE_LINE_IN = LINE_HEIGHT_IN // 1/6"
-const TWO_LINES_IN = (2 * 12) / 72 // 1/3"
-
-function sluglineGapInches(prev: ScreenplayElementType): number {
-  if (prev === 'character' || prev === 'parenthetical') {
-    return ONE_LINE_IN
-  }
-  return TWO_LINES_IN
-}
-
-function interBlockGapInches(
-  prev: ScreenplayElementType | null,
-  next: ScreenplayElementType,
-): number {
-  if (
-    prev != null &&
-    ((prev === 'character' && (next === 'parenthetical' || next === 'dialogue')) ||
-      (prev === 'parenthetical' && next === 'dialogue'))
-  ) {
-    return 0
-  }
-  if (prev != null && next === 'slugline') {
-    return sluglineGapInches(prev)
-  }
-  return LINE_HEIGHT_IN
-}
-
-const TITLE_PAGE_TYPES_PDF = new Set<ScreenplayElementType>(['title', 'author', 'contact'])
-
-/**
  * Build a Letter-size PDF with WGA inch-based layout and line-level pagination.
  * Title-page blocks (title / author / contact) at the start of the document are
  * rendered on a dedicated unnumbered page; the screenplay body begins on page 1.
  */
 export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
   const doc = new jsPDF({ unit: 'in', format: 'letter', orientation: 'portrait' })
-  doc.setFont('courier', 'normal')
+  const bodyFont = await setupScreenplayPdfFont(doc)
+  doc.setFont(bodyFont, 'normal')
   doc.setFontSize(12)
 
   // ── Partition blocks into title-page and body ────────────────────────────
@@ -122,19 +132,19 @@ export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
     }
 
     // Title + author group: centered, starting ~1/3 down the page.
-    // Each block is separated by one blank line (LINE_HEIGHT_IN) to mirror the
+    // Each block is separated by one blank line (SCREENPLAY_LINE_HEIGHT_INCHES) to mirror the
     // CSS padding-bottom:12pt applied to title/author blocks in the editor.
     let tay = 3.5
     let isFirstTitleBlock = true
     for (const { text } of titleAuthorLines) {
       if (!isFirstTitleBlock) {
-        tay += LINE_HEIGHT_IN // one blank line between successive title-area blocks
+        tay += SCREENPLAY_LINE_HEIGHT_INCHES // one blank line between successive title-area blocks
       }
       isFirstTitleBlock = false
       const lines = doc.splitTextToSize(text || ' ', 5.0)
       for (const line of lines) {
         doc.text(line, 4.25, tay, { align: 'center', maxWidth: 5.0 })
-        tay += LINE_HEIGHT_IN
+        tay += SCREENPLAY_LINE_HEIGHT_INCHES
       }
     }
 
@@ -146,13 +156,13 @@ export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
       const lines = doc.splitTextToSize(text || ' ', contactSpec.w)
       for (const line of lines) {
         doc.text(line, contactSpec.x, cy)
-        cy += LINE_HEIGHT_IN
+        cy += SCREENPLAY_LINE_HEIGHT_INCHES
       }
     }
 
     if (bodyBlocks.length > 0) {
       doc.addPage()
-      doc.setFont('courier', 'normal')
+      doc.setFont(bodyFont, 'normal')
       doc.setFontSize(12)
     }
   }
@@ -170,14 +180,14 @@ export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
   const newPage = () => {
     doc.addPage()
     pageNum += 1
-    doc.setFont('courier', 'normal')
+    doc.setFont(bodyFont, 'normal')
     doc.setFontSize(12)
     doc.text(`${pageNum}.`, 7.5, 0.5, { align: 'right' })
     y = TOP_CONTENT_IN
   }
 
   const ensureLineFits = () => {
-    if (y + LINE_HEIGHT_IN > BOTTOM_CONTENT_IN) {
+    if (y + SCREENPLAY_LINE_HEIGHT_INCHES > BOTTOM_CONTENT_IN) {
       newPage()
     }
   }
@@ -187,7 +197,7 @@ export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
   for (let i = 0; i < blocksToRender.length; i++) {
     const { type, text } = blocksToRender[i]
     if (i > 0 && prevType != null) {
-      const gap = interBlockGapInches(prevType, type)
+      const gap = getScreenplayInterBlockGapInches(prevType, type)
       if (gap > 0) {
         if (y + gap > BOTTOM_CONTENT_IN) {
           newPage()
@@ -208,7 +218,7 @@ export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
       for (const line of lines) {
         ensureLineFits()
         doc.text(line, rightEdge, y, { align: 'right', maxWidth: spec.w })
-        y += LINE_HEIGHT_IN
+        y += SCREENPLAY_LINE_HEIGHT_INCHES
       }
       continue
     }
@@ -219,7 +229,7 @@ export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
       const first = parts[0] ?? t
       ensureLineFits()
       doc.text(first, spec.x, y)
-      y += LINE_HEIGHT_IN
+      y += SCREENPLAY_LINE_HEIGHT_INCHES
       continue
     }
 
@@ -228,7 +238,7 @@ export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
     for (const line of lines) {
       ensureLineFits()
       doc.text(line, spec.x, y)
-      y += LINE_HEIGHT_IN
+      y += SCREENPLAY_LINE_HEIGHT_INCHES
     }
   }
 
