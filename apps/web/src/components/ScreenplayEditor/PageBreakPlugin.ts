@@ -18,6 +18,27 @@ import {
 
 const TITLE_PAGE_TYPES = new Set(['title', 'author', 'contact'])
 
+/** True when script blocks begin with contiguous title-cover types ahead of body. */
+function docStartsWithCoverTitle(doc: PMNode): boolean {
+  let sawCover = false
+  for (let i = 0; i < doc.childCount; i++) {
+    const n = doc.child(i)
+    if (n.type.name !== 'scriptBlock') continue
+    const et = (n.attrs.elementType as string) || 'action'
+    if (TITLE_PAGE_TYPES.has(et)) {
+      sawCover = true
+      continue
+    }
+    break
+  }
+  return sawCover
+}
+
+/** Gutter screenplay page vs physical layout sheet (cover sheet occupies layout slot 1 without a numeral on body page 1). */
+function screenplayPageNumForGap(coverPrefix: boolean, layoutPageIdx: number): number {
+  return coverPrefix ? layoutPageIdx : layoutPageIdx + 1
+}
+
 /* ── Layout constants ──────────────────────────────────────────────────────── */
 
 const CONTENT_HEIGHT = SCREENPLAY_CONTENT_HEIGHT_PX
@@ -164,6 +185,7 @@ export const PageBreakExtension = Extension.create({
           if (blocks.length === 0) return { set: DecorationSet.empty, totalPages: 1 }
 
           const decorations: Decoration[] = []
+          const coverPrefix = docStartsWithCoverTitle(doc)
           const pmRect = editorView.dom.getBoundingClientRect()
           const scale = layoutScaleFromEditorDom(editorView.dom as HTMLElement)
 
@@ -232,7 +254,10 @@ export const PageBreakExtension = Extension.create({
               decorations.push(
                 Decoration.widget(
                   pos,
-                  createGapElement({ remainder, pageNumber: pageIndex + 1 }),
+                  createGapElement({
+                    remainder,
+                    pageNumber: screenplayPageNumForGap(coverPrefix, pageIndex),
+                  }),
                   {
                     side: -1,
                     type: 'block' as const,
@@ -315,7 +340,7 @@ export const PageBreakExtension = Extension.create({
                   pos,
                   createGapElement({
                     remainder,
-                    pageNumber: pageIndex + 1,
+                    pageNumber: screenplayPageNumForGap(coverPrefix, pageIndex),
                   }),
                   {
                     side: -1,
@@ -339,7 +364,9 @@ export const PageBreakExtension = Extension.create({
             }
           }
 
-          return { set: DecorationSet.create(doc, decorations), totalPages: pageIndex }
+          const totalPagesBody = Math.max(1, coverPrefix ? pageIndex - 1 : pageIndex)
+
+          return { set: DecorationSet.create(doc, decorations), totalPages: totalPagesBody }
         }
 
         function recalculate() {

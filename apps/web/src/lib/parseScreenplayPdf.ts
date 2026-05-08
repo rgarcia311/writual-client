@@ -10,6 +10,7 @@ interface LineGroup {
   x: number
   y: number
   text: string
+  pageNum: number
 }
 
 interface ScriptBlockNode {
@@ -42,6 +43,13 @@ const MARGIN_PAREN_MAX = 260
 const MARGIN_DIALOGUE_MIN = 155
 const MARGIN_DIALOGUE_MAX = 265
 const MARGIN_ACTION_MAX = 160
+
+/**
+ * Max vertical distance (PDF user space, Y bottom-up) between consecutive action
+ * baselines to treat them as one wrapped paragraph. Above this → new script block
+ * so editor block padding matches spec double-spacing (~24pt) vs single line (~12pt).
+ */
+const ACTION_LINE_MERGE_MAX_DELTA_Y = 18
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -364,6 +372,7 @@ export async function parseScreenplayPdf(file: File): Promise<{
         x: Math.min(...rowItems.map((r) => r.x)),
         y,
         text: joinTextRunsToLine(rowItems),
+        pageNum,
       }))
       .filter((line) => line.text.length > 0)
 
@@ -392,6 +401,17 @@ export async function parseScreenplayPdf(file: File): Promise<{
   // Classify each line and merge consecutive same-type lines into blocks
   const blocks: ScriptBlockNode[] = []
   let prevType: ScreenplayElementType | null = null
+  let prevNonEmptyLine: LineGroup | null = null
+  // #region agent log
+  const dbgActionMergeGaps: Array<{
+    deltaY: number | null
+    crossPage: boolean
+    afterType: ScreenplayElementType
+  }> = []
+  const dbgTypeTransitions: Array<{ from: ScreenplayElementType | null; to: ScreenplayElementType; x: number; preview: string }> = []
+  let dbgLargeGapParagraphSplits = 0
+  let dbgCrossPageActionSplits = 0
+  // #endregion
 
   for (const line of allLines) {
     const elementType = classifyLine(line, prevType)
@@ -404,18 +424,62 @@ export async function parseScreenplayPdf(file: File): Promise<{
 
     const lastBlock = blocks[blocks.length - 1]
 
-    const shouldMerge =
+    let shouldMerge = Boolean(
       lastBlock &&
-      lastBlock.attrs.elementType === elementType &&
-      elementType !== 'slugline' &&
-      elementType !== 'character' &&
-      elementType !== 'transition'
+        lastBlock.attrs.elementType === elementType &&
+        elementType !== 'slugline' &&
+        elementType !== 'character' &&
+        elementType !== 'transition',
+    )
 
-    if (shouldMerge) {
+    if (
+      shouldMerge &&
+      elementType === 'action' &&
+      prevNonEmptyLine
+    ) {
+      if (prevNonEmptyLine.pageNum !== line.pageNum) {
+        shouldMerge = false
+        // #region agent log
+        dbgCrossPageActionSplits++
+        // #endregion
+      } else {
+        const deltaY = prevNonEmptyLine.y - line.y
+        if (deltaY > ACTION_LINE_MERGE_MAX_DELTA_Y) {
+          shouldMerge = false
+          // #region agent log
+          dbgLargeGapParagraphSplits++
+          // #endregion
+        }
+      }
+    }
+
+    if (shouldMerge && lastBlock) {
+      // #region agent log
+      if (elementType === 'action' && prevNonEmptyLine) {
+        const samePage = prevNonEmptyLine.pageNum === line.pageNum
+        const deltaY =
+          samePage ? prevNonEmptyLine.y - line.y : null
+        dbgActionMergeGaps.push({
+          deltaY,
+          crossPage: !samePage,
+          afterType: elementType,
+        })
+      }
+      // #endregion
       const existing = lastBlock.content[0]?.text ?? ''
       const separator = elementType === 'action' ? '\n' : ' '
       lastBlock.content = [{ type: 'text', text: existing + separator + text }]
     } else {
+      // #region agent log
+      if (prevType !== null && prevType !== elementType) {
+        dbgTypeTransitions.push({
+          from: prevType,
+          to: elementType,
+          x: line.x,
+          preview: text.slice(0, 80),
+        })
+      }
+      // #endregion
       blocks.push({
         type: 'scriptBlock',
         attrs: { elementType },
@@ -424,14 +488,56 @@ export async function parseScreenplayPdf(file: File): Promise<{
     }
 
     prevType = elementType
+    prevNonEmptyLine = line
   }
 
+  // #region agent log
+  const dbgActionBlocks = blocks.filter((b) => b.attrs.elementType === 'action')
+  const dbgNewlineCounts = dbgActionBlocks.map((b) => {
+    const t = b.content[0]?.text ?? ''
+    return (t.match(/\n/g) ?? []).length
+  })
+  const dbgLargeGaps = dbgActionMergeGaps.filter(
+    (g) => g.deltaY != null && g.deltaY > 14,
+  )
+  fetch('http://127.0.0.1:7264/ingest/6603c130-d193-4aa3-9499-e934ff9eb1b2', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Debug-Session-Id': '293bef',
+    },
+    body: JSON.stringify({
+      sessionId: '293bef',
+      runId: 'post-fix',
+      hypothesisId: 'H1-H5',
+      location: 'parseScreenplayPdf.ts:post-classify',
+      message: 'PDF action merge vs editor block spacing',
+      data: {
+        actionMergeCount: dbgActionMergeGaps.length,
+        actionBlockCount: dbgActionBlocks.length,
+        actionBlocksWithInternalNewline: dbgNewlineCounts.filter((n) => n > 0).length,
+        maxNewlinesInOneActionBlock: dbgNewlineCounts.length ? Math.max(...dbgNewlineCounts) : 0,
+        largePdfYGapMerges_count14: dbgLargeGaps.length,
+        largePdfYGapMerges_sample: dbgLargeGaps.slice(0, 8).map((g) => g.deltaY),
+        crossPageActionMerges: dbgActionMergeGaps.filter((g) => g.crossPage).length,
+        largeGapParagraphSplits: dbgLargeGapParagraphSplits,
+        crossPageActionSplits: dbgCrossPageActionSplits,
+        typeTransitionSample: dbgTypeTransitions.slice(0, 12),
+        lineGroupCount: allLines.length,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {})
+  // #endregion
   const allBlocks = [...titlePageBlocks, ...blocks]
+
+  /** Body-page count excludes a detected cover PDF page; never below 1 (title-only file). */
+  const screenplayPageTotal = Math.max(1, pageCount - (skippedTitlePage ? 1 : 0))
   const title = extractedTitle ?? titleFromFilename(file.name)
 
   return {
     doc: { type: 'doc', content: allBlocks },
-    pageCount,
+    pageCount: screenplayPageTotal,
     title,
   }
 }
