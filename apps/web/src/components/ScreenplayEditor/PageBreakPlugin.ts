@@ -14,13 +14,66 @@ import {
   SCREENPLAY_MARGIN_TOP_PX,
 } from './screenplayPaperLayout'
 
+/* ── Title-page element types ──────────────────────────────────────────────── */
+
+const TITLE_PAGE_TYPES = new Set(['title', 'author', 'contact'])
+
+/** True when script blocks begin with contiguous title-cover types ahead of body. */
+function docStartsWithCoverTitle(doc: PMNode): boolean {
+  let sawCover = false
+  for (let i = 0; i < doc.childCount; i++) {
+    const n = doc.child(i)
+    if (n.type.name !== 'scriptBlock') continue
+    const et = (n.attrs.elementType as string) || 'action'
+    if (TITLE_PAGE_TYPES.has(et)) {
+      sawCover = true
+      continue
+    }
+    break
+  }
+  return sawCover
+}
+
+/** Gutter screenplay page vs physical layout sheet (cover sheet occupies layout slot 1 without a numeral on body page 1). */
+function screenplayPageNumForGap(coverPrefix: boolean, layoutPageIdx: number): number {
+  return coverPrefix ? layoutPageIdx : layoutPageIdx + 1
+}
+
 /* ── Layout constants ──────────────────────────────────────────────────────── */
 
+/** Same 864px interval as `.screenplay-page` min-height content band (54 × 16px lines). */
 const CONTENT_HEIGHT = SCREENPLAY_CONTENT_HEIGHT_PX
-const MIN_LINES_PX = SCREENPLAY_LINE_HEIGHT_PX * 2
 /** Bottom margin band + inter-page gap + top margin band (see PageBreakPlugin DOM). */
 const WIDGET_HEIGHT =
   SCREENPLAY_MARGIN_BOTTOM_PX + SCREENPLAY_INTER_PAGE_GAP_PX + SCREENPLAY_MARGIN_TOP_PX
+
+/**
+ * Block bottoms from getBoundingClientRect()/scale are fractional. Comparing to the integer
+ * content band (864px × N) without rounding can push the last line of a page onto the next,
+ * even when the layout still fits within the industry line grid in practice.
+ *
+ * Slight (+2px) headroom absorbs residual sub-pixel error from zoom + font metrics without
+ * changing the nominal 54 × 16px page frame.
+ */
+function layoutBottomExceedsPageContentEnd(layoutBottom: number, pageContentEnd: number): boolean {
+  return Math.floor(layoutBottom + 1e-6) > Math.floor(pageContentEnd + 2)
+}
+
+/**
+ * Script blocks use `padding-bottom: var(--sp-line-single)` as the blank line *before* the next
+ * element. That spacer does not need to fit on the same page as the last ink line when deciding
+ * whether a block "overflows" — same idea as PDF flow. Subtract it for overflow checks only.
+ */
+function layoutBottomForPaginationOverflow(
+  elementType: string | undefined,
+  layoutBottom: number,
+): number {
+  const t = elementType ?? 'action'
+  if (t === 'dialogue' || t === 'action' || t === 'slugline' || t === 'transition') {
+    return layoutBottom - SCREENPLAY_LINE_HEIGHT_PX
+  }
+  return layoutBottom
+}
 
 /* ── Plugin key & meta ─────────────────────────────────────────────────────── */
 
@@ -73,6 +126,7 @@ interface GapOpts {
 }
 
 function createGapElement(opts: GapOpts): HTMLElement {
+  // <PROTECTED>
   const wrapper = document.createElement('div')
   wrapper.className = 'page-break-gap'
   wrapper.contentEditable = 'false'
@@ -107,6 +161,7 @@ function createGapElement(opts: GapOpts): HTMLElement {
   leadingSheet.appendChild(topMargin)
 
   wrapper.append(trailingSheet, gap, leadingSheet)
+  // </PROTECTED>
   return wrapper
 }
 
@@ -142,6 +197,7 @@ export const PageBreakExtension = Extension.create({
       view(editorView) {
         let timerId: ReturnType<typeof setTimeout> | null = null
         let rafId: number | null = null
+        let settleTimerId: ReturnType<typeof setTimeout> | null = null
         let resizeObserver: ResizeObserver | null = null
         let zoomAttrObserver: MutationObserver | null = null
         let measuring = false
@@ -151,18 +207,20 @@ export const PageBreakExtension = Extension.create({
           editorView.dispatch(tr)
         }
 
-        function computeDecorations(): DecorationSet {
+        function computeDecorations(): { set: DecorationSet; totalPages: number } {
           const state = editorView.state
           const doc = state.doc
           const blocks = collectScriptBlocks(doc)
-          if (blocks.length === 0) return DecorationSet.empty
+          if (blocks.length === 0) return { set: DecorationSet.empty, totalPages: 1 }
 
           const decorations: Decoration[] = []
+          const coverPrefix = docStartsWithCoverTitle(doc)
           const pmRect = editorView.dom.getBoundingClientRect()
           const scale = layoutScaleFromEditorDom(editorView.dom as HTMLElement)
 
           let cursorOffset = 0
           let pageIndex = 1
+          let hasFiredTitleBreak = false
 
           for (let i = 0; i < blocks.length; i++) {
             const { pos, node } = blocks[i]
@@ -188,18 +246,99 @@ export const PageBreakExtension = Extension.create({
             let forceBreak = false
             const elementType = node.attrs.elementType as string || 'action'
 
+            // ── Title-page → body forced break ───────────────────────────────
+            // When the first non-title-page block immediately follows title-page
+            // content (title | author | contact), force a page break so the title
+            // page always occupies its own page and the screenplay body begins on
+            // the next. Fires at most once per computation pass via hasFiredTitleBreak.
+            //
+            // `hasFiredTitleBreak` replaces the previous `pageIndex === 1` guard:
+            // if multiple contact blocks overflow the page the regular break fires
+            // first, advancing pageIndex beyond 1 before we reach this check. The
+            // flag ensures the forced break still fires in that scenario.
+            //
+            // `continue` is required: blockTop / blockBottom / pageContentEnd are
+            // captured before the cursorOffset shift; falling through would re-evaluate
+            // those stale bounds and risk a duplicate break.
+            if (
+              !hasFiredTitleBreak &&
+              !TITLE_PAGE_TYPES.has(elementType) &&
+              i > 0 &&
+              TITLE_PAGE_TYPES.has(blocks[i - 1].node.attrs.elementType as string)
+            ) {
+              const prevEntry = blocks[i - 1]
+              const prevEl = editorView.nodeDOM(prevEntry.pos) as HTMLElement
+              let prevBottomRaw = 0
+              let prevBottom = 0
+              if (prevEl) {
+                prevBottomRaw = yLayoutInPm(prevEl, pmRect, scale).bottom
+                prevBottom = prevBottomRaw + cursorOffset
+              }
+
+              // Use current pageIndex so the remainder is correct even if the
+              // title-page content overflowed past page 1.
+              const titlePageEnd = (pageIndex - 1) * (CONTENT_HEIGHT + WIDGET_HEIGHT) + CONTENT_HEIGHT
+              const remainder = Math.max(0, titlePageEnd - prevBottom)
+
+              decorations.push(
+                Decoration.widget(
+                  pos,
+                  createGapElement({
+                    remainder,
+                    pageNumber: screenplayPageNumForGap(coverPrefix, pageIndex),
+                  }),
+                  {
+                    side: -1,
+                    type: 'block' as const,
+                    marks: [],
+                    stopEvent: () => true,
+                    key: `tp-break-${pos}`,
+                  },
+                ),
+              )
+
+              const naturalGap = naturalTop - prevBottomRaw
+              const actualShift = remainder + WIDGET_HEIGHT - naturalGap
+              cursorOffset += actualShift
+              pageIndex++
+              hasFiredTitleBreak = true
+              continue
+            }
+            // ── End title-page forced break ───────────────────────────────────
+
+            // ── Title-page blocks: never insert regular breaks ────────────────
+            // The forced break above is the only correct way to end the title
+            // page. Regular breaks within title-page-type blocks (title | author
+            // | contact) would split contact info across pages. The CSS
+            // `contact + contact { padding-top: 0 }` combinator is also
+            // unreliable once a widget appears between siblings, so this guard
+            // is the definitive fix.
+            if (TITLE_PAGE_TYPES.has(elementType)) {
+              continue
+            }
+
             // --- Orphan / Widow Group Checks ---
             if (elementType === 'character' && blockBottom <= pageContentEnd && blockTop > pageContentStart + 1) {
               let groupBottom = naturalBottom
+              let endedOnDialogue = false
               for (let j = i + 1; j < blocks.length; j++) {
                 const nextEl = editorView.nodeDOM(blocks[j].pos) as HTMLElement
                 if (!nextEl) break
                 const nextType = blocks[j].node.attrs.elementType as string
                 if (nextType !== 'parenthetical' && nextType !== 'dialogue') break
                 groupBottom = yLayoutInPm(nextEl, pmRect, scale).bottom
-                if (nextType === 'dialogue') break
+                if (nextType === 'dialogue') {
+                  endedOnDialogue = true
+                  break
+                }
               }
-              if (groupBottom + cursorOffset > pageContentEnd) forceBreak = true
+              let groupFitBottom = groupBottom + cursorOffset
+              if (endedOnDialogue) {
+                groupFitBottom = layoutBottomForPaginationOverflow('dialogue', groupFitBottom)
+              }
+              if (layoutBottomExceedsPageContentEnd(groupFitBottom, pageContentEnd)) {
+                forceBreak = true
+              }
             }
 
             if (elementType === 'parenthetical' && blockBottom <= pageContentEnd && blockTop > pageContentStart + 1) {
@@ -208,17 +347,31 @@ export const PageBreakExtension = Extension.create({
                 const nextEl = editorView.nodeDOM(nextBlock.pos) as HTMLElement
                 if (nextEl) {
                   const nextBottom = yLayoutInPm(nextEl, pmRect, scale).bottom + cursorOffset
-                  if (nextBottom > pageContentEnd) forceBreak = true
+                  const nextFitBottom = layoutBottomForPaginationOverflow('dialogue', nextBottom)
+                  if (layoutBottomExceedsPageContentEnd(nextFitBottom, pageContentEnd)) forceBreak = true
                 }
               }
             }
 
-            if (elementType === 'slugline' && blockBottom <= pageContentEnd && blockTop > pageContentStart + 1) {
-              if (pageContentEnd - blockBottom < MIN_LINES_PX) forceBreak = true
+            if (
+              elementType === 'slugline' &&
+              i < blocks.length - 1 &&
+              blockBottom <= pageContentEnd &&
+              blockTop > pageContentStart + 1
+            ) {
+              const roomAfter = pageContentEnd - blockBottom
+              if (Math.floor(roomAfter + 1e-6) < SCREENPLAY_LINE_HEIGHT_PX) {
+                forceBreak = true
+              }
             }
 
             // --- Core Break Logic ---
-            if (forceBreak || (blockBottom > pageContentEnd && blockTop > pageContentStart + 1)) {
+            const blockInkBottom = layoutBottomForPaginationOverflow(elementType, blockBottom)
+            if (
+              forceBreak ||
+              (layoutBottomExceedsPageContentEnd(blockInkBottom, pageContentEnd) &&
+                blockTop > pageContentStart + 1)
+            ) {
               
               let prevBottomRaw = pageContentStart
               let prevBottom = pageContentStart
@@ -240,7 +393,7 @@ export const PageBreakExtension = Extension.create({
                   pos,
                   createGapElement({
                     remainder,
-                    pageNumber: pageIndex + 1,
+                    pageNumber: screenplayPageNumForGap(coverPrefix, pageIndex),
                   }),
                   {
                     side: -1,
@@ -264,7 +417,9 @@ export const PageBreakExtension = Extension.create({
             }
           }
 
-          return DecorationSet.create(doc, decorations)
+          const totalPagesBody = Math.max(1, coverPrefix ? pageIndex - 1 : pageIndex)
+
+          return { set: DecorationSet.create(doc, decorations), totalPages: totalPagesBody }
         }
 
         function recalculate() {
@@ -272,6 +427,7 @@ export const PageBreakExtension = Extension.create({
           measuring = true
 
           try {
+            // <PROTECTED>
             const workspace = editorView.dom.closest('.screenplay-workspace') as HTMLElement | null
             const savedScrollTop = workspace?.scrollTop ?? 0
             const savedScrollLeft = workspace?.scrollLeft ?? 0
@@ -280,13 +436,19 @@ export const PageBreakExtension = Extension.create({
             dispatchDecorations(DecorationSet.empty)
             void editorView.dom.offsetHeight // Trigger browser reflow
 
-            const decos = computeDecorations()
-            dispatchDecorations(decos)
+            const { set, totalPages } = computeDecorations()
+            dispatchDecorations(set)
+
+            const pageEl = editorView.dom.closest('.screenplay-page') as HTMLElement | null
+            if (pageEl) {
+              pageEl.style.setProperty('--total-pages', String(totalPages))
+            }
 
             if (workspace) {
               workspace.scrollTop = savedScrollTop
               workspace.scrollLeft = savedScrollLeft
             }
+            // </PROTECTED>
           } finally {
             measuring = false
           }
@@ -316,11 +478,32 @@ export const PageBreakExtension = Extension.create({
         const onWinResize = () => scheduleRecalc()
         window.addEventListener('resize', onWinResize)
 
-        if (typeof document !== 'undefined' && document.fonts?.ready) {
-          void document.fonts.ready.then(() => scheduleRecalc())
+        /**
+         * First pagination pass often runs before webfonts + `transform: scale(zoom)` settle on
+         * refresh, so block heights differ from a moment later — dialogue drifts to page 2.
+         * Re-run after fonts and again on a short timeout (matches late `data-zoom` / layout).
+         */
+        function recalcAfterLayoutSettled(): void {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              recalculate()
+            })
+          })
         }
 
         scheduleRecalc()
+
+        if (typeof document !== 'undefined') {
+          if (document.fonts?.ready) {
+            void document.fonts.ready.then(() => recalcAfterLayoutSettled())
+          } else {
+            recalcAfterLayoutSettled()
+          }
+          settleTimerId = window.setTimeout(() => {
+            settleTimerId = null
+            recalculate()
+          }, 500)
+        }
 
         return {
           update(view, prevState) {
@@ -330,6 +513,7 @@ export const PageBreakExtension = Extension.create({
           },
           destroy() {
             if (timerId) clearTimeout(timerId)
+            if (settleTimerId) clearTimeout(settleTimerId)
             if (rafId) cancelAnimationFrame(rafId)
             resizeObserver?.disconnect()
             zoomAttrObserver?.disconnect()

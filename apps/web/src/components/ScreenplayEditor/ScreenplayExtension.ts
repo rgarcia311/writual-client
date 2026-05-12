@@ -17,6 +17,9 @@ export type ScreenplayElementType =
   | 'parenthetical'
   | 'dialogue'
   | 'transition'
+  | 'title'
+  | 'author'
+  | 'contact'
 
 export const SCREENPLAY_ELEMENT_LABELS: Record<ScreenplayElementType, string> = {
   slugline: 'Scene Heading',
@@ -25,6 +28,9 @@ export const SCREENPLAY_ELEMENT_LABELS: Record<ScreenplayElementType, string> = 
   parenthetical: 'Parenthetical',
   dialogue: 'Dialogue',
   transition: 'Transition',
+  title: 'Title',
+  author: 'Author',
+  contact: 'Contact Info',
 }
 
 // ─── Block Versioning Types ───────────────────────────────────────────────────
@@ -70,6 +76,9 @@ const ENTER_NEXT: Record<ScreenplayElementType, ScreenplayElementType> = {
   slugline: 'action',
   action: 'action',
   transition: 'slugline',
+  title: 'author',
+  author: 'contact',
+  contact: 'action',
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

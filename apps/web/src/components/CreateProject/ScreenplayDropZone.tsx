@@ -169,10 +169,15 @@ export function ScreenplayDropZone({
           >
             {state.fileName}
           </Typography>
-          <Typography variant="caption" color="text.secondary">
-            {importMode === 'server'
-              ? 'Ready — screenplay will be imported with AI when you create the project'
-              : `${state.pageCount} page${state.pageCount !== 1 ? 's' : ''} parsed`}
+          <Typography variant="caption" color="text.secondary" component="div">
+            {importMode === 'server' ? (
+              <>
+                PDF ready. Use &quot;Create Complete Writual Project&quot; below to import with characters and
+                scenes, or leave it off to import the screenplay only.
+              </>
+            ) : (
+              `${state.pageCount} page${state.pageCount !== 1 ? 's' : ''} parsed (screenplay only—no character or scene cards)`
+            )}
           </Typography>
         </Box>
         <IconButton size="small" onClick={handleClear} aria-label="Remove imported screenplay">

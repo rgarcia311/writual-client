@@ -6,7 +6,7 @@
    -----------------
    All measurements follow the WGA / Final Draft standard for US Letter paper.
 
-   Paper:       8.5" wide; height = width × 1.29  →  816px × 1053px (matches physical aspect)
+   Paper:       8.5" × 11" @ 96dpi  →  816px × 1056px (canonical layout; on-screen may scale to ~709×917)
    On-screen:   The page shell is transparent (white desk). A ::before mask repeats white
                 bands of --sp-paper-height with --sp-inter-page-gap desk between them.
                 ProseMirror + script blocks use opaque white so collapsed margins never
@@ -26,6 +26,7 @@
 
    ============================================================================= */
 
+/* <PROTECTED> */
 /* ── Google Fonts ─────────────────────────────────────────────────────────── */
 @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 
@@ -36,7 +37,7 @@
   overflow-x: auto;
   background-color: #ffffff;
   /* Reserve scrollbar width so padded content width matches the toolbar column */
-  scrollbar-gutter: stable;
+ scrollbar-gutter: stable;
   /* Vertical padding is set on the workspace Box in WritualEditor.tsx */
   /* Smooth momentum scrolling on iOS */
   -webkit-overflow-scrolling: touch;
@@ -59,9 +60,9 @@
   --sp-parenthetical-right-pad: 230px;
   --sp-character-indent: 211px;
 
-  /* Vertical rhythm (12pt body, line-height 1) */
-  --sp-line-single: 12pt;
-  --sp-line-double: 24pt;
+  /* Vertical rhythm: 1 line = 16px (12pt / 1/6" @ 96dpi), line-height 1 */
+  --sp-line-single: 16px;
+  --sp-line-double: 32px;
   /* Visible inter-page gap height (screen); matches SCREENPLAY_INTER_PAGE_GAP_PX */
   --sp-inter-page-gap: 28px;
   /* Page numbers: 0.5″ from top of paper (96dpi) */
@@ -69,7 +70,10 @@
 
   /* Fixed paper width — always 8.5" regardless of viewport */
   width: var(--sp-paper-width);
-  min-height: var(--sp-paper-height);
+  min-height: calc(
+    (var(--total-pages, 1) * var(--sp-paper-height)) +
+    (max(0, var(--total-pages, 1) - 1) * var(--sp-inter-page-gap))
+  );
   margin: 0 auto;
 
   /* Paper margins: top right bottom left */
@@ -80,10 +84,10 @@
   isolation: isolate;
   z-index: 0;
 
-  /* Screenplay typography */
+  /* Screenplay typography — 16px em-square matches 12pt @ 96dpi (strict line grid) */
   font-family: 'Courier Prime', 'Courier New', Courier, monospace;
-  font-size: 12pt; /* industry-standard Courier 12pt */
-  line-height: 1.0; /* monospace baseline; blank lines are added per-element */
+  font-size: 16px;
+  line-height: 16px;
   color: #000000;
 
   position: relative;
@@ -93,7 +97,7 @@
   box-shadow:
     3px 0 12px -6px rgba(0, 0, 0, 0.2),
     0 -3px 12px -6px rgba(0, 0, 0, 0.2),
-    0 3px 12px -6px rgba(0, 0, 0, 0.2);
+    0 8px 12px -6px rgba(0, 0, 0, 0.2);
 }
 
 /* Repeating “sheet + desk gap” mask (1056px + --sp-inter-page-gap). Sits behind ProseMirror; does not
@@ -206,8 +210,8 @@
   right: var(--sp-margin-right, 96px);
   top: 48px;
   font-family: 'Courier Prime', 'Courier New', Courier, monospace;
-  font-size: 12pt;
-  line-height: 1;
+  font-size: 16px;
+  line-height: 16px;
   color: #000;
 }
 
@@ -219,8 +223,8 @@
   width: 336px;
   text-align: center;
   font-family: 'Courier Prime', 'Courier New', Courier, monospace;
-  font-size: 12pt;
-  line-height: 1;
+  font-size: 16px;
+  line-height: 16px;
   color: #000;
 }
 
@@ -230,8 +234,8 @@
   left: calc(var(--sp-margin-left, 144px) + var(--sp-character-indent, 211px));
   bottom: 12px;
   font-family: 'Courier Prime', 'Courier New', Courier, monospace;
-  font-size: 12pt;
-  line-height: 1;
+  font-size: 16px;
+  line-height: 16px;
   text-transform: uppercase;
   color: #000;
 }
@@ -241,12 +245,16 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  font-size: 16px;
+  line-height: 16px;
   white-space: pre-wrap;
   word-wrap: break-word;
   /* Opaque fill so the desk / repeating mask never shows through collapsed margins */
   background-color: #ffffff;
   /* Spacing is driven per element-type + adjacency via padding */
   padding-bottom: 0;
+  padding-top: 0;
+  margin-top: 0;
   margin-bottom: 0;
   /* Prevent awkward mid-element page breaks when printing */
   break-inside: avoid;
@@ -271,18 +279,24 @@
 }
 
 /* First block after a page-break widget sits flush at the top of the new page */
-.page-break-gap + .script-block {
+.page-break-gap + .node-scriptBlock > .script-block {
   padding-top: 0 !important;
   margin-top: 0 !important;
 }
 
 /* ── SCENE HEADING (Slugline) ────────────────────────────────────────────── */
+/*
+ * Before scene headings: Character / Parenthetical → 1 blank (prev has no bottom pad): slugline
+ * `padding-top: 1 line`. Action / Dialogue / Transition → 2 blanks (⅓"): prev `padding-bottom`
+ * 1 line + slugline `padding-top` 1 line. Default slugline `padding-top: 0` when not matched below.
+ */
 .script-block[data-element-type='slugline'] {
   padding-left: 0;
   padding-right: 0;
   text-transform: uppercase;
-  font-weight: 700;
-  padding-top: var(--sp-line-single);
+  /* Match print/PDF Courier (Courier Prime Bold glyphs can inflate line rhythm vs source PDF). */
+  font-weight: 400;
+  padding-top: 0;
   padding-bottom: var(--sp-line-single);
   margin-top: 0;
   margin-bottom: 0;
@@ -291,16 +305,40 @@
   page-break-after: avoid;
 }
 
-/* First slugline needs no extra top padding */
-.script-block[data-element-type='slugline']:first-child {
+.node-scriptBlock:has(> .script-block[data-element-type='character'])
++ .node-scriptBlock
+> .script-block[data-element-type='slugline'],
+.node-scriptBlock:has(> .script-block[data-element-type='parenthetical'])
++ .node-scriptBlock
+> .script-block[data-element-type='slugline'],
+.node-scriptBlock:has(> .script-block[data-element-type='action'])
++ .node-scriptBlock
+> .script-block[data-element-type='slugline'],
+.node-scriptBlock:has(> .script-block[data-element-type='dialogue'])
++ .node-scriptBlock
+> .script-block[data-element-type='slugline'],
+.node-scriptBlock:has(> .script-block[data-element-type='transition'])
++ .node-scriptBlock
+> .script-block[data-element-type='slugline'] {
+  padding-top: var(--sp-line-single);
+}
+
+/* Only the first node in the doc: no extra lead above the opening scene heading */
+.screenplay-page .ProseMirror > .node-scriptBlock:first-child > .script-block[data-element-type='slugline'] {
   padding-top: 0;
   margin-top: 0;
+}
+
+/* Action: second & later paragraphs inside one block = 1 blank line (1/6") per table */
+.script-block[data-element-type='action'] p + p {
+  margin-top: var(--sp-line-single);
 }
 
 /* ── ACTION ──────────────────────────────────────────────────────────────── */
 .script-block[data-element-type='action'] {
   padding-left: 0;
   padding-right: 0;
+  padding-top: 0;
   padding-bottom: var(--sp-line-single);
   margin-bottom: 0;
   margin-top: 0;
@@ -310,7 +348,7 @@
 /* ── CHARACTER CUE ───────────────────────────────────────────────────────── */
 .script-block[data-element-type='character'] {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   flex-wrap: nowrap;
   padding-left: var(--sp-character-indent);
   padding-right: 0;
@@ -327,6 +365,7 @@
 .script-block[data-element-type='parenthetical'] {
   padding-left: var(--sp-parenthetical-indent);
   padding-right: var(--sp-parenthetical-right-pad);
+  padding-top: 0;
   padding-bottom: 0;
   margin-bottom: 0;
   margin-top: 0;
@@ -343,6 +382,7 @@
   flex-wrap: wrap;
   padding-left: var(--sp-dialogue-indent);
   padding-right: var(--sp-dialogue-right-pad);
+  padding-top: 0;
   padding-bottom: var(--sp-line-single);
   margin-bottom: 0;
   margin-top: 0;
@@ -355,8 +395,8 @@
   content: attr(data-page-label);
   position: absolute;
   right: 0;
-  font-size: 12pt;
-  line-height: 1;
+  font-size: 16px;
+  line-height: 16px;
   pointer-events: none;
   user-select: none;
   z-index: 3;
@@ -381,15 +421,81 @@
 }
 
 /* ── TRANSITION ──────────────────────────────────────────────────────────── */
+/*
+ * Action→Transition = 1 blank (1/6") only — gap comes from previous block’s
+ * `padding-bottom`, not `padding-top` here (stacking was 32px = 2 blanks).
+ * Character/Parenthetical→Transition: no bottom pad on prev → add lead here.
+ */
 .script-block[data-element-type='transition'] {
   padding-left: 0;
   padding-right: 0;
   text-align: right;
   text-transform: uppercase;
-  padding-top: var(--sp-line-single);
+  padding-top: 0;
   padding-bottom: var(--sp-line-single);
   margin-top: 0;
   margin-bottom: 0;
+}
+
+.node-scriptBlock:has(> .script-block[data-element-type='character'])
++ .node-scriptBlock
+> .script-block[data-element-type='transition'],
+.node-scriptBlock:has(> .script-block[data-element-type='parenthetical'])
++ .node-scriptBlock
+> .script-block[data-element-type='transition'] {
+  padding-top: var(--sp-line-single);
+}
+
+/* Title / cover blocks: top padding is intentional; base .script-block padding-top:0 is overridden below */
+
+/* ── TITLE PAGE ELEMENTS ─────────────────────────────────────────────────── */
+.script-block[data-element-type='title'] {
+  text-align: center;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding-top: calc(var(--sp-line-single) * 15);
+  padding-bottom: var(--sp-line-single);
+  margin: 0;
+}
+
+.script-block[data-element-type='author'] {
+  text-align: center;
+  padding-top: 0;
+  padding-bottom: var(--sp-line-single);
+  margin: 0;
+}
+
+.script-block[data-element-type='contact'] {
+  text-align: left;
+  padding-top: calc(var(--sp-line-single) * 20);
+  padding-bottom: var(--sp-line-single);
+  margin: 0;
+}
+
+/*
+ * TipTap's ReactNodeViewRenderer wraps every node in `div.node-scriptBlock`.
+ * The old `contact + contact` adjacent-sibling selector never fired because
+ * the siblings in ProseMirror are those wrapper divs, not the script-block
+ * elements. These rules reach through the wrappers via :has() instead.
+ *
+ * Rule A — remove top padding from the 2nd+ contact block in a sequence
+ * (replaces the broken `.script-block[contact] + .script-block[contact]`)
+ */
+.node-scriptBlock:has(> [data-element-type='contact'])
++ .node-scriptBlock
+> [data-element-type='contact'] {
+  padding-top: 0;
+}
+
+/*
+ * Rule B — remove bottom padding from a contact block that is immediately
+ * followed by another contact block, so the gap between them is zero
+ * (just natural line-height — same as lines within a single action block).
+ */
+.node-scriptBlock:has(> [data-element-type='contact']):has(
+  + .node-scriptBlock > [data-element-type='contact']
+) > [data-element-type='contact'] {
+  padding-bottom: 0;
 }
 
 /* ── Cursor / selection appearance ──────────────────────────────────────── */
@@ -479,8 +585,14 @@
   margin: 0;
   z-index: 2;
 }
+/* </PROTECTED> */
 /* :focus-within ensures touch/keyboard users see the indicator when typing.
    .popover-open locks visibility while the switcher is open. */
+
+/* TipTap wraps each node — keep spacing fully under .script-block padding only */
+.screenplay-page .ProseMirror > .node-scriptBlock {
+  margin: 0;
+}
 
 /* =============================================================================
    Collaboration Cursors — Remote user carets and labels

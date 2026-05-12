@@ -37,8 +37,8 @@ function getProjectIdFromPathname(pathname: string | null): string | null {
 
 const SEARCH_MENU_ITEMS = ['Project', 'Scenes', 'Characters'];
 
-const SIDENAV_WIDTH_EXPANDED = 300;
-const SIDENAV_WIDTH_COLLAPSED = 80;
+const SIDENAV_WIDTH_EXPANDED = 240;
+const SIDENAV_WIDTH_COLLAPSED = 45;
 
 export const StyledSideNav = styled(Paper, {
   shouldForwardProp: (prop) => prop !== 'collapsed',
@@ -47,7 +47,7 @@ export const StyledSideNav = styled(Paper, {
   width: collapsed ? SIDENAV_WIDTH_COLLAPSED : SIDENAV_WIDTH_EXPANDED,
   minWidth: collapsed ? SIDENAV_WIDTH_COLLAPSED : SIDENAV_WIDTH_EXPANDED,
   borderRadius: "10px",
-  padding: "5px",
+  padding: collapsed ? theme.spacing(0.5, 0.25) : '5px',
   display: "flex",
   flexDirection: "column",
   gap: 1,
@@ -85,7 +85,7 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
           alignItems: 'center',
           justifyContent: collapsed ? 'center' : 'space-between',
           width: '100%',
-          px: 1,
+          px: collapsed ? 0 : 1,
           pt: 1,
           gap: 0.5,
           flexShrink: 0,
@@ -103,13 +103,14 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
             color: 'inherit',
           }}
         >
-          <AppLogo size={collapsed ? 32 : 30} showWordmark={!collapsed} loading="eager" />
+          <AppLogo size={collapsed ? 22 : 30} showWordmark={!collapsed} loading="eager" />
         </MuiLink>
         <Tooltip title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} placement="right">
           <IconButton
             onClick={toggleCollapsed}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            size="small"
+            size={collapsed ? 'small' : 'medium'}
+            sx={collapsed ? { p: 0.25 } : undefined}
           >
             {collapsed ? <SwitchRightIcon /> : <SwitchLeftIcon />}
           </IconButton>
@@ -126,7 +127,7 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
           minHeight: 0,
           overflow: 'auto',
           width: '100%',
-          px: collapsed ? '8px' : '8px',
+          px: collapsed ? 0 : '8px',
           pt: 2,
         }}
       >
@@ -139,8 +140,14 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
                   component={Link}
                   href={href}
                   color="primary"
-                  size="medium"
-                  sx={{ minWidth: 48, '& svg': { fontSize: 28 } }}
+                  size="small"
+                  sx={{
+                    minWidth: 32,
+                    width: 32,
+                    height: 32,
+                    p: 0.5,
+                    '& svg': { fontSize: 20 },
+                  }}
                 >
                   <Icon />
                 </IconButton>
@@ -175,8 +182,8 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
           flexDirection: collapsed ? 'column' : 'row',
           alignItems: 'center',
           justifyContent: collapsed ? 'center' : 'flex-start',
-          gap: 1,
-          px: collapsed ? 0.5 : 1,
+          gap: collapsed ? 0.5 : 1,
+          px: collapsed ? 0 : 1,
           py: 1.5,
           flexShrink: 0,
           width: '100%',
@@ -185,8 +192,19 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
         <FeatureGate minTier="spec">
           {collapsed ? (
             <Tooltip title="Create project" placement="right">
-              <IconButton color="primary" onClick={openCreateProjectModal} aria-label="Create project" size="medium">
-                <AddIcon />
+              <IconButton
+                color="primary"
+                onClick={openCreateProjectModal}
+                aria-label="Create project"
+                size="small"
+                sx={{
+                  minWidth: 32,
+                  width: 32,
+                  height: 32,
+                  p: 0.5,
+                }}
+              >
+                <AddIcon sx={{ fontSize: 20 }} />
               </IconButton>
             </Tooltip>
           ) : (

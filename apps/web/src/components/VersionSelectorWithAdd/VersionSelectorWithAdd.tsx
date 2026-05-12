@@ -1,7 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import Box from '@mui/material/Box';
 import FormControl from '@mui/material/FormControl';
 import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
@@ -42,7 +41,21 @@ export function VersionSelectorWithAdd({
   };
 
   return (
-    <FormControl size="small" sx={{ display: 'flex', flexDirection: 'row', gap: 1 }}>
+    <FormControl size="small" sx={{ display: 'flex', flexDirection: 'row', gap: 1, alignItems: 'center' }}>
+      <IconButton
+        size="small"
+        onClick={onAddVersion ?? (() => {})}
+        disabled={addDisabled}
+        aria-label={addVersionAriaLabel}
+        sx={{
+          backgroundColor: theme.palette.primary.light,
+          color: theme.palette.primary.contrastText ?? theme.palette.common.white,
+          '&:hover': { backgroundColor: theme.palette.primary.main },
+          flexShrink: 0,
+        }}
+      >
+        <AddIcon fontSize="small" />
+      </IconButton>
       <Select
         value={value}
         onChange={handleSelectChange}
@@ -63,19 +76,6 @@ export function VersionSelectorWithAdd({
           </MenuItem>
         ))}
       </Select>
-      <IconButton
-        size="small"
-        onClick={onAddVersion ?? (() => {})}
-        disabled={addDisabled}
-        aria-label={addVersionAriaLabel}
-        sx={{
-          backgroundColor: theme.palette.primary.light,
-          color: theme.palette.primary.contrastText ?? theme.palette.common.white,
-          '&:hover': { backgroundColor: theme.palette.primary.main },
-        }}
-      >
-        <AddIcon fontSize="small" />
-      </IconButton>
     </FormControl>
   );
 }

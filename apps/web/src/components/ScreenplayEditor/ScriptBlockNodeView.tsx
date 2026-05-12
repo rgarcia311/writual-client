@@ -33,6 +33,9 @@ const ELEMENT_TYPES = new Set([
   'parenthetical',
   'dialogue',
   'transition',
+  'title',
+  'author',
+  'contact',
 ])
 
 /** Normalize stored attrs (case, stray values) so data-element-type matches CSS. */

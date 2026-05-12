@@ -13,9 +13,10 @@ import { OUTLINE_FRAMEWORKS_QUERY } from '@/queries/OutlineQueries';
 import type { OutlineFrameworkItem } from '@/state/outlineFrameworks';
 import { authRequest } from '@/lib/authRequest';
 import { useUserProfileStore } from '@/state/user';
-import { getApiOrigin } from '@/lib/config';
 import { getFirebaseAuth } from '@/lib/firebase';
+import { parseScreenplayPdf } from '@/lib/parseScreenplayPdf';
 import { TIER_RANK, type Tier } from '@/types/tier';
+import { PROJECT_SCENES_QUERY_KEY } from 'hooks';
 
 interface OutlineFrameworksResponse {
   getOutlineFrameworks?: OutlineFrameworkItem[];
@@ -62,7 +63,12 @@ export function CreateProjectWrapper() {
 
   const createProjectMutation = useMutation({
     mutationFn: async (variables: Record<string, unknown>) => {
-      const { screenplayContent, screenplayPdfFile, ...projectVars } = variables;
+      const {
+        screenplayContent,
+        screenplayPdfFile,
+        createCompleteWritualProject,
+        ...projectVars
+      } = variables;
       const result = await authRequest<{ createProject?: { _id: string } }>(
         CREATE_PROJECT,
         projectVars as Record<string, string>,
@@ -71,61 +77,106 @@ export function CreateProjectWrapper() {
       if (!newProjectId) return;
 
       const pdfFile = screenplayPdfFile instanceof File ? screenplayPdfFile : null;
-      const useAiImport =
-        screenplayImportMode === 'server' && pdfFile != null;
+      const useServerPdf = screenplayImportMode === 'server' && pdfFile != null;
+      const wantsCompleteWritualProject = createCompleteWritualProject === true;
 
-      if (useAiImport) {
+      if (useServerPdf && wantsCompleteWritualProject) {
         try {
+          const { doc, pageCount } = await parseScreenplayPdf(pdfFile);
           const token = await getFirebaseAuth().currentUser?.getIdToken();
-          const fd = new FormData();
-          fd.append('projectId', newProjectId);
-          fd.append('file', pdfFile);
-          const origin = getApiOrigin();
-          const r = await fetch(`${origin}/api/screenplay/import-pdf-ai`, {
+          const r = await fetch('/api/screenplay/import-pdf-ai', {
             method: 'POST',
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-            body: fd,
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              projectId: newProjectId,
+              doc,
+              pageCount,
+            }),
             signal: AbortSignal.timeout(600_000),
           });
+          const responseText = await r.text();
           let body: {
             error?: string;
             entityErrors?: string[];
             ok?: boolean;
           } = {};
-          try {
-            body = (await r.json()) as typeof body;
-          } catch {
-            /* ignore */
+          if (responseText) {
+            try {
+              body = JSON.parse(responseText) as typeof body;
+            } catch {
+              body = {
+                error: responseText.trim().slice(0, 500) || undefined,
+              };
+            }
           }
           if (!r.ok) {
-            console.error('[CreateProjectWrapper] AI import failed:', body);
+            const apiError =
+              typeof body.error === 'string' && body.error.trim() !== ''
+                ? body.error.trim()
+                : null;
+            const fallback =
+              apiError ??
+              (responseText.trim() !== ''
+                ? responseText.trim().slice(0, 400)
+                : `HTTP ${r.status}`);
+            console.error('[CreateProjectWrapper] AI import failed:', r.status, fallback);
             setAlertSeverity('error');
             setAlertMessage(
-              typeof body.error === 'string'
-                ? body.error
-                : 'AI screenplay import failed. The project was created.',
+              apiError !== null
+                ? `${apiError} The project was created — you can retry from the project page.`
+                : `AI screenplay import failed (${fallback}). The project was created.`,
             );
             setAlertOpen(true);
-          } else if (
-            Array.isArray(body.entityErrors) &&
-            body.entityErrors.length > 0
-          ) {
-            const preview = body.entityErrors.slice(0, 3).join('; ');
-            const more =
-              body.entityErrors.length > 3
-                ? ` (+${body.entityErrors.length - 3} more)`
-                : '';
-            setAlertSeverity('warning');
-            setAlertMessage(
-              `Project created. Some outline or character rows could not be saved: ${preview}${more}`,
-            );
-            setAlertOpen(true);
+          } else {
+            await queryClient.invalidateQueries({
+              queryKey: [PROJECT_SCENES_QUERY_KEY, newProjectId],
+            });
+            await queryClient.refetchQueries({
+              queryKey: [PROJECT_SCENES_QUERY_KEY, newProjectId],
+            });
+            if (
+              Array.isArray(body.entityErrors) &&
+              body.entityErrors.length > 0
+            ) {
+              const preview = body.entityErrors.slice(0, 3).join('; ');
+              const more =
+                body.entityErrors.length > 3
+                  ? ` (+${body.entityErrors.length - 3} more)`
+                  : '';
+              setAlertSeverity('warning');
+              setAlertMessage(
+                `Project created. Some outline or character rows could not be saved: ${preview}${more}`,
+              );
+              setAlertOpen(true);
+            }
           }
         } catch (err) {
           console.error('[CreateProjectWrapper] AI import request failed:', err);
           setAlertSeverity('error');
           setAlertMessage(
             'Project created but the AI import request failed. Please try again from the project page.',
+          );
+          setAlertOpen(true);
+        }
+        return;
+      }
+
+      if (useServerPdf && !wantsCompleteWritualProject) {
+        if (!pdfFile) return;
+        try {
+          const { doc } = await parseScreenplayPdf(pdfFile);
+          await authRequest(SAVE_SCREENPLAY, {
+            projectId: newProjectId,
+            content: doc,
+          });
+        } catch (err) {
+          console.error('[CreateProjectWrapper] Screenplay import failed:', err);
+          setAlertSeverity('error');
+          setAlertMessage(
+            'Project was created, but the screenplay could not be parsed or saved. You can re-import the PDF from the project page.',
           );
           setAlertOpen(true);
         }

@@ -1,0 +1,44 @@
+{
+  "version": "1",
+  "provider": "claude",
+  "model": "claude-sonnet-4-6",
+  "cachingEnabled": false,
+  "requestTimeoutMs": 60000,
+  "chunkInterDelayMs": 200,
+  "temperature": 0.15,
+  "maxConcurrency": 1,
+  "maxTotalChunksPerRequest": 50,
+  "maxTotalTokensPerRequest": 250000,
+  "maxInputTokensPerRequest": 150000,
+  "circuitBreaker": {
+    "errorThresholdRate": 0.20,
+    "windowSize": 10,
+    "cooldownMs": 60000
+  },
+  "models": {
+    "llama-3.3-70b-versatile": {
+      "chunkMaxChars": 4500,
+      "maxOutputTokensPerChunk": 2048,
+      "contextWindowTokens": 32768,
+      "tokensPerChar": 0.33
+    },
+    "claude-sonnet-4-6": {
+      "chunkMaxChars": 4500,
+      "maxOutputTokensPerChunk": 4096,
+      "contextWindowTokens": 200000,
+      "tokensPerChar": 0.30
+    },
+    "claude-opus-4-7": {
+      "chunkMaxChars": 4500,
+      "maxOutputTokensPerChunk": 4096,
+      "contextWindowTokens": 200000,
+      "tokensPerChar": 0.30
+    },
+    "claude-haiku-4-5-20251001": {
+      "chunkMaxChars": 4500,
+      "maxOutputTokensPerChunk": 4096,
+      "contextWindowTokens": 200000,
+      "tokensPerChar": 0.30
+    }
+  }
+}

@@ -4,7 +4,13 @@ import CardContent from '@mui/material/CardContent';
 import { sceneCardStyle, multiLineTruncate } from 'styles';
 import {
   Box,
+  Button,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   Divider,
   FormControl,
   IconButton,
@@ -47,6 +53,8 @@ interface SceneCardProps {
    * no outline grid / min-450px constraints.
    */
   fullWidthInParent?: boolean;
+  /** Tighter padding and content height when shown two-per-row (e.g. screenplay side panel). */
+  compactSideBySide?: boolean;
 }
 
 export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
@@ -62,7 +70,9 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
   steps = [],
   onDelete,
   fullWidthInParent = false,
+  compactSideBySide = false,
 }) {
+  const sideBySideCompact = fullWidthInParent && compactSideBySide;
   const initialActiveVersion = Math.max(1, Number(activeVersion ?? 1));
   const [activeVersionLocal, setActiveVersionLocal] = useState<number>(initialActiveVersion);
   const [creatingNewVersion, setCreatingNewVersion] = useState(false);
@@ -85,6 +95,7 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
   const { startSaving, endSaving } = useOutlineSaveStatusStore();
   const theme = useTheme();
   const [isLocked, setIsLocked] = useState(lockedVersion != null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   useEffect(() => {
     versionsRef.current = Array.isArray(versions) ? versions : [];
@@ -306,6 +317,19 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
     );
   };
 
+  const handleConfirmDeleteScene = () => {
+    if (!projectId) return;
+    deleteSceneMutation.mutate(
+      { sceneId, projectId },
+      {
+        onSuccess: () => {
+          setDeleteConfirmOpen(false);
+          onDelete?.();
+        },
+      },
+    );
+  };
+
   const handleToggleLock = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -328,8 +352,13 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
     );
   };
 
+  const sceneLabel =
+    sceneContent.sceneHeading?.trim() ||
+    (newScene ? 'New scene' : `Scene ${number}`);
+
   return (
-    <Card
+    <>
+      <Card
       sx={
         fullWidthInParent
           ? {
@@ -368,9 +397,9 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
           alignItems: 'center',
           justifyContent: 'space-between',
           flexWrap: 'wrap',
-          gap: 1,
-          px: 2,
-          py: 1.5,
+          gap: sideBySideCompact ? 0.5 : 1,
+          px: sideBySideCompact ? 1 : 2,
+          py: sideBySideCompact ? 0.75 : 1.5,
           bgcolor: 'background.default',
           borderBottom: `1px solid ${theme.palette.divider}`,
           minWidth: 0,
@@ -386,7 +415,12 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
           }}
         >
           {isLocked ? (
-            <Typography variant="subtitle1" fontWeight={700} component="span" sx={multiLineTruncate(4)}>
+            <Typography
+              variant={sideBySideCompact ? 'subtitle2' : 'subtitle1'}
+              fontWeight={700}
+              component="span"
+              sx={multiLineTruncate(sideBySideCompact ? 2 : 4)}
+            >
               {sceneContent.sceneHeading?.trim() || 'Untitled scene'}
             </Typography>
           ) : (
@@ -404,9 +438,9 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
             />
           )}
         </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: sideBySideCompact ? 0.5 : 1 }}>
           <Chip
-            label={`#${number}`}
+            label={`Scene ${number}`}
             size="small"
             sx={{
               backgroundColor: theme.palette.grey[600],
@@ -414,45 +448,20 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
               fontWeight: 600,
             }}
           />
-          <IconButton
-          size="small"
-          onClick={handleToggleLock}
-          sx={{
-            backgroundColor: isLocked
-              ? theme.palette.primary.main
-              : theme.palette.grey[200],
-            color: isLocked
-              ? theme.palette.primary.contrastText ?? theme.palette.common.white
-              : theme.palette.grey[700],
-            '&:hover': {
-              backgroundColor: isLocked
-                ? theme.palette.primary.dark
-                : theme.palette.grey[300],
-            },
-          }}
-          aria-label={isLocked ? 'Unlock scene' : 'Lock scene'}
-        >
-          {isLocked ? (
-            <LockIcon fontSize="small" />
-          ) : (
-            <LockOpenIcon fontSize="small" />
-          )}
-        </IconButton>
         </Box>
       </Box>
       {/* Content: Thesis, Antithesis, Synthesis (constrained height) */}
       <CardContent
         sx={{
-         
           flex: '0 1 auto',
-          height: 175,
-          overflowY: 'auto',
-          p: 1,
-          px: 2,
-          '&:last-child': { pb: 1.5 },
+          height: sideBySideCompact ? 'auto' : 175,
+          overflowY: sideBySideCompact ? 'visible' : 'auto',
+          p: sideBySideCompact ? 0.75 : 1,
+          px: sideBySideCompact ? 1 : 2,
+          '&:last-child': { pb: sideBySideCompact ? 0.75 : 1.5 },
         }}
       >
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1}}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: sideBySideCompact ? 0.5 : 1 }}>
           <Box>
             <Typography component="span" fontWeight={700} sx={{ display: 'block', mb: 0.25 }} variant="body2">
               Thesis:
@@ -525,16 +534,16 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
         </Box>
       </CardContent>
       <Divider />
-      {/* Footer: Lock, Version dropdown, Delete (taller so not cut off) */}
+      {/* Footer: Version dropdown + lock/delete actions (taller so not cut off) */}
       <Box
         sx={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 1,
-          minHeight: 30,
-          px: 2,
-          py: 1.5,
+          minHeight: sideBySideCompact ? 0 : 30,
+          px: sideBySideCompact ? 1 : 2,
+          py: sideBySideCompact ? 0.75 : 1.5,
           flexShrink: 0,
           minWidth: 0,
         }}
@@ -545,7 +554,7 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
             alignItems: 'center',
             gap: 1,
             flex: 1,
-            justifyContent: 'center',
+            justifyContent: 'flex-start',
             flexWrap: 'wrap',
             minWidth: 0,
           }}
@@ -566,7 +575,11 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
               sx={{
                 minWidth: fullWidthInParent ? 0 : 160,
                 maxWidth: fullWidthInParent ? '100%' : 'none',
-                flex: fullWidthInParent ? '1 1 120px' : 'none',
+                flex: fullWidthInParent
+                  ? sideBySideCompact
+                    ? '1 1 72px'
+                    : '1 1 120px'
+                  : 'none',
               }}
             >
               <Select
@@ -595,27 +608,77 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
           )}
          
         </Box>
-        <IconButton
-          size="small"
-          onClick={() => {
-            if (!projectId) return;
-            deleteSceneMutation.mutate(
-              { sceneId, projectId },
-              { onSuccess: () => onDelete?.() }
-            );
-          }}
-          sx={{
-            backgroundColor: theme.palette.error.light,
-            color: theme.palette.error.contrastText ?? theme.palette.common.white,
-            '&:hover': {
-              backgroundColor: theme.palette.error.main,
-            },
-          }}
-          aria-label="Delete scene"
-        >
-          <DeleteIcon fontSize="small" />
-        </IconButton>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: sideBySideCompact ? 0.5 : 1, flexShrink: 0 }}>
+          <IconButton
+            size="small"
+            onClick={handleToggleLock}
+            sx={{
+              backgroundColor: isLocked
+                ? theme.palette.primary.main
+                : theme.palette.grey[200],
+              color: isLocked
+                ? theme.palette.primary.contrastText ?? theme.palette.common.white
+                : theme.palette.grey[700],
+              '&:hover': {
+                backgroundColor: isLocked
+                  ? theme.palette.primary.dark
+                  : theme.palette.grey[300],
+              },
+            }}
+            aria-label={isLocked ? 'Unlock scene' : 'Lock scene'}
+          >
+            {isLocked ? (
+              <LockIcon fontSize="small" />
+            ) : (
+              <LockOpenIcon fontSize="small" />
+            )}
+          </IconButton>
+          <IconButton
+            size="small"
+            onClick={() => {
+              if (!projectId) return;
+              setDeleteConfirmOpen(true);
+            }}
+            sx={{
+              backgroundColor: theme.palette.error.light,
+              color: theme.palette.error.contrastText ?? theme.palette.common.white,
+              '&:hover': {
+                backgroundColor: theme.palette.error.main,
+              },
+            }}
+            aria-label="Delete scene"
+          >
+            <DeleteIcon fontSize="small" />
+          </IconButton>
+        </Box>
       </Box>
-    </Card>
+      </Card>
+      <Dialog
+        open={deleteConfirmOpen}
+        onClose={() => !deleteSceneMutation.isPending && setDeleteConfirmOpen(false)}
+        aria-labelledby="scene-delete-dialog-title"
+        aria-describedby="scene-delete-dialog-description"
+      >
+        <DialogTitle id="scene-delete-dialog-title">Delete scene?</DialogTitle>
+        <DialogContent>
+          <DialogContentText id="scene-delete-dialog-description">
+            This will permanently delete <strong>{sceneLabel}</strong> from this project. This cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirmOpen(false)} disabled={deleteSceneMutation.isPending}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmDeleteScene}
+            color="error"
+            variant="contained"
+            disabled={!projectId || deleteSceneMutation.isPending}
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </>
   );
 });

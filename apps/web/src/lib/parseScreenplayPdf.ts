@@ -1,7 +1,6 @@
 import type { ScreenplayElementType } from '@/components/ScreenplayEditor/ScreenplayExtension'
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20 MB
-
 interface TextItem {
   str: string
   transform: number[] // [scaleX, skewX, skewY, scaleY, x, y]
@@ -11,6 +10,7 @@ interface LineGroup {
   x: number
   y: number
   text: string
+  pageNum: number
 }
 
 interface ScriptBlockNode {
@@ -44,7 +44,31 @@ const MARGIN_DIALOGUE_MIN = 155
 const MARGIN_DIALOGUE_MAX = 265
 const MARGIN_ACTION_MAX = 160
 
+/**
+ * Max vertical distance (PDF user space, Y bottom-up) between consecutive
+ * baselines of the same block type to merge into one scriptBlock (action /
+ * dialogue / parenthetical). Above this → start a new block (paragraph break
+ * or skipped blank row in the PDF).
+ */
+const PDF_LINE_MERGE_MAX_DELTA_Y = 18
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Text runs on one PDF line are separate items; joining with `''` smashes words ("CA" + "Written").
+ * Sort left-to-right, join with spaces, normalize whitespace.
+ */
+function joinTextRunsToLine(
+  rowItems: Array<{ x: number; str: string }>,
+): string {
+  if (rowItems.length === 0) return ''
+  const sorted = [...rowItems].sort((a, b) => a.x - b.x)
+  return sorted
+    .map((it) => it.str)
+    .join(' ')
+    .replace(/[ \t]+/g, ' ')
+    .trim()
+}
 
 function isAllCaps(text: string): boolean {
   const letters = text.replace(/[^a-zA-Z]/g, '')
@@ -52,7 +76,29 @@ function isAllCaps(text: string): boolean {
 }
 
 const TITLE_PAGE_NOISE_RE =
-  /^(written\s+by|by\b|draft|revised|revision|copyright|©|\d{1,2}[\/\-]\d|wga\b|registered|contact|address|phone|email|tel\b|fax\b|based\s+on|adapted)/i
+  /^(written\s+by|screenplay\s+by|story\s+by|by\b|draft|revised|revision|copyright|©|\d{1,2}[\/\-]\d|wga\b|registered|contact|address|phone|email|tel\b|fax\b|based\s+on|based\s+upon|adapted)/i
+
+const WRITTEN_BY_RE = /^(written\s+by|screenplay\s+by|story\s+by|by)\b/i
+
+const BASED_ON_RE = /^(based\s+on|based\s+upon|adapted\s+from)\b/i
+
+/**
+ * Matches common date formats found on title pages.
+ * Intentionally excludes bare 4-digit years to avoid swallowing numerical titles
+ * like "1917", "1984", or "2001".
+ */
+const DATE_LINE_RE =
+  /^(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+(\d{1,2}(?:st|nd|rd|th)?,?\s+)?\d{4}$|^(spring|summer|fall|winter|autumn)\s+\d{4}$|^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/i
+
+/** Fraction of the page's Y range (bottom-up) that is treated as the contact/date corner zone. */
+const CONTACT_ZONE_FRACTION = 0.18
+
+/**
+ * Matches common contact-info patterns: phone numbers, postal addresses
+ * (street number + street type), email addresses, and "City, ST ZIP" strings.
+ */
+const CONTACT_LINE_RE =
+  /^\(?\d{3}\)?[\s\-\.]?\d{3}[\s\-\.]\d{4}$|@\w+\.\w{2,}|\d{3,5}\s+\w+\s+(st\.?|street|ave\.?|avenue|blvd\.?|boulevard|rd\.?|road|dr\.?|drive|ln\.?|lane|way|pl\.?|place)\b|[A-Z]{2}\s+\d{5}|,\s*(CA|NY|TX|FL|IL|WA|GA|PA|OH|NC|MA|AZ|MI|TN|VA|NJ|IN|MO|MD|WI|CO|MN|SC|AL|LA|KY|OR|OK|CT|UT|IA|NV|AR|MS|KS|NM|NE|WV|ID|HI|NH|ME|RI|MT|DE|SD|ND|AK|VT|WY|DC)\s+\d{5}/i
 
 function isTitlePage(lines: LineGroup[]): boolean {
   if (lines.length === 0) return true
@@ -79,17 +125,40 @@ function extractTitleFromTitlePage(lines: LineGroup[]): string | null {
   const pageWidth = Math.max(...lines.map((l) => l.x)) + 200
   const center = pageWidth / 2
 
+  const yValues = lines.map((l) => l.y)
+  const yMin = Math.min(...yValues)
+  const yMax = Math.max(...yValues)
+  const pageRange = yMax - yMin
+  const contactYThreshold =
+    pageRange > 0 ? yMin + pageRange * CONTACT_ZONE_FRACTION : -Infinity
+
+  // Centered lines that are not in the bottom contact corner
   const centeredLines = lines.filter((line) => {
     const estimatedLineWidth = line.text.length * 5.5
     const lineCenter = line.x + estimatedLineWidth / 2
-    return Math.abs(lineCenter - center) < 80
+    return Math.abs(lineCenter - center) < 80 && line.y >= contactYThreshold
   })
 
+  // s === s.toUpperCase() treats numeric titles (e.g. "1917") as "all caps"
+  const looksAllCaps = (s: string) => s === s.toUpperCase()
+
+  // Pass 1: prefer an ALL CAPS centered line (standard title format)
   for (const line of centeredLines) {
     const text = line.text.trim()
     if (!text || text.length < 2) continue
     if (TITLE_PAGE_NOISE_RE.test(text)) continue
     if (PAGE_NUMBER_RE.test(text)) continue
+    if (DATE_LINE_RE.test(text)) continue
+    if (looksAllCaps(text)) return text
+  }
+
+  // Pass 2: fallback — first non-noise, non-date centered line
+  for (const line of centeredLines) {
+    const text = line.text.trim()
+    if (!text || text.length < 2) continue
+    if (TITLE_PAGE_NOISE_RE.test(text)) continue
+    if (PAGE_NUMBER_RE.test(text)) continue
+    if (DATE_LINE_RE.test(text)) continue
     return text
   }
 
@@ -160,6 +229,81 @@ function classifyLine(
   return 'action'
 }
 
+// ─── Title page parser ────────────────────────────────────────────────────────
+
+function makeBlock(elementType: ScreenplayElementType, text: string): ScriptBlockNode {
+  return {
+    type: 'scriptBlock',
+    attrs: { elementType },
+    content: [{ type: 'text', text }],
+  }
+}
+
+/**
+ * Classify lines from a detected title page into title / author / contact
+ * blocks. Lines are already sorted top-to-bottom by the page parser.
+ *
+ * Strategy:
+ *  - Date lines (month/season patterns) → skipped (spec scripts omit dates)
+ *  - Bottom-corner lines (Y < contactYThreshold) or contact patterns → contact
+ *  - Lines matching "written by" / "screenplay by" / "story by" / "by" → author
+ *  - Lines matching "based on…" / "adapted from…" → author (preserved credits)
+ *  - First non-noise, non-page-number line → title
+ *  - Subsequent non-contact, non-noise lines → author
+ */
+function parseTitlePageLines(lines: LineGroup[]): ScriptBlockNode[] {
+  const blocks: ScriptBlockNode[] = []
+  let foundTitle = false
+
+  // PDF Y-axis is bottom-up; compute zone thresholds from the text range on this page.
+  const yValues = lines.map((l) => l.y)
+  const yMin = yValues.length > 0 ? Math.min(...yValues) : 0
+  const yMax = yValues.length > 0 ? Math.max(...yValues) : 0
+  const pageRange = yMax - yMin
+  const contactYThreshold =
+    pageRange > 0 ? yMin + pageRange * CONTACT_ZONE_FRACTION : -Infinity
+
+  for (const line of lines) {
+    const text = line.text.trim()
+    if (!text || text.length < 2) continue
+    if (PAGE_NUMBER_RE.test(text)) continue
+
+    // Skip date lines — spec scripts should omit dates to avoid dating the material
+    if (DATE_LINE_RE.test(text)) continue
+
+    // Bottom-corner lines → contact (covers name-only lines with no email/phone pattern)
+    if (line.y < contactYThreshold || CONTACT_LINE_RE.test(text)) {
+      blocks.push(makeBlock('contact', text))
+      continue
+    }
+
+    if (WRITTEN_BY_RE.test(text)) {
+      blocks.push(makeBlock('author', text))
+      continue
+    }
+
+    // "Based on…" is a valid credits line; preserve it as author before noise guard fires
+    if (BASED_ON_RE.test(text)) {
+      blocks.push(makeBlock('author', text))
+      continue
+    }
+
+    if (!foundTitle) {
+      if (TITLE_PAGE_NOISE_RE.test(text)) continue
+      blocks.push(makeBlock('title', text))
+      foundTitle = true
+      continue
+    }
+
+    // After the title: skip noise; remaining lines are author names
+    if (!TITLE_PAGE_NOISE_RE.test(text)) {
+      blocks.push(makeBlock('author', text))
+    }
+  }
+
+  return blocks
+}
+
 // ─── Main parser ─────────────────────────────────────────────────────────────
 
 export async function parseScreenplayPdf(file: File): Promise<{
@@ -185,6 +329,7 @@ export async function parseScreenplayPdf(file: File): Promise<{
   const pageCount = pdf.numPages
 
   const allLines: LineGroup[] = []
+  const titlePageBlocks: ScriptBlockNode[] = []
   let skippedTitlePage = false
   let extractedTitle: string | null = null
 
@@ -199,7 +344,7 @@ export async function parseScreenplayPdf(file: File): Promise<{
     if (items.length === 0) continue
 
     // Stipulation: PDF Y-axis is bottom-up, sort descending by Y for top-to-bottom
-    const lineMap = new Map<number, { x: number; parts: string[] }>()
+    const lineMap = new Map<number, Array<{ x: number; str: string }>>()
 
     for (const item of items) {
       const x = Math.round(item.transform[4])
@@ -216,24 +361,25 @@ export async function parseScreenplayPdf(file: File): Promise<{
       const key = matchedY ?? y
       const existing = lineMap.get(key)
       if (existing) {
-        existing.parts.push(item.str)
-        existing.x = Math.min(existing.x, x)
+        existing.push({ x, str: item.str })
       } else {
-        lineMap.set(key, { x, parts: [item.str] })
+        lineMap.set(key, [{ x, str: item.str }])
       }
     }
 
     const pageLines: LineGroup[] = Array.from(lineMap.entries())
       .sort(([yA], [yB]) => yB - yA) // descending Y = top-to-bottom
-      .map(([y, { x, parts }]) => ({
-        x,
+      .map(([y, rowItems]) => ({
+        x: Math.min(...rowItems.map((r) => r.x)),
         y,
-        text: parts.join('').trim(),
+        text: joinTextRunsToLine(rowItems),
+        pageNum,
       }))
       .filter((line) => line.text.length > 0)
 
     if (pageNum === 1 && !skippedTitlePage && isTitlePage(pageLines)) {
       extractedTitle = extractTitleFromTitlePage(pageLines)
+      titlePageBlocks.push(...parseTitlePageLines(pageLines))
       skippedTitlePage = true
       continue
     }
@@ -256,27 +402,48 @@ export async function parseScreenplayPdf(file: File): Promise<{
   // Classify each line and merge consecutive same-type lines into blocks
   const blocks: ScriptBlockNode[] = []
   let prevType: ScreenplayElementType | null = null
+  let prevNonEmptyLine: LineGroup | null = null
 
   for (const line of allLines) {
-    const elementType = classifyLine(line, prevType)
     const text = line.text.trim()
-
     if (text.length === 0) {
-      prevType = elementType
       continue
     }
 
+    const elementType = classifyLine(line, prevType)
+
     const lastBlock = blocks[blocks.length - 1]
 
-    const shouldMerge =
+    let shouldMerge = Boolean(
       lastBlock &&
-      lastBlock.attrs.elementType === elementType &&
-      elementType !== 'slugline' &&
-      elementType !== 'character' &&
-      elementType !== 'transition'
+        lastBlock.attrs.elementType === elementType &&
+        elementType !== 'slugline' &&
+        elementType !== 'character' &&
+        elementType !== 'transition',
+    )
 
-    if (shouldMerge) {
+    if (
+      shouldMerge &&
+      (elementType === 'action' ||
+        elementType === 'dialogue' ||
+        elementType === 'parenthetical') &&
+      prevNonEmptyLine
+    ) {
+      if (prevNonEmptyLine.pageNum !== line.pageNum) {
+        shouldMerge = false
+      } else {
+        const deltaY = prevNonEmptyLine.y - line.y
+        if (deltaY > PDF_LINE_MERGE_MAX_DELTA_Y) {
+          shouldMerge = false
+        }
+      }
+    }
+
+    if (shouldMerge && lastBlock) {
       const existing = lastBlock.content[0]?.text ?? ''
+      // Action: newline preserves PDF line breaks. Dialogue / parenthetical: spaces let the
+      // editor reflow one speech block; PDF text is often many micro-rows—hard newlines would
+      // balloon line count with white-space: pre-wrap.
       const separator = elementType === 'action' ? '\n' : ' '
       lastBlock.content = [{ type: 'text', text: existing + separator + text }]
     } else {
@@ -288,13 +455,18 @@ export async function parseScreenplayPdf(file: File): Promise<{
     }
 
     prevType = elementType
+    prevNonEmptyLine = line
   }
 
+  const allBlocks = [...titlePageBlocks, ...blocks]
+
+  /** Body-page count excludes a detected cover PDF page; never below 1 (title-only file). */
+  const screenplayPageTotal = Math.max(1, pageCount - (skippedTitlePage ? 1 : 0))
   const title = extractedTitle ?? titleFromFilename(file.name)
 
   return {
-    doc: { type: 'doc', content: blocks },
-    pageCount,
+    doc: { type: 'doc', content: allBlocks },
+    pageCount: screenplayPageTotal,
     title,
   }
 }

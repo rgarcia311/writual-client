@@ -5,12 +5,15 @@ export const mongoDevEnvironment: Record<string, { dbString: string }> = {
 };
 
 export function resolveMongoUri(): string {
+  const fromEnv =
+    process.env.MONGODB_CONNECTION_URI?.trim() ||
+    process.env.MONGODB_URI?.trim();
+  if (fromEnv) {
+    return fromEnv;
+  }
+
   if (process.env.NODE_ENV === 'production') {
-    const uri = process.env.MONGODB_CONNECTION_URI;
-    if (!uri) {
-      throw new Error('MONGODB_CONNECTION_URI is required in production');
-    }
-    return uri;
+    throw new Error('MONGODB_CONNECTION_URI is required in production');
   }
 
   const env = process.env.NODE_ENV || 'development';
