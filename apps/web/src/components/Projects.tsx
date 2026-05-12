@@ -108,7 +108,9 @@ export const Projects = () => {
             sx={{
                 width: '100%',
                 maxWidth: '100%',
-                height: '90%',
+                flex: 1,
+                minHeight: 0,
+                alignSelf: 'stretch',
                 overflowX: 'hidden',
                 padding: 2,
                 minWidth: 0,
@@ -121,14 +123,14 @@ export const Projects = () => {
                 <Tab label={sharedProjects.length > 0 ? `Shared With Me (${sharedProjects.length})` : 'Shared With Me'} />
             </Tabs>
 
-            <Box hidden={activeTab !== 0} sx={{ overflowY: 'auto', flex: 1 }}>
+            <Box hidden={activeTab !== 0} sx={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                     {pendingNewProject && <ProjectCardSkeleton />}
                     {myProjects.map((project) => renderCard(project, true))}
                 </Box>
             </Box>
 
-            <Box hidden={activeTab !== 1} sx={{ overflowY: 'auto', flex: 1 }}>
+            <Box hidden={activeTab !== 1} sx={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                     {sharedProjects.map((project) => renderCard(project, false))}
                 </Box>
