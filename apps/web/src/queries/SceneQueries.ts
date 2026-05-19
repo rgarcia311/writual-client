@@ -13,6 +13,19 @@ export const PROJECT_SCENES_QUERY = gql`
         status
       }
       outlineSectionLocked
+      progressTrackingEnabled
+      writingTracker {
+        enabled
+        targetPageCount
+        currentPageCount
+        trackingStartDate
+        draftDueDates {
+          draftNumber
+          label
+          dueDate
+          tag
+        }
+      }
       stats {
         totalScenes
         lockedScenes

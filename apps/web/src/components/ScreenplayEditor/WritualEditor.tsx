@@ -56,11 +56,13 @@ import type { OutlineFrameworkItem } from '@/state/outlineFrameworks'
 import { PROJECT_SCENES_QUERY_KEY } from 'hooks'
 import { useAutosave } from '@hooks/useAutosave'
 import { useCollaboration } from '@hooks/useCollaboration'
+import { useSyncWritingTrackerPageCount } from '@hooks/useSyncWritingTrackerPageCount'
 import { useUserProfileStore } from '@/state/user'
 import { useScreenplaySaveStatusStore } from '@/state/screenplaySaveStatus'
 import { useScreenplayEditorStore } from '@/state/screenplayEditor'
 import { useScreenplayHeaderChromeStore } from '@/state/screenplayHeaderChrome'
 import { GRAPHQL_ENDPOINT } from '@/lib/config'
+import { readScreenplayPaginationTotalPages } from '../../utils/screenplayPaginationRead'
 import { courierPrime } from '../../utils/fonts'
 import type { HocuspocusProvider } from '@hocuspocus/provider'
 import type * as Y from 'yjs'
@@ -219,6 +221,7 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
   const projectScenes: ProjectScene[] = project?.scenes ?? []
   const savedScreenplayContent = project?.screenplay?.versions?.[0]?.content ?? null
   const outlineName = project?.outlineName?.trim() ?? null
+  const writingTracker = project?.writingTracker ?? null
 
   const { data: frameworksData } = useQuery({
     queryKey: ['outline-frameworks', user, projectId],
@@ -268,6 +271,7 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
       projectScenes={projectScenes}
       savedScreenplayContent={savedScreenplayContent}
       sceneCardSteps={sceneCardSteps}
+      writingTracker={writingTracker}
     />
   )
 }
@@ -280,6 +284,7 @@ interface CollabGateProps {
   projectScenes: ProjectScene[]
   savedScreenplayContent: unknown
   sceneCardSteps: SceneCardStepOption[]
+  writingTracker: { enabled?: boolean } | null | undefined
 }
 
 function CollabGate({
@@ -288,6 +293,7 @@ function CollabGate({
   projectScenes,
   savedScreenplayContent,
   sceneCardSteps,
+  writingTracker,
 }: CollabGateProps) {
   const { ydoc, provider, failed } = useCollaboration(projectId)
 
@@ -307,6 +313,7 @@ function CollabGate({
       projectScenes={projectScenes}
       savedScreenplayContent={savedScreenplayContent}
       sceneCardSteps={sceneCardSteps}
+      writingTracker={writingTracker}
       ydoc={failed ? null : ydoc}
       provider={failed ? null : provider}
     />
@@ -321,6 +328,7 @@ interface ScreenplayEditorCoreProps {
   projectScenes: ProjectScene[]
   savedScreenplayContent: unknown
   sceneCardSteps: SceneCardStepOption[]
+  writingTracker: { enabled?: boolean } | null | undefined
   ydoc: Y.Doc | null
   provider: HocuspocusProvider | null
 }
@@ -331,6 +339,7 @@ function ScreenplayEditorCore({
   projectScenes,
   savedScreenplayContent,
   sceneCardSteps,
+  writingTracker,
   ydoc,
   provider,
 }: ScreenplayEditorCoreProps) {
@@ -357,6 +366,19 @@ function ScreenplayEditorCore({
   })
   const zoomRef = React.useRef(zoom)
   zoomRef.current = zoom
+
+  useSyncWritingTrackerPageCount({
+    pageRef,
+    projectId,
+    trackerEnabled: writingTracker?.enabled === true,
+    canEdit,
+  })
+
+  const estimateAutosavePaginationPages = React.useCallback((): number | null => {
+    const root = pageRef.current
+    if (!root) return null
+    return readScreenplayPaginationTotalPages(root)
+  }, [])
 
   const applyStageDimensions = React.useCallback(() => {
     // <PROTECTED>
@@ -658,7 +680,14 @@ function ScreenplayEditorCore({
     enabled: canEdit && !collabActive,
     onPending: () => setPending(true),
     onSaveStart: startSaving,
-    onSaveEnd: endSaving,
+    onSaveEnd: (success) => {
+      endSaving(success)
+      if (success && projectId) {
+        void queryClient.invalidateQueries({ queryKey: ['project', projectId] })
+        void queryClient.invalidateQueries({ queryKey: [PROJECT_SCENES_QUERY_KEY, projectId] })
+      }
+    },
+    estimatePageCount: estimateAutosavePaginationPages,
   })
 
   // ── Sync active element type on selection/content change ─────────────────

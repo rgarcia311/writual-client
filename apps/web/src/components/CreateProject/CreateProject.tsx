@@ -22,10 +22,26 @@ import {
 } from '@mui/material';
 import { useOutlineFrameworksStore } from '@/state/outlineFrameworks';
 import { ProjectType } from '@/enums/ProjectEnums';
-import { CreateProjectProps } from '@/interfaces/project';
+import { CreateProjectProps, WritingTracker } from '@/interfaces/project';
 
 import { isValidImageUrl, getImageUrlForStorage } from '../../utils/imageUrl';
 import { ScreenplayDropZone } from './ScreenplayDropZone';
+import { WritingTrackerSection, WritingTrackerFormState } from './WritingTrackerSection';
+
+function localDateString(): string {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+const DEFAULT_TRACKER: WritingTrackerFormState = {
+  enabled: false,
+  targetPageCount: '',
+  currentPageCount: '',
+  draftDueDates: [{ id: '1', label: 'First Draft', dueDate: '', tag: '' }],
+};
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -51,6 +67,7 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
   const [screenplayPageCount, setScreenplayPageCount] = React.useState(0);
   const [screenplayPdfFile, setScreenplayPdfFile] = React.useState<File | null>(null);
   const [createCompleteWritualProject, setCreateCompleteWritualProject] = React.useState(false);
+  const [writingTracker, setWritingTracker] = React.useState<WritingTrackerFormState>(DEFAULT_TRACKER);
 
   React.useEffect(() => {
     if (!initialData) return;
@@ -68,6 +85,25 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
       timePeriod: initialData.timePeriod ?? '',
     });
     setSharedWithEmails(Array.isArray(initialData.sharedWith) ? (initialData.sharedWith as string[]) : []);
+
+    const wt = initialData.writingTracker as WritingTracker | null | undefined;
+    if (wt) {
+      setWritingTracker({
+        enabled: wt.enabled,
+        targetPageCount: wt.targetPageCount != null ? String(wt.targetPageCount) : '',
+        currentPageCount: wt.currentPageCount != null ? String(wt.currentPageCount) : '',
+        draftDueDates: wt.draftDueDates.length > 0
+          ? wt.draftDueDates.map((d, i) => ({
+              id: String(i),
+              label: d.label,
+              dueDate: d.dueDate,
+              tag: d.tag ?? '',
+            }))
+          : [{ id: '1', label: 'First Draft', dueDate: '', tag: '' }],
+      });
+    } else {
+      setWritingTracker(DEFAULT_TRACKER);
+    }
   }, [initialData]);
 
   const updateForm = React.useCallback((
@@ -127,6 +163,12 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
                 setFormValues((prev) => ({
                   ...prev,
                   title: prev.title?.trim() ? prev.title : title,
+                }));
+              }
+              if (pageCount > 0) {
+                setWritingTracker((prev) => ({
+                  ...prev,
+                  currentPageCount: String(pageCount),
                 }));
               }
             }}
@@ -284,6 +326,11 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
             </Select>
           </FormControl>
         </Container>
+        <WritingTrackerSection
+          value={writingTracker}
+          onChange={setWritingTracker}
+          projectType={formValues.type}
+        />
       </DialogContent>
       <DialogActions sx={{ paddingBottom: 3, paddingRight: 4 }}>
         <Button onClick={() => setAddProject(false)} variant="contained" color="secondary">
@@ -295,6 +342,23 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
             const similarProjects = typeof formValues.similarProjects === 'string'
               ? formValues.similarProjects.split(',').map((s: string) => s.trim()).filter(Boolean)
               : Array.isArray(formValues.similarProjects) ? formValues.similarProjects : [];
+
+            const existingStartDate = (initialData?.writingTracker as WritingTracker | null)?.trackingStartDate;
+            const serializedTracker = writingTracker.enabled
+              ? {
+                  enabled: true,
+                  targetPageCount: writingTracker.targetPageCount ? Number(writingTracker.targetPageCount) : null,
+                  currentPageCount: writingTracker.currentPageCount ? Number(writingTracker.currentPageCount) : (screenplayPageCount > 0 ? screenplayPageCount : null),
+                  trackingStartDate: existingStartDate ?? localDateString(),
+                  draftDueDates: writingTracker.draftDueDates.map((d, i) => ({
+                    draftNumber: i + 1,
+                    label: d.label,
+                    dueDate: d.dueDate,
+                    tag: d.tag || null,
+                  })),
+                }
+              : null;
+
             const payload = {
               ...formValues,
               title: formValues.title ?? '',
@@ -311,6 +375,8 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
               screenplayPdfFile: screenplayPdfFile ?? undefined,
               createCompleteWritualProject:
                 screenplayImportMode === 'server' && Boolean(screenplayPdfFile) && createCompleteWritualProject,
+              writingTracker: serializedTracker,
+              progressTrackingEnabled: serializedTracker !== null,
             };
             if (isUpdate && handleUpdateProject) {
               handleUpdateProject(payload);
@@ -323,7 +389,8 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
           color="primary"
           disabled={
             !(formValues.title ?? '').trim() ||
-            (Boolean(formValues.poster?.trim()) && !isValidImageUrl(formValues.poster ?? ''))
+            (Boolean(formValues.poster?.trim()) && !isValidImageUrl(formValues.poster ?? '')) ||
+            (writingTracker.enabled && writingTracker.draftDueDates.some((d) => !d.dueDate))
           }
         >
           Submit

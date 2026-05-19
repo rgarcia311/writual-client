@@ -63,7 +63,8 @@ const defaultProjectData: Project = {
   timePeriod: '',
   similarProjects: [], 
   scenes: [],
-  inspiration: []
+  inspiration: [],
+  writingTracker: null,
 };
 
 export function ProjectHeader({ accordionAdornment }: { accordionAdornment?: React.ReactNode }) {
@@ -127,6 +128,7 @@ export function ProjectHeader({ accordionAdornment }: { accordionAdornment?: Rea
         budget: formValues.budget != null && formValues.budget !== '' ? Number(formValues.budget) : undefined,
         similarProjects,
         timePeriod: formValues.timePeriod ?? undefined,
+        writingTracker: formValues.writingTracker ?? undefined,
       });
     },
     [projectData, updateProjectMutation]
@@ -258,6 +260,13 @@ export function ProjectHeader({ accordionAdornment }: { accordionAdornment?: Rea
           onEditClick={() => setUpdateDialogOpen(true)}
           onDelete={id ? () => deleteProjectMutation.mutate(id) : undefined}
           progress={computeProjectProgress(projectData as any)}
+          writingTracker={(projectData as any).writingTracker ?? null}
+          progressTrackingEnabled={
+            (projectData?.progressTrackingEnabled ?? false) ||
+            (projectData as any)?.writingTracker?.enabled === true
+          }
+          screenplayJson={(projectData as any)?.screenplay?.versions?.[0]?.content ?? null}
+          projectCharacters={(projectData as any)?.characters ?? []}
         />
       </AccordionDetails>
       {updateDialogOpen && (
@@ -267,6 +276,7 @@ export function ProjectHeader({ accordionAdornment }: { accordionAdornment?: Rea
           initialData={{
             ...projectData,
             _id: (projectData as { _id?: string })._id ?? projectData.id,
+            writingTracker: (projectData as any).writingTracker ?? null,
           }}
           handleUpdateProject={handleUpdateProject}
         />

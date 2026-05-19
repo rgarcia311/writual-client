@@ -28,6 +28,27 @@ const projectStatsSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const draftDueDateSchema = new mongoose.Schema(
+  {
+    draftNumber:  { type: Number, required: true },
+    label:        { type: String, required: true },
+    dueDate:      { type: String, required: true },
+    tag:          { type: String, default: null },
+  },
+  { _id: false }
+);
+
+const writingTrackerSchema = new mongoose.Schema(
+  {
+    enabled:           { type: Boolean, default: false },
+    targetPageCount:   { type: Number, default: null },
+    currentPageCount:  { type: Number, default: null },
+    trackingStartDate: { type: String, default: null },
+    draftDueDates:     { type: [draftDueDateSchema], default: [] },
+  },
+  { _id: false }
+);
+
 // sceneOrder: ref must match model name in db-connector (e.g. mongoose.model("Scenes", ...) => ref: "Scenes")
 export const projectSchema = new mongoose.Schema({
     created_date: { type: String },
@@ -59,6 +80,8 @@ export const projectSchema = new mongoose.Schema({
     stats: { type: projectStatsSchema, default: () => ({}) },
     // User-defined page goal; completion dots ignore this and use manual lock only.
     pageCountEstimate: { type: Number },
+    writingTracker: { type: writingTrackerSchema, default: null },
+    progressTrackingEnabled: { type: Boolean, default: false },
     // Section lock: when true, no add/delete scenes or characters.
     outlineSectionLocked: { type: Boolean, default: false },
     charactersSectionLocked: { type: Boolean, default: false },

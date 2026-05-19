@@ -13,7 +13,14 @@ export const deleteProject = (root,  { id }) => {
 }
 
 export const createProject = (root, { input }) => {
-    //loop  through input keys to make project
+    const writingTracker = input.writingTracker ?? null;
+    const trackerSignalsProgress =
+        writingTracker != null &&
+        typeof writingTracker === "object" &&
+        writingTracker.enabled === true;
+    const progressTrackingEnabled =
+        Boolean(input.progressTrackingEnabled) || trackerSignalsProgress;
+
     const newProject = new Projects({
         user: input.user,
         displayName: input.displayName,
@@ -29,7 +36,9 @@ export const createProject = (root, { input }) => {
         outlineName: input.outlineName,
         scenes: input.scenes,
         characterOrder: input.characterOrder ?? [],
-        outline: input.outline
+        outline: input.outline,
+        writingTracker,
+        progressTrackingEnabled,
     })
 
 
@@ -146,7 +155,41 @@ export const createTreatment = (root, { input })  =>  {
     return  updateData(Projects, {newTreatment}, input.projec_id)
 }
 
-export const saveScreenplay = async (root, { projectId, content }) => {
+/** Updates only `writingTracker.currentPageCount` when the project's tracker is enabled. */
+export const persistWritingTrackerCurrentPageCount = async (
+  projectId: string,
+  clampedPageCount: number
+) => {
+  const filter = mongoose.Types.ObjectId.isValid(projectId)
+    ? { _id: new mongoose.Types.ObjectId(projectId) }
+    : { _id: projectId };
+
+  const updated = await Projects.findOneAndUpdate(
+    { ...filter, 'writingTracker.enabled': true },
+    { $set: { 'writingTracker.currentPageCount': clampedPageCount } },
+    { new: true }
+  ).exec();
+
+  if (updated) return updated;
+
+  const fallbackFilter = mongoose.Types.ObjectId.isValid(projectId)
+    ? { _id: new mongoose.Types.ObjectId(projectId) }
+    : { _id: projectId };
+  return Projects.findOne(fallbackFilter).exec();
+};
+
+export const saveScreenplay = async (
+  root: unknown,
+  {
+    projectId,
+    content,
+    estimatedPageCount,
+  }: {
+    projectId: string;
+    content: unknown;
+    estimatedPageCount?: number | null;
+  }
+) => {
   const filter = mongoose.Types.ObjectId.isValid(projectId)
     ? { _id: new mongoose.Types.ObjectId(projectId) }
     : { _id: projectId };
@@ -156,6 +199,16 @@ export const saveScreenplay = async (root, { projectId, content }) => {
     { $set: { screenplay: { projectId, versions: [{ version: 0, content }] } } },
     { new: true }
   ).exec();
+
+  if (estimatedPageCount != null) {
+    const n = typeof estimatedPageCount === "number"
+      ? estimatedPageCount
+      : Number(estimatedPageCount);
+    if (Number.isFinite(n)) {
+      const clamped = Math.min(99999, Math.max(1, Math.round(Number(n))));
+      await persistWritingTrackerCurrentPageCount(projectId, clamped);
+    }
+  }
 
   return updated?.get('screenplay') ?? null;
 };

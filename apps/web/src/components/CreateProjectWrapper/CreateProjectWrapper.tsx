@@ -71,7 +71,7 @@ export function CreateProjectWrapper() {
       } = variables;
       const result = await authRequest<{ createProject?: { _id: string } }>(
         CREATE_PROJECT,
-        projectVars as Record<string, string>,
+        projectVars as Record<string, unknown>,
       );
       const newProjectId = result?.createProject?._id;
       if (!newProjectId) return;
