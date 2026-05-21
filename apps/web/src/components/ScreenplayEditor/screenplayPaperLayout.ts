@@ -63,4 +63,7 @@ export const SCREENPLAY_FLOATING_SURFACE_SHADOW =
  */
 export const SCREENPLAY_TOOLBAR_SHADOW =
   '-3px 0 12px -6px rgba(0, 0, 0, 0.2), 0 -3px 12px -6px rgba(0, 0, 0, 0.2), 0 8px 12px -6px rgba(0, 0, 0, 0.2)'
+
+/** Width of the vertical document toolbar in pixels. */
+export const SCREENPLAY_VERTICAL_TOOLBAR_W_PX = 44
 // </PROTECTED>

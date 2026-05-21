@@ -50,6 +50,9 @@
       "@/themes/*": [
         "themes/*"
       ],
+      "@/styles/*": [
+        "styles/*"
+      ],
       "@props/*": [
         "interfaces/props/*"
       ], 

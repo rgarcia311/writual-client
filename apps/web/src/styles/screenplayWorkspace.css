@@ -1,0 +1,293 @@
+/* Screenplay workspace — side panel + editor column layout tokens */
+
+.project-details-float-root--screenplay .writual-editor-root > div > div:nth-child(2) > div {
+  background-color: transparent !important;
+}
+
+.project-details-float-root--screenplay .writual-editor-root .screenplay-editor-shell,
+.project-details-float-root--screenplay .writual-editor-root .screenplay-workspace {
+  background-color: transparent !important;
+}
+
+.project-details-float-root--screenplay .writual-editor-body {
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow-x: visible !important;
+  overflow-y: visible !important;
+  background-color: var(--app-chrome-surface-bg, #f5f2e8);
+}
+
+/* Outer host for WritualEditor (not the inner page scroll container — see Screenplay.css) */
+.screenplay-editor-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.project-details-float-root--screenplay .screenplay-editor-shell {
+  overflow-x: visible;
+  overflow-y: visible;
+}
+
+/* Shadow tokens — keep in sync with screenplayPaperLayout.ts SCREENPLAY_*_SHADOW */
+.project-details-float-root--screenplay {
+  --screenplay-floating-surface-shadow:
+    3px 0 12px -6px rgba(0, 0, 0, 0.2), 0 -3px 12px -6px rgba(0, 0, 0, 0.2),
+    0 8px 12px -6px rgba(0, 0, 0, 0.2);
+  --screenplay-toolbar-shadow:
+    -3px 0 12px -6px rgba(0, 0, 0, 0.2), 0 -3px 12px -6px rgba(0, 0, 0, 0.2),
+    0 8px 12px -6px rgba(0, 0, 0, 0.2);
+  /* Lateral bleed for toolbar left rim + page right rim (see SCREENPLAY_TOOLBAR_SHADOW) */
+  --screenplay-toolbar-shadow-bleed: 12px;
+  /* Vertical bleed for top/bottom rim layers (offset + blur − spread; mirrors lateral 12px) */
+  --screenplay-floating-shadow-bleed-top: 12px;
+  --screenplay-floating-shadow-bleed-bottom: 14px;
+  --screenplay-side-panel-toolbar-gutter: calc(
+    3px + 12px - 6px + var(--project-float-shadow-inset, 6px) +
+      var(--screenplay-toolbar-shadow-bleed)
+  );
+  /* Top inset = shadow bleed only — aligns toolbar top with first character card row */
+  --screenplay-editor-block-top-inset: var(--screenplay-floating-shadow-bleed-top);
+  --screenplay-editor-block-bottom-inset: var(--screenplay-floating-shadow-bleed-bottom);
+  /* Page shell (`.project-details-page`) already applies body padding */
+  padding-bottom: 0;
+  padding-right: 0;
+}
+
+/* Outermost clip container for the screenplay route: extend bottom padding so floating
+   surface shadows have room to render — same principle as the sidenav's body padding. */
+.project-details-page.project-details-page--screenplay {
+  padding-bottom: 14px; /* matches --screenplay-floating-shadow-bleed-bottom */
+}
+
+/* writual-editor-root flex chain — fills the screenplay-editor-shell content box */
+.project-details-float-root--screenplay .writual-editor-root {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow-x: visible;
+}
+
+/* Side panel must not clip the floating surface shadow vertically */
+.project-details-float-root--screenplay .screenplay-side-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow-x: visible;
+  overflow-y: visible;
+}
+
+/* Scrollport is `.screenplay-workspace`; editor shell/root stay visible for rim shadows.
+   !important on writual-editor-root: its sx has overflow: hidden in a PROTECTED block;
+   emotion-injected class would otherwise win source-order over this CSS rule. */
+.project-details-float-root--screenplay .screenplay-editor-shell,
+.project-details-float-root--screenplay .writual-editor-root {
+  overflow-y: visible !important;
+}
+
+/* Editor column: above side-panel paint; gutter reserves toolbar left-shadow bleed.
+   No padding-bottom needed — shadow bleeds out naturally through the overflow-y: visible
+   ancestor chain and is caught by .project-details-page's 14px bottom padding. */
+.project-details-float-root--screenplay .writual-editor-body > :last-child {
+  position: relative;
+  z-index: 2;
+  padding-top: var(--screenplay-editor-block-top-inset);
+  padding-bottom: 0;
+  padding-left: var(--screenplay-side-panel-toolbar-gutter);
+  box-sizing: border-box;
+  max-height: 100%;
+  overflow-x: visible !important;
+  /* Vertical scroll is on `.screenplay-workspace`; keep overflow visible for rim shadows */
+  overflow-y: visible !important;
+}
+
+/* Floating stack host — transparent shell; toolbar + page supply their own surfaces */
+.project-details-float-root--screenplay .writual-editor-body > :last-child > div {
+  width: max-content !important;
+  max-width: 100%;
+  height: 100%;
+  min-height: 0 !important;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: transparent !important;
+  overflow-x: visible !important;
+  /* Vertical bleed lives on the outer editor column; do not re-clip shadows here */
+  overflow-y: visible;
+  box-sizing: border-box;
+}
+
+/* Inner column — fill height; flex-start avoids right-edge clip when list is expanded */
+.project-details-float-root--screenplay .writual-editor-body > :last-child > div > div {
+  flex: 1 1 auto;
+  width: auto;
+  min-height: 0 !important;
+  max-height: 100%;
+  align-self: flex-start !important;
+  display: flex;
+  flex-direction: column;
+  overflow-x: visible;
+  overflow-y: visible;
+  box-sizing: border-box;
+}
+
+/*
+ * Toolbar + page row: keep WritualEditor’s explicit `width: …px` (do NOT set max-content here —
+ * workspace has minWidth 0, so max-content collapses to toolbar-only ~44px).
+ */
+.project-details-float-root--screenplay .writual-editor-body > :last-child > div > div > div:has(> .screenplay-workspace) {
+  display: flex !important;
+  flex-direction: row !important;
+  flex: 1 1 auto;
+  min-height: 0 !important;
+  max-height: 100%;
+  overflow: visible !important;
+  box-sizing: border-box;
+}
+
+.project-details-float-root--screenplay .screenplay-toolbar-vertical-shell {
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+/* Document scroll surface — grows within the row’s fixed width from WritualEditor */
+.project-details-float-root--screenplay .screenplay-workspace {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+}
+
+/* Scroll inner: reserve vertical bleed so page top/bottom rim shadows survive the scrollport */
+.project-details-float-root--screenplay .screenplay-workspace > div {
+  padding-top: var(--screenplay-floating-shadow-bleed-top);
+  padding-bottom: var(--screenplay-floating-shadow-bleed-bottom);
+  box-sizing: border-box;
+}
+
+/* Side panel: stretch to editor body height; tab content scrolls inside */
+.screenplay-side-panel {
+  align-self: stretch;
+  min-height: 0;
+  position: relative;
+  z-index: 1;
+  margin-right: var(--screenplay-side-panel-toolbar-gutter);
+  overflow-x: hidden;
+  overflow-y: hidden;
+}
+
+/* Tab panel: flex column; scroll child uses flex-grow + min-height 0 (not flex-basis 0) */
+.screenplay-side-panel-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 0 var(--app-sidenav-radius, 10px) var(--app-sidenav-radius, 10px) 0;
+  box-shadow: var(--screenplay-floating-surface-shadow, none);
+  position: relative;
+  z-index: 0;
+  background-color: var(--app-chrome-surface-bg, #f5f2e8);
+}
+
+.screenplay-side-panel-content.screenplay-navigator {
+  width: 100%;
+  min-width: 0;
+}
+
+.screenplay-side-panel-content__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  background-color: var(--app-chrome-surface-bg, #f5f2e8);
+}
+
+.project-details-float-root--screenplay .screenplay-side-panel-content,
+.project-details-float-root--screenplay .screenplay-side-panel-content__scroll {
+  background-color: var(--app-chrome-surface-bg, #f5f2e8);
+}
+
+.screenplay-side-panel-content--stats {
+  width: calc(
+    max(var(--project-float-stat-width), var(--project-float-poster-card-width)) +
+      2 * var(--project-float-stat-surface-padding) + 2 * var(--app-body-padding)
+  );
+  flex: 0 1 auto;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.screenplay-project-stats-panel__project-tiles {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--project-float-stat-gap);
+  width: 100%;
+}
+
+.screenplay-project-stats-panel__project-tiles .project-float-poster-anchor,
+.screenplay-project-stats-panel__project-tiles .project-float-info-anchor {
+  position: relative;
+  top: auto;
+  left: auto;
+  width: 100%;
+  max-width: var(--project-float-stat-width);
+  align-self: center;
+}
+
+.screenplay-project-stats-panel__project-tiles .project-float-poster-anchor {
+  max-width: var(--project-float-poster-card-width);
+}
+
+.screenplay-side-panel-content--inspiration {
+  width: var(--screenplay-inspiration-panel-width, 320px);
+  flex: 0 1 auto;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.screenplay-project-stats-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--project-float-stat-gap);
+  padding: var(--app-body-padding);
+  box-sizing: border-box;
+}
+
+.screenplay-project-stats-panel .project-float-tracking-stat {
+  width: var(--project-float-stat-width);
+  max-width: 100%;
+  flex: 0 0 auto;
+}
+
+.screenplay-inspiration-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-body-padding);
+  padding: var(--app-body-padding);
+  box-sizing: border-box;
+}
+
+.screenplay-inspiration-panel__card {
+  flex-shrink: 0;
+}
+
+.screenplay-inspiration-panel__empty,
+.screenplay-inspiration-panel__error {
+  padding: var(--app-body-padding);
+  text-align: center;
+}

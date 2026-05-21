@@ -1,0 +1,103 @@
+/* Outline page — float layout under sticky stats band */
+
+.outline-page-framework {
+  width: 100%;
+  padding: 0 0 var(--app-body-padding, 8px);
+  box-sizing: border-box;
+}
+
+.outline-page-framework .outline-page-act-block {
+  margin-bottom: var(--project-float-stat-gap, var(--app-body-padding, 8px));
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Act / Unassigned headers — match SideNav (background.default, 10px radius, elevation 2) */
+.outline-page-act-block .outline-page-act-summary.MuiAccordionSummary-root {
+  background-color: var(--app-chrome-surface-bg, #F5F2E8);
+  border-radius: var(--app-sidenav-radius, 10px);
+  border: none;
+  box-shadow:
+    0 3px 1px -2px rgba(0, 0, 0, 0.2),
+    0 2px 2px 0 rgba(0, 0, 0, 0.14),
+    0 1px 5px 0 rgba(0, 0, 0, 0.12);
+  min-height: var(--app-chrome-row-height, 46px);
+  margin-bottom: var(--app-body-padding, 8px);
+}
+
+.outline-page-act-block .outline-page-act-summary.Mui-expanded {
+  margin-bottom: var(--app-body-padding, 8px);
+}
+
+/* Step list flows on page background — no enclosing bordered panel */
+.outline-page-act-block .outline-page-act-details.MuiAccordionDetails-root {
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.outline-page-act-block .outline-page-act-details .MuiAccordion-root {
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.outline-page-act-block .outline-page-act-details .MuiAccordionSummary-root {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.outline-page-act-block .outline-page-act-details .MuiAccordionDetails-root {
+  padding: 0;
+  border: none;
+  background: transparent;
+  overflow: visible;
+}
+
+.outline-page-scenes-grid {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  justify-content: flex-start;
+  gap: var(--project-float-stat-gap, var(--app-body-padding, 8px));
+  width: 100%;
+  padding: var(--project-float-shadow-inset, 6px);
+  padding-bottom: var(--app-body-padding, 8px);
+  box-sizing: border-box;
+  position: relative;
+  z-index: 0;
+  overflow: visible;
+}
+
+.outline-page-step-scenes {
+  --outline-step-max-height: 60vh;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--project-float-stat-gap, var(--app-body-padding, 8px));
+  max-height: var(--outline-step-max-height);
+  overflow-y: auto;
+  overflow-x: visible;
+  padding: var(--project-float-shadow-inset, 6px);
+  box-sizing: border-box;
+  container-type: inline-size;
+}
+
+.outline-page-unassigned-scenes {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--project-float-stat-gap, var(--app-body-padding, 8px));
+  padding: var(--project-float-shadow-inset, 6px);
+  box-sizing: border-box;
+  container-type: inline-size;
+  overflow: visible;
+}

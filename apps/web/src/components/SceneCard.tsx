@@ -55,6 +55,8 @@ interface SceneCardProps {
   fullWidthInParent?: boolean;
   /** Tighter padding and content height when shown two-per-row (e.g. screenplay side panel). */
   compactSideBySide?: boolean;
+  /** Outline float layout: MUI elevation 2 to match stat tiles (no custom box-shadow/border). */
+  floatSurface?: boolean;
 }
 
 export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
@@ -71,6 +73,7 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
   onDelete,
   fullWidthInParent = false,
   compactSideBySide = false,
+  floatSurface = false,
 }) {
   const sideBySideCompact = fullWidthInParent && compactSideBySide;
   const initialActiveVersion = Math.max(1, Number(activeVersion ?? 1));
@@ -356,9 +359,23 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
     sceneContent.sceneHeading?.trim() ||
     (newScene ? 'New scene' : `Scene ${number}`);
 
+  const outlineGridLayoutSx = {
+    minWidth: 'calc((400px - 32px) / 3)',
+    flex: '1 1 auto',
+    '@container (min-width: 400px)': {
+      flex: '1 1 calc(33.33% - 10.67px)',
+      minWidth: 'calc((100% - 32px) / 3)',
+      maxWidth: 'calc((100% - 32px) / 4)',
+    },
+    backgroundColor: theme.palette.background.paper,
+    display: 'flex',
+    flexDirection: 'column',
+  } as const;
+
   return (
     <>
       <Card
+      elevation={floatSurface ? 2 : 0}
       sx={
         fullWidthInParent
           ? {
@@ -370,24 +387,24 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
               flexDirection: 'column',
               flex: '0 0 auto',
               backgroundColor: theme.palette.background.paper,
-              boxShadow: '0px 8px 15px rgba(0, 0, 0, 0.1)',
-              borderRadius: 2,
-              border: '1px solid rgba(0, 0, 0, 0.1)',
-              mb: 1.25,
+              boxShadow: floatSurface ? undefined : '0px 8px 15px rgba(0, 0, 0, 0.1)',
+              borderRadius: floatSurface ? 'var(--project-float-radius, 12px)' : 2,
+              border: floatSurface ? 'none' : '1px solid rgba(0, 0, 0, 0.1)',
+              mb: floatSurface ? 0 : 1.25,
             }
-          : {
-              ...sceneCardStyle.card,
-              flex: '1 1 auto',
-              minWidth: 'calc((400px - 32px) / 3)',
-              '@container (min-width: 400px)': {
-                flex: '1 1 calc(33.33% - 10.67px)',
-                minWidth: 'calc((100% - 32px) / 3)',
-                maxWidth: 'calc((100% - 32px) / 4)',
-              },
-              backgroundColor: theme.palette.background.paper,
-              display: 'flex',
-              flexDirection: 'column',
-            }
+          : floatSurface
+            ? {
+                ...sceneCardStyle.card,
+                boxShadow: undefined,
+                border: 'none',
+                marginBottom: 0,
+                borderRadius: 'var(--project-float-radius, 12px)',
+                ...outlineGridLayoutSx,
+              }
+            : {
+                ...sceneCardStyle.card,
+                ...outlineGridLayoutSx,
+              }
       }
     >
       {/* Header: Scene title + badges — match screenplay / treatment toolbar surface */}

@@ -21,14 +21,19 @@ const defaultSx: SxProps<Theme> = {
 
 interface ScrollableContentAreaProps {
   children: React.ReactNode;
+  className?: string;
   /** Optional sx to merge with or override defaults (applied after defaultSx) */
   sx?: SxProps<Theme>;
 }
 
-export function ScrollableContentArea({ children, sx }: ScrollableContentAreaProps) {
+export function ScrollableContentArea({ children, className, sx }: ScrollableContentAreaProps) {
   const resolvedSx =
     sx && typeof sx === 'object' && !Array.isArray(sx)
       ? { ...defaultSx, ...sx }
       : defaultSx;
-  return <Box sx={resolvedSx as SxProps<Theme>}>{children}</Box>;
+  return (
+    <Box className={className} sx={resolvedSx as SxProps<Theme>}>
+      {children}
+    </Box>
+  );
 }

@@ -1,5 +1,10 @@
 'use client';
 
+/**
+ * @deprecated Use `FloatingProjectStat` from `@/components/ProjectFloat`.
+ * Scheduled for removal after Characters Project Stats tab migration.
+ */
+
 import * as React from 'react';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';

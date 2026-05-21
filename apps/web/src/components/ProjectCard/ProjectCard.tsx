@@ -21,15 +21,6 @@ import { multiLineTruncate } from 'styles';
 import { ShareProjectModal } from '@/components/ShareProjectModal/ShareProjectModal';
 import type { Collaborator } from '@/interfaces/collaborator';
 import type { WritingTracker } from '@/interfaces/project';
-import { computeWritingTrackerStatus } from '../../utils/progress';
-import { deriveScreenplayPresenceStats } from '../../utils/projectScreenplayStats';
-import { useScreenplayLivePagesStore } from '@/state/screenplayLivePages';
-import { ProjectStat } from './ProjectStat';
-import { ProjectStatsCarousel } from './ProjectStatsCarousel';
-import { ScreenplayProgressStat } from './stats/ScreenplayProgressStat';
-import { CharacterSceneCountStat } from './stats/CharacterSceneCountStat';
-import { SceneIntExtAltStat } from './stats/SceneIntExtAltStat';
-import { ProjectAtAGlanceStat } from './stats/ProjectAtAGlanceStat';
 
 interface ProgressItem {
   label: string;
@@ -58,7 +49,7 @@ interface ProjectCardProps {
   collaborators?: Collaborator[];
   /** When set, clicking the card (not Share/Delete) navigates to this path */
   to?: string;
-  /** When true, show full project summary: image, title, author, genre, logline, type, budget, similar projects (and edit). Used in project header. */
+  /** @deprecated Accordion header removed; list layout is used everywhere. */
   headerOnly?: boolean;
   /** When set, show edit icon in top right and call this on click */
   onEditClick?: () => void;
@@ -70,10 +61,6 @@ interface ProjectCardProps {
   progressTrackingEnabled?: boolean;
   /** Called when user clicks "Add Progress Tracking" in the actions menu */
   onEnableProgressTracking?: () => void;
-  /** Screenplay TipTap JSON (active version); used for character/scene-derived stats when present */
-  screenplayJson?: unknown | null;
-  /** Character roster (name / poster) paired with screenplay for scene counts */
-  projectCharacters?: Array<{ name?: string | null; imageUrl?: string | null }> | null;
 }
 
 interface ProjectMetadataRowsProps {
@@ -85,7 +72,7 @@ interface ProjectMetadataRowsProps {
   hideBudgetAndSimilarProjects?: boolean;
 }
 
-function ProjectMetadataRows({
+export function ProjectMetadataRows({
   genre,
   projectTypeLabel,
   budget,
@@ -162,8 +149,6 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   writingTracker,
   progressTrackingEnabled = false,
   onEnableProgressTracking,
-  screenplayJson = null,
-  projectCharacters = null,
   progress = [
     { label: 'Title', status: 'complete' },
     { label: 'Logline', status: 'complete' },
@@ -178,93 +163,6 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   const [shareModalOpen, setShareModalOpen] = React.useState(false);
   const [actionsAnchorEl, setActionsAnchorEl] = React.useState<HTMLElement | null>(null);
   const [imageError, setImageError] = React.useState(false);
-
-  const liveBodyPages = useScreenplayLivePagesStore((s) =>
-    projectId && s.projectId === projectId ? s.liveBodyPages : null,
-  );
-
-  const writingTrackerStatus = React.useMemo(
-    () =>
-      computeWritingTrackerStatus(writingTracker, {
-        liveEditorBodyPages: liveBodyPages ?? undefined,
-      }),
-    [writingTracker, liveBodyPages],
-  );
-
-  const characterRoster = React.useMemo(
-    () =>
-      (projectCharacters ?? [])
-        .map((c) => ({
-          name: (c?.name ?? '').trim(),
-          imageUrl: c?.imageUrl ?? null,
-        }))
-        .filter((c) => c.name.length > 0),
-    [projectCharacters],
-  );
-
-  const screenplayPresence = React.useMemo(() => {
-    if (screenplayJson == null) return null;
-    try {
-      return deriveScreenplayPresenceStats(
-        screenplayJson,
-        characterRoster.map((c) => c.name),
-      );
-    } catch {
-      return null;
-    }
-  }, [screenplayJson, characterRoster]);
-
-  const topCharactersByScenes = React.useMemo(() => {
-    if (!screenplayPresence) return [];
-    return [...screenplayPresence.characterSceneCounts]
-      .sort((a, b) => b.sceneCount - a.sceneCount || a.display.localeCompare(b.display))
-      .slice(0, 3)
-      .map((row) => ({
-        name: row.display,
-        sceneCount: row.sceneCount,
-        imageUrl:
-          characterRoster.find((c) => c.name.toUpperCase() === row.normalized)?.imageUrl ??
-          null,
-      }));
-  }, [screenplayPresence, characterRoster]);
-
-  const trackingStatsGrid = (
-    <ProjectStatsCarousel>
-      <ProjectStat compact>
-        {writingTracker?.enabled && writingTracker ? (
-          <ScreenplayProgressStat
-            compact
-            tracker={writingTracker}
-            status={writingTrackerStatus}
-          />
-        ) : (
-          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-            Enable writing tracking to view screenplay pacing, drafts, and deadlines.
-          </Typography>
-        )}
-      </ProjectStat>
-      <ProjectStat compact>
-        <CharacterSceneCountStat compact topCharacters={topCharactersByScenes} totalCharacters={characterRoster.length} />
-      </ProjectStat>
-      <ProjectStat compact>
-        <SceneIntExtAltStat
-          compact
-          totalScenes={screenplayPresence?.scenes.length ?? 0}
-          intCount={screenplayPresence?.intSceneWeight ?? 0}
-          extCount={screenplayPresence?.extSceneWeight ?? 0}
-          scenesWithAlts={screenplayPresence?.scenesWithAlts ?? []}
-        />
-      </ProjectStat>
-      <ProjectStat compact>
-        <ProjectAtAGlanceStat
-          compact
-          progress={progress}
-          trackerEnabled={Boolean(writingTracker?.enabled)}
-          trackerStatus={writingTracker?.enabled ? writingTrackerStatus : null}
-        />
-      </ProjectStat>
-    </ProjectStatsCarousel>
-  );
 
   React.useEffect(() => {
     setImageError(false);
@@ -432,103 +330,39 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
           justifyContent: 'space-between',
         }}
       >
-        {headerOnly && progressTrackingEnabled ? (
+        <>
+          <Box sx={{ flexShrink: 0 }}>
+            <Tooltip title={title} enterDelay={300}>
+              <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
+                {title.length > 23 ? `${title.slice(0, 23)}…` : title}
+              </Typography>
+            </Tooltip>
+            <Typography variant="body2" color="text.secondary">
+              by {toTitleCase(author)}
+            </Typography>
+          </Box>
           <Box
             sx={{
-              '--project-stats-height': '300px',
               flex: 1,
               display: 'flex',
-              flexDirection: { xs: 'column', lg: 'row' },
-              gap: 2,
-              alignItems: 'stretch',
-              minWidth: 0,
-              minHeight: { xs: 'auto', lg: 'var(--project-stats-height)' },
+              flexDirection: 'column',
+              justifyContent: 'flex-start',
+              gap: 1,
             }}
           >
-            <Box
-              sx={{
-                flex: { xs: '1 1 auto', lg: '0 1 auto' },
-                minWidth: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'flex-start',
-                gap: 1,
-              }}
-            >
-              <Box sx={{ flexShrink: 0, mb: '5px' }}>
-                <Tooltip title={title} enterDelay={300}>
-                  <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
-                    {title.length > 23 ? `${title.slice(0, 23)}…` : title}
-                  </Typography>
-                </Tooltip>
-                <Typography variant="body2" color="text.secondary">
-                  by {toTitleCase(author)}
-                </Typography>
-              </Box>
-              <Typography variant="body2" sx={multiLineTruncate(3)}>
-                {logline}
-              </Typography>
-              <ProjectMetadataRows
-                genre={genre}
-                projectTypeLabel={projectTypeLabel}
-                budget={budget}
-                similarProjects={similarProjects}
-                headerOnly={headerOnly}
-                hideBudgetAndSimilarProjects={hideBudgetAndSimilarProjects}
-              />
-            </Box>
-
-            <Box
-              sx={{
-                flex: { xs: '1 1 auto', lg: '1 1 0%' },
-                minWidth: 0,
-                minHeight: 0,
-                alignSelf: 'stretch',
-                display: 'flex',
-                flexDirection: 'column',
-              }}
-            >
-              {trackingStatsGrid}
-            </Box>
+            <Typography variant="body2" sx={multiLineTruncate(3)}>
+              {logline}
+            </Typography>
+            <ProjectMetadataRows
+              genre={genre}
+              projectTypeLabel={projectTypeLabel}
+              budget={budget}
+              similarProjects={similarProjects}
+              headerOnly={headerOnly}
+              hideBudgetAndSimilarProjects={hideBudgetAndSimilarProjects}
+            />
           </Box>
-        ) : (
-          <>
-            {/* Group 1: Title + Author */}
-            <Box sx={{ flexShrink: 0 }}>
-              <Tooltip title={title} enterDelay={300}>
-                <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
-                  {title.length > 23 ? `${title.slice(0, 23)}…` : title}
-                </Typography>
-              </Tooltip>
-              <Typography variant="body2" color="text.secondary">
-                by {toTitleCase(author)}
-              </Typography>
-            </Box>
-
-            {/* Group 2: metadata + optional development progress (flex fills space below title) */}
-            <Box
-              sx={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'flex-start',
-                gap: 1,
-              }}
-            >
-              <Typography variant="body2" sx={multiLineTruncate(3)}>
-                {logline}
-              </Typography>
-              <ProjectMetadataRows
-                genre={genre}
-                projectTypeLabel={projectTypeLabel}
-                budget={budget}
-                similarProjects={similarProjects}
-                headerOnly={headerOnly}
-                hideBudgetAndSimilarProjects={hideBudgetAndSimilarProjects}
-              />
-            </Box>
-          </>
-        )}
+        </>
       </Box>
     </Card>
   );

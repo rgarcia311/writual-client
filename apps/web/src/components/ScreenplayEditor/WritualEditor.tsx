@@ -45,6 +45,7 @@ import {
 import { updateCharacter as updateCharacterAction } from '@/app/actions/characters'
 import {
   ScreenplaySidePanel,
+  type ScreenplaySidePanelTab,
   type ProjectScene,
   type SceneCardStepOption,
   type SceneVersion,
@@ -347,7 +348,13 @@ function ScreenplayEditorCore({
   /** Wide list vs. narrow strip (scene INT/EXT chips or character initials). */
   const [sidePanelExpanded, setSidePanelExpanded] = React.useState(true)
   /** Which side panel list is shown when the navigator is open. */
-  const [sidePanelTab, setSidePanelTab] = React.useState<'scenes' | 'characters'>('scenes')
+  const [sidePanelTab, setSidePanelTab] = React.useState<ScreenplaySidePanelTab>('characters')
+  const handleSidePanelTabChange = React.useCallback((tab: ScreenplaySidePanelTab) => {
+    setSidePanelTab(tab)
+    if (tab === 'stats' || tab === 'inspiration') {
+      setSidePanelExpanded(true)
+    }
+  }, [])
   const [characterCardExpandedId, setCharacterCardExpandedId] = React.useState<number | undefined>(
     undefined,
   )
@@ -395,10 +402,12 @@ function ScreenplayEditorCore({
     applyStageDimensions()
   }, [zoom, applyStageDimensions])
 
-  /** Calculate the zoom factor that fits exactly one paper height into the workspace. */
+  /** Calculate the zoom factor that fits one canonical page into the workspace, filling edge-to-edge. */
   const calcAutoFitZoom = React.useCallback((workspaceEl: HTMLElement): number => {
     // <PROTECTED>
-    const availableHeight = workspaceEl.clientHeight - 40
+    // Reserve exactly the scroll-inner shadow bleed so the page sits flush inside the padding band.
+    const SCROLL_INNER_BLEED_PX = 12 + 14 // --screenplay-floating-shadow-bleed-top + -bottom
+    const availableHeight = workspaceEl.clientHeight - SCROLL_INNER_BLEED_PX
     const availableWidth =
       workspaceEl.clientWidth -
       SCREENPLAY_SCROLL_GUTTER_LEFT_PX -
@@ -407,9 +416,7 @@ function ScreenplayEditorCore({
       availableHeight / SCREENPLAY_PAPER_HEIGHT_PX,
       availableWidth / SCREENPLAY_PAPER_WIDTH_PX,
     )
-    // Cap at SCREENPLAY_DISPLAY_SCALE so auto-fit never makes the page larger than 709 × 917 px.
-    // On viewports too small for that size, the viewport-fit constraint still shrinks further.
-    return Math.min(SCREENPLAY_DISPLAY_SCALE, Math.max(SCREENPLAY_ZOOM_MIN, targetScale))
+    return Math.min(SCREENPLAY_ZOOM_MAX, Math.max(SCREENPLAY_ZOOM_MIN, targetScale))
     // </PROTECTED>
   }, [])
 
@@ -422,7 +429,7 @@ function ScreenplayEditorCore({
     setZoom(fitted)
     isAutoZoomedRef.current = true
     setIsAutoZoomed(true)
-    if (fitted < SCREENPLAY_DISPLAY_SCALE - 0.001) {
+    if (fitted <= SCREENPLAY_ZOOM_MIN + 0.001) {
       setAutoZoomSnackbarOpen(true)
     }
     // </PROTECTED>
@@ -750,7 +757,10 @@ function ScreenplayEditorCore({
   }, [zoom, collabActive, editor, setHeaderChrome])
 
   // ── Derived ──────────────────────────────────────────────────────────────
-  const navigatorSplitProportions = navigatorOpen && sidePanelExpanded
+  const sidePanelUsesFixedWidth =
+    sidePanelTab === 'stats' || sidePanelTab === 'inspiration'
+  const navigatorSplitProportions =
+    navigatorOpen && sidePanelExpanded && !sidePanelUsesFixedWidth
   /** When list is off or only the narrow strip: center the screenplay column; expanded list hugs the right. */
   const centerEditorColumn = !navigatorOpen || (navigatorOpen && !sidePanelExpanded)
 
@@ -765,6 +775,7 @@ function ScreenplayEditorCore({
 
   return (
     <Box
+      className="writual-editor-root"
       sx={{
         // <PROTECTED>
         display: 'flex',
@@ -783,6 +794,7 @@ function ScreenplayEditorCore({
 
       {/* ── BODY: side tabs + side panel + editor; moved up 10px vs previous pt(5) ─ */}
       <Box
+        className="writual-editor-body"
         sx={{
           display: 'flex',
           flex: 1,
@@ -790,8 +802,7 @@ function ScreenplayEditorCore({
           overflow: 'hidden',
           alignItems: 'stretch',
           justifyContent: 'flex-start',
-          pt: 1,
-          pb: 1
+          bgcolor: 'background.default',
         }}
       >
 
@@ -800,7 +811,7 @@ function ScreenplayEditorCore({
           <ScreenplaySidePanel
             navigatorSplitProportions={navigatorSplitProportions}
             sidePanelTab={sidePanelTab}
-            onTabChange={setSidePanelTab}
+            onTabChange={handleSidePanelTabChange}
             sidePanelExpanded={sidePanelExpanded}
             onExpandedChange={setSidePanelExpanded}
             characterCardExpandedId={characterCardExpandedId}
@@ -819,9 +830,14 @@ function ScreenplayEditorCore({
         <Box
           sx={{
             display: 'flex',
+            flex: '1 1 0%',
+            minWidth: 0,
+            minHeight: 0,
+            overflow: 'hidden',
+            alignSelf: 'stretch',
             ...(centerEditorColumn
-              ? { flex: '1 1 0%', minWidth: 0, justifyContent: 'center' }
-              : { flex: '0 0 auto', marginLeft: 'auto' }),
+              ? { justifyContent: 'center' }
+              : { marginLeft: 'auto' }),
           }}
         >
         {/* ── SCREENPLAY: column with optional show-side-panel row; vertical toolbar attached left of page ─ */}
@@ -831,7 +847,7 @@ function ScreenplayEditorCore({
             width: "max-content",
             minHeight: 0,
             /* clip keeps horizontal bleed contained; reserve right inset so lateral box-shadow survives */
-            overflowX: 'clip',
+            overflowX: 'visible',
             overflowY: 'visible',
             display: 'flex',
             flexDirection: 'column',
@@ -848,9 +864,7 @@ function ScreenplayEditorCore({
           <Box
             sx={{
               // <PROTECTED>
-              //flex: 1,
               minHeight: "100%",
-              //minWidth: SCREENPLAY_EDITOR_COLUMN_WIDTH_PX,
               alignSelf: centerEditorColumn ? 'center' : 'flex-end',
               display: 'flex',
               flexDirection: 'column',
@@ -873,7 +887,7 @@ function ScreenplayEditorCore({
                   justifyContent: 'flex-end',
                 }}
               >
-                <Tooltip title="Show side panel (scenes & characters)">
+                <Tooltip title="Show side panel (characters, scenes, inspiration, stats)">
                   <IconButton
                     size="small"
                     onClick={() => setNavigatorOpen(true)}
@@ -886,7 +900,7 @@ function ScreenplayEditorCore({
             )}
             {/* Flex row: vertical toolbar (non-scrolling) + scroll workspace */}
             {/* <PROTECTED> */}
-            <Box sx={{ 
+            <Box sx={{
               width: `${screenplayToolbarPaperRowMinWidthPx}px`,
               minHeight: "100%",
               display: 'flex',

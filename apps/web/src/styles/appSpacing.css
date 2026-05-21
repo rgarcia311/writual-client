@@ -1,0 +1,8 @@
+/* Shared body padding — matches project layout `theme.spacing(1)` (8px) and sidenav inset */
+
+.project-details-page {
+  --app-body-padding: 8px;
+  /* Matches theme.palette.background.default (SideNav, breadcrumb bar, act headers) */
+  --app-chrome-surface-bg: #F5F2E8;
+  --app-sidenav-radius: 10px;
+}

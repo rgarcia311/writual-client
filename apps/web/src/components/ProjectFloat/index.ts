@@ -1,0 +1,15 @@
+export { ProjectFloatShell } from './ProjectFloatShell';
+export { ProjectBreadcrumbBar } from './ProjectBreadcrumbBar';
+export { FloatingProjectHero } from './FloatingProjectHero';
+export { FloatingProjectPosterTile } from './FloatingProjectPosterTile';
+export { FloatingProjectInfoTile } from './FloatingProjectInfoTile';
+export { FloatingStatSurface } from './FloatingStatSurface';
+export { FloatingProjectStat } from './FloatingProjectStat';
+export { FloatingProjectStatsRail } from './FloatingProjectStatsRail';
+export { buildProjectStatTiles } from './buildProjectStatTiles';
+export type { ProjectStatTileEntry, ProjectStatTileKey } from './buildProjectStatTiles';
+export { useProjectShellData, defaultProjectData } from './useProjectShellData';
+export { useProjectShellContext, ProjectShellDataProvider } from './ProjectShellDataContext';
+export type { ProjectShellData } from './ProjectShellDataContext';
+export type { ProjectStatTileData } from './useProjectShellData';
+export { computeProjectStatTileData } from './computeProjectStatTileData';

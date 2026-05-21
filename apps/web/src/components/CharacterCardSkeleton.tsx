@@ -7,9 +7,36 @@ import CardContent from '@mui/material/CardContent';
 import Skeleton from '@mui/material/Skeleton';
 import Avatar from '@mui/material/Avatar';
 
-export const CharacterCardSkeleton: React.FC = () => (
-  <Card sx={{ maxWidth: 345, maxHeight: 375 }}>
-    <Skeleton variant="rectangular" height={300} />
+interface CharacterCardSkeletonProps {
+  gridTile?: boolean;
+}
+
+export const CharacterCardSkeleton: React.FC<CharacterCardSkeletonProps> = ({ gridTile = false }) => (
+  <Card
+    className={gridTile ? 'character-card--grid' : undefined}
+    sx={{
+      // <PROTECTED> — character card dimensions; see .cursor/rules/character-card-dimensions.mdc
+      ...(gridTile
+        ? {
+            width: 'var(--character-card-width, 305px)',
+            maxWidth: 'var(--character-card-width, 305px)',
+            height: 'var(--character-card-height, 385px)',
+            maxHeight: 'var(--character-card-height, 385px)',
+            flex: '0 0 auto',
+          }
+        : {
+            maxWidth: 345,
+            maxHeight: 375,
+          }),
+      // </PROTECTED>
+      borderRadius: 'var(--project-float-radius, 12px)',
+      overflow: 'hidden',
+    }}
+  >
+    <Skeleton
+      variant="rectangular"
+      height={gridTile ? 'var(--character-card-media-height, 240px)' : 300}
+    />
     <CardHeader
       avatar={<Avatar><Skeleton variant="circular" width={40} height={40} /></Avatar>}
       title={<Skeleton variant="text" width="60%" height={24} />}

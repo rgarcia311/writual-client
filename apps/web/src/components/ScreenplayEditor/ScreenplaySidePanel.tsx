@@ -12,9 +12,13 @@ import LocalMoviesIcon from '@mui/icons-material/LocalMovies'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import PersonIcon from '@mui/icons-material/Person'
+import LightbulbOutlinedIcon from '@mui/icons-material/LightbulbOutlined'
+import InsightsIcon from '@mui/icons-material/Insights'
 import { SceneCard } from '@/components/SceneCard'
 import { CharacterCard } from '@/components/CharacterCard'
-import { SCREENPLAY_FLOATING_SURFACE_SHADOW } from './screenplayPaperLayout'
+import { ScreenplayInspirationPanel } from './ScreenplayInspirationPanel'
+import { ScreenplayProjectStatsPanel } from './ScreenplayProjectStatsPanel'
+import '@/styles/screenplayWorkspace.css'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -48,16 +52,29 @@ interface ProjectCharacter {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-/** Vertical Scenes / Characters tabs on the left edge of the screenplay area. */
+/** Vertical tab rail on the left edge of the screenplay area. */
 const SIDE_PANEL_TABS_W_PX = 35
+
+export type ScreenplaySidePanelTab = 'characters' | 'scenes' | 'inspiration' | 'stats'
+
+const SIDE_PANEL_TABS: ReadonlyArray<{
+  id: ScreenplaySidePanelTab
+  label: string
+  Icon: typeof PersonIcon
+}> = [
+  { id: 'characters', label: 'Characters', Icon: PersonIcon },
+  { id: 'scenes', label: 'Scenes', Icon: LocalMoviesIcon },
+  { id: 'inspiration', label: 'Inspiration', Icon: LightbulbOutlinedIcon },
+  { id: 'stats', label: 'Stats', Icon: InsightsIcon },
+]
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface ScreenplaySidePanelProps {
-  /** Controls the outer wrapper's flex proportion (true = expanded list visible). */
+  /** Controls the outer wrapper's flex proportion (true = expanded list shares row width). */
   navigatorSplitProportions: boolean
-  sidePanelTab: 'scenes' | 'characters'
-  onTabChange: (tab: 'scenes' | 'characters') => void
+  sidePanelTab: ScreenplaySidePanelTab
+  onTabChange: (tab: ScreenplaySidePanelTab) => void
   sidePanelExpanded: boolean
   onExpandedChange: (expanded: boolean) => void
   characterCardExpandedId: number | undefined
@@ -86,16 +103,27 @@ export function ScreenplaySidePanel({
   onToggleCharacterLock,
 }: ScreenplaySidePanelProps) {
   const theme = useTheme()
+  const usesFixedWidthPanel = sidePanelTab === 'stats' || sidePanelTab === 'inspiration'
+  const contentPanelClassName =
+    sidePanelTab === 'stats'
+      ? 'screenplay-side-panel-content--stats'
+      : sidePanelTab === 'inspiration'
+        ? 'screenplay-side-panel-content--inspiration'
+        : undefined
 
   return (
     <Box
+      className="screenplay-side-panel"
       sx={{
         display: 'flex',
         flexDirection: 'row',
         alignSelf: 'stretch',
+        height: '100%',
+        flex: navigatorSplitProportions ? '1 1 0%' : '0 1 auto',
         minHeight: 0,
         minWidth: 0,
-        ...(navigatorSplitProportions ? { flex: '1 1 0%' } : { flex: '0 0 auto' }),
+        overflowX: 'visible',
+        overflowY: 'hidden',
       }}
     >
       {/* ── Tab rail ──────────────────────────────────────────────────── */}
@@ -109,7 +137,7 @@ export function ScreenplaySidePanel({
           alignSelf: 'stretch',
           minHeight: 0,
           boxSizing: 'border-box',
-          bgcolor: 'background.paper',
+          bgcolor: 'transparent',
         }}
       >
         <Box
@@ -128,25 +156,21 @@ export function ScreenplaySidePanel({
             minHeight: 0,
           }}
         >
-          {(
-            [
-              { id: 'scenes' as const, label: 'Scenes', Icon: LocalMoviesIcon },
-              { id: 'characters' as const, label: 'Characters', Icon: PersonIcon },
-            ] as const
-          ).map(({ id, label, Icon }) => {
+          {SIDE_PANEL_TABS.map(({ id, label, Icon }) => {
             const selected = sidePanelTab === id
             return (
               <ButtonBase
                 key={id}
                 role="tab"
                 aria-selected={selected}
+                aria-label={id === 'stats' ? 'Project Stats' : label}
                 id={`screenplay-side-tab-${id}`}
                 onClick={() => onTabChange(id)}
                 focusRipple
                 sx={{
                   flex: 1,
-                  minHeight: 72,
-                  maxHeight: 120,
+                  minHeight: 56,
+                  maxHeight: 100,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -235,24 +259,52 @@ export function ScreenplaySidePanel({
       {/* ── Expanded list panel ───────────────────────────────────────── */}
       {sidePanelExpanded && (
         <Paper
-          className="screenplay-navigator"
+          className={['screenplay-side-panel-content', 'screenplay-navigator', contentPanelClassName]
+            .filter(Boolean)
+            .join(' ')}
           elevation={0}
           sx={{
+            flex: '1 1 0',
+            height: '100%',
             minHeight: 0,
+            minWidth: 0,
+            alignSelf: 'stretch',
             display: 'flex',
             flexDirection: 'column',
-            alignSelf: 'stretch',
-            flex: '1 1 0%',
-            minWidth: 0,
+            position: 'relative',
+            bgcolor: 'background.default',
+            backgroundImage: 'none',
             border: 'none',
-            borderRadius: 2,
+            borderRadius: '0 var(--app-sidenav-radius, 10px) var(--app-sidenav-radius, 10px) 0',
+            boxShadow: 'none',
             overflow: 'hidden',
             transition: theme.transitions.create(['box-shadow', 'border-color'], {
               duration: theme.transitions.duration.shorter,
             }),
           }}
         >
-          <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
+          <Box
+            className="screenplay-side-panel-content__scroll"
+            sx={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              bgcolor: 'background.default',
+              WebkitOverflowScrolling: 'touch',
+            }}
+          >
+            {sidePanelTab === 'stats' && projectId ? (
+              <ScreenplayProjectStatsPanel projectId={projectId} />
+            ) : null}
+
+            {sidePanelTab === 'inspiration' && projectId ? (
+              <ScreenplayInspirationPanel projectId={projectId} />
+            ) : null}
+
             {sidePanelTab === 'scenes' && (
               <>
                 {projectScenes.length === 0 ? (
@@ -325,7 +377,7 @@ export function ScreenplaySidePanel({
                     sx={{
                       p: 1,
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                      gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
                       gap: 1,
                       width: '100%',
                       minWidth: 0,

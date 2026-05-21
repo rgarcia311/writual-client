@@ -10,16 +10,23 @@ export interface ProjectStatProps {
   placeholder?: string;
   /** Tighter padding and scrolling for small stat tiles (e.g. project header grid). */
   compact?: boolean;
+  /** When true, border/background come from parent `Paper` (floating stat tile). */
+  floatSurface?: boolean;
 }
 
-export function ProjectStat({ children, placeholder, compact = false }: ProjectStatProps) {
+export function ProjectStat({ children, placeholder, compact = false, floatSurface = false }: ProjectStatProps) {
   const hasChildren = Boolean(children);
 
   return (
     <Box
       sx={{
-        border: '1px solid',
-        borderColor: 'divider',
+        ...(floatSurface
+          ? { border: 'none', bgcolor: 'transparent' }
+          : {
+              border: '1px solid',
+              borderColor: 'divider',
+              bgcolor: 'background.paper',
+            }),
         borderRadius: 1,
         p: '5px',
         height: '100%',
@@ -27,7 +34,6 @@ export function ProjectStat({ children, placeholder, compact = false }: ProjectS
         display: 'flex',
         flexDirection: 'column',
         minWidth: 0,
-        bgcolor: 'background.paper',
         overflow: compact ? 'auto' : 'visible',
       }}
     >
