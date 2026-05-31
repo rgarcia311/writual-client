@@ -53,7 +53,7 @@
   --project-characters-stats-cards-gap: var(--app-body-padding);
   /* <PROTECTED> — character card dimensions; see .cursor/rules/character-card-dimensions.mdc */
   --character-card-width: 305px;
-  --character-card-height: 385px;
+  --character-card-height: 390px;
   --character-card-media-height: 240px;
   /* </PROTECTED> */
 }

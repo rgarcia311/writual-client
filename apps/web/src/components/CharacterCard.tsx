@@ -30,6 +30,16 @@ const ExpandMore = styled((props: ExpandMoreProps) => {
 
 const DEFAULT_CHARACTER_IMAGE = '/default-character-image.png';
 
+/** Maps a raw gender string to M / F / X, or '' when absent. */
+function abbreviateGender(gender: unknown): string {
+  if (!gender || typeof gender !== 'string') return '';
+  const lower = gender.trim().toLowerCase();
+  if (lower === 'male' || lower === 'm') return 'M';
+  if (lower === 'female' || lower === 'f') return 'F';
+  if (lower === '') return '';
+  return 'X';
+}
+
 interface CharacterCardProps {
   name?: string;
   details?: any[];
@@ -86,15 +96,15 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             ? {
                 width: 'var(--character-card-width, 305px)',
                 maxWidth: 'var(--character-card-width, 305px)',
-                height: 'var(--character-card-height, 385px)',
-                maxHeight: 'var(--character-card-height, 385px)',
+                height: 'var(--character-card-height, 390px)',
+                maxHeight: 'var(--character-card-height, 390px)',
                 flex: '0 0 auto',
               }
             : {
                 width: fullWidthInParent ? '100%' : 'calc(20% - 8px)',
                 maxWidth: fullWidthInParent ? '100%' : 'none',
-                height: 'auto',
-                maxHeight: 'max-content',
+                height: expanded ? 'auto' : 'var(--character-card-height, 390px)',
+                maxHeight: expanded ? 'none' : 'var(--character-card-height, 390px)',
               }),
           // </PROTECTED>
           borderRadius: 'var(--project-float-radius, 12px)',
@@ -162,8 +172,9 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                 <ExpandMoreIcon />
               </ExpandMore>
             }
-            title={detail ? `${name ?? ''} ${detail.age ?? ''} ${detail.gender ?? ''}`.trim() : name}
+            title={detail ? `${name ?? ''} ${detail.age ?? ''} ${abbreviateGender(detail.gender)}`.trim() : name}
             subheader={detail ? `Version: ${detail.version}` : undefined}
+            titleTypographyProps={{ noWrap: true }}
           />
 
         {expanded && detail && (

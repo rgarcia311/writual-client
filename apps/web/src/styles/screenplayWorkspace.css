@@ -17,6 +17,7 @@
   overflow-x: visible !important;
   overflow-y: visible !important;
   background-color: var(--app-chrome-surface-bg, #f5f2e8);
+  gap: var(--app-body-padding);
 }
 
 /* Outer host for WritualEditor (not the inner page scroll container — see Screenplay.css) */
@@ -93,7 +94,7 @@
   z-index: 2;
   padding-top: var(--screenplay-editor-block-top-inset);
   padding-bottom: 0;
-  padding-left: var(--app-body-padding);
+  padding-left: 0;
   box-sizing: border-box;
   max-height: 100%;
   overflow-x: visible !important;
@@ -226,8 +227,9 @@
 
 .screenplay-project-stats-panel__project-tiles {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: var(--project-float-stat-gap);
   width: 100%;
 }
@@ -255,8 +257,9 @@
 
 .screenplay-project-stats-panel {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: var(--project-float-stat-gap);
   padding: var(--app-body-padding);
   box-sizing: border-box;

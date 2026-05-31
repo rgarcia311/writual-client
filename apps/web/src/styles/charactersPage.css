@@ -20,9 +20,9 @@
 /* <PROTECTED> — character card dimensions; see .cursor/rules/character-card-dimensions.mdc */
 .characters-page-cards .character-card--grid {
   width: var(--character-card-width, 305px);
-  height: var(--character-card-height, 385px);
+  height: var(--character-card-height, 390px);
   max-width: var(--character-card-width, 305px);
-  max-height: var(--character-card-height, 385px);
+  max-height: var(--character-card-height, 390px);
   border-radius: var(--project-float-radius, 12px);
 }
 

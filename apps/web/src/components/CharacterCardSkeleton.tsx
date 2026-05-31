@@ -20,13 +20,13 @@ export const CharacterCardSkeleton: React.FC<CharacterCardSkeletonProps> = ({ gr
         ? {
             width: 'var(--character-card-width, 305px)',
             maxWidth: 'var(--character-card-width, 305px)',
-            height: 'var(--character-card-height, 385px)',
-            maxHeight: 'var(--character-card-height, 385px)',
+            height: 'var(--character-card-height, 390px)',
+            maxHeight: 'var(--character-card-height, 390px)',
             flex: '0 0 auto',
           }
         : {
-            maxWidth: 345,
-            maxHeight: 375,
+            height: 'var(--character-card-height, 390px)',
+            maxHeight: 'var(--character-card-height, 390px)',
           }),
       // </PROTECTED>
       borderRadius: 'var(--project-float-radius, 12px)',
