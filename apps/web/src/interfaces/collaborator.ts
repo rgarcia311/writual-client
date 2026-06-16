@@ -17,12 +17,14 @@ export interface InvitationInput {
   aspects: AspectKey[];
 }
 
-export const ALL_ASPECTS: AspectKey[] = ['logline', 'characters', 'outline', 'treatment', 'screenplay'];
+export const ALL_ASPECTS: AspectKey[] = ['logline', 'characters', 'outline', 'screenplay'];
 
 export const ASPECT_LABELS: Record<AspectKey, string> = {
   logline:    'Logline',
   characters: 'Characters',
   outline:    'Outline',
-  treatment:  'Treatment',
+  // Legacy: the Treatment feature was removed, but existing collaborator records may
+  // still carry this aspect. Keep a label so the UI can render it without crashing.
+  treatment:  'Treatment (Legacy)',
   screenplay: 'Screenplay',
 };

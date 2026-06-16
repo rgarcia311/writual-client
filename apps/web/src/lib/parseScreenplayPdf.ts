@@ -165,7 +165,7 @@ function extractTitleFromTitlePage(lines: LineGroup[]): string | null {
   return null
 }
 
-function titleFromFilename(filename: string): string | null {
+export function titleFromFilename(filename: string): string | null {
   const base = filename.replace(/\.pdf$/i, '').trim()
   if (!base) return null
   return base
@@ -441,10 +441,14 @@ export async function parseScreenplayPdf(file: File): Promise<{
 
     if (shouldMerge && lastBlock) {
       const existing = lastBlock.content[0]?.text ?? ''
-      // Action: newline preserves PDF line breaks. Dialogue / parenthetical: spaces let the
-      // editor reflow one speech block; PDF text is often many micro-rows—hard newlines would
-      // balloon line count with white-space: pre-wrap.
-      const separator = elementType === 'action' ? '\n' : ' '
+      // Normally join wrapped PDF rows with a space so the editor reflows them. Exception:
+      // when a row ends in a word-internal hyphen (letter/digit + "-") and the next row starts
+      // with a letter/digit, the source broke a hyphenated word (e.g. "not-" / "guilty" or
+      // "catch-" / "22") at the row edge — rejoin with no space so it reads "not-guilty", not
+      // "not- guilty". Courier screenplay PDFs don't soft-hyphenate, so the trailing hyphen is
+      // always an authored character and is preserved.
+      const joinsHyphenatedWord = /[\p{L}\d]-$/u.test(existing) && /^[\p{L}\d]/u.test(text)
+      const separator = joinsHyphenatedWord ? '' : ' '
       lastBlock.content = [{ type: 'text', text: existing + separator + text }]
     } else {
       blocks.push({

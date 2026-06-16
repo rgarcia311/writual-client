@@ -27,12 +27,6 @@ query GetProjectData($input: ProjectFilters) {
     }
     activeVersion
     lockedVersion
-    treatment {
-      lockedVersion
-      versions {
-        version
-      }
-    }
     screenplay {
       lockedVersion
       versions {
@@ -81,12 +75,6 @@ query GetProjectData($input: ProjectFilters) {
         }
         activeVersion
         lockedVersion
-        treatment {
-            lockedVersion
-            versions {
-                version
-            }
-        }
         screenplay {
             lockedVersion
             versions {

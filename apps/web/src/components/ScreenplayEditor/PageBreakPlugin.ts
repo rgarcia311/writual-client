@@ -318,7 +318,15 @@ export const PageBreakExtension = Extension.create({
             }
 
             // --- Orphan / Widow Group Checks ---
-            if (elementType === 'character' && blockBottom <= pageContentEnd && blockTop > pageContentStart + 1) {
+            // Run the cue+dialogue group check whenever the cue itself would not independently
+            // overflow (same tolerance as the core break check). The previous strict
+            // `blockBottom <= pageContentEnd` guard skipped the group check in the sub-pixel
+            // boundary window, which let the dialogue break onto the next page alone.
+            const characterFitsCurrentPage = !layoutBottomExceedsPageContentEnd(
+              layoutBottomForPaginationOverflow('character', blockBottom),
+              pageContentEnd,
+            )
+            if (elementType === 'character' && characterFitsCurrentPage && blockTop > pageContentStart + 1) {
               let groupBottom = naturalBottom
               let endedOnDialogue = false
               for (let j = i + 1; j < blocks.length; j++) {
@@ -376,11 +384,24 @@ export const PageBreakExtension = Extension.create({
               let prevBottomRaw = pageContentStart
               let prevBottom = pageContentStart
 
-              // Calculate exactly where the previous block ended
+              // Calculate exactly where the previous block ended. Drop the previous block's trailing
+              // blank-line spacer so the next page starts flush — matches the CSS rule that zeroes
+              // `padding-bottom` on the block before a `.page-break-gap`. Without this, the spacer
+              // leaks ~16px onto the next page per break and can split a cue from its dialogue.
               if (i > 0) {
                 const prevEl = editorView.nodeDOM(blocks[i - 1].pos) as HTMLElement
                 if (prevEl) {
-                  prevBottomRaw = yLayoutInPm(prevEl, pmRect, scale).bottom
+                  const prevType = blocks[i - 1].node.attrs.elementType as string
+                  let bottomRaw = yLayoutInPm(prevEl, pmRect, scale).bottom
+
+                  // Prevent double-dip: if CSS `:has(+ .page-break-gap)` has already stripped the
+                  // padding on this render pass, the measured bottom is already the ink bottom.
+                  const hasGapNext = prevEl.nextElementSibling?.classList.contains('page-break-gap')
+                  if (!hasGapNext) {
+                    bottomRaw = layoutBottomForPaginationOverflow(prevType, bottomRaw)
+                  }
+
+                  prevBottomRaw = bottomRaw
                   prevBottom = prevBottomRaw + cursorOffset
                 }
               }

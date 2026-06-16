@@ -22,7 +22,6 @@ const endpoint = GRAPHQL_ENDPOINT;
 const SEGMENT_LABELS: Record<string, string> = {
   characters: 'Characters',
   outline: 'Outline',
-  treatment: 'Treatment',
   screenplay: 'Screenplay',
   chat: 'Chat',
 };

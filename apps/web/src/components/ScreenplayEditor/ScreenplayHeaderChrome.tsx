@@ -21,6 +21,7 @@ function isScreenplayProjectPath(pathname: string | null): boolean {
 export function ScreenplayHeaderChrome() {
   const pathname = usePathname()
   const zoom = useScreenplayHeaderChromeStore((s) => s.zoom)
+  const isAutoZoomed = useScreenplayHeaderChromeStore((s) => s.isAutoZoomed)
   const collabActive = useScreenplayHeaderChromeStore((s) => s.collabActive)
   const handlers = useScreenplayHeaderChromeStore((s) => s.handlers)
   const collabStatus = useScreenplayEditorStore((s) => s.collabStatus)
@@ -88,12 +89,12 @@ export function ScreenplayHeaderChrome() {
           </IconButton>
         </span>
       </Tooltip>
-      <Tooltip title="Reset zoom to 100%">
+      <Tooltip title="Fit page to window">
         <span>
           <IconButton
             size="small"
             onClick={() => handlers?.zoomReset()}
-            disabled={!handlers || zoom === 1}
+            disabled={!handlers || isAutoZoomed}
             aria-label="reset screenplay zoom"
           >
             <FitScreenIcon fontSize="small" />

@@ -21,7 +21,6 @@ export interface ChatMessage {
 export interface DevelopmentStatus {
   outlineStarted: boolean;
   charactersStarted: boolean;
-  treatmentStarted: boolean;
   screenplayStarted: boolean;
 }
 

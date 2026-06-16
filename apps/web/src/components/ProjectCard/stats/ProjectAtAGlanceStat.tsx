@@ -31,7 +31,6 @@ const PHASE_BY_LABEL: Record<string, string> = {
   Logline: 'Logline development',
   Characters: 'Character development',
   Outline: 'Outline development',
-  Treatment: 'Treatment drafting',
   Screenplay: 'Screenplay writing',
 };
 

@@ -407,7 +407,7 @@ export const SceneCard = React.memo<SceneCardProps>(function SceneCard({
               }
       }
     >
-      {/* Header: Scene title + badges — match screenplay / treatment toolbar surface */}
+      {/* Header: Scene title + badges — match screenplay toolbar surface */}
       <Box
         sx={{
           display: 'flex',

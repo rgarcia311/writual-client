@@ -141,19 +141,20 @@ export const ELEMENT_ORDER: ScreenplayElementType[] = [
 
 /**
  * Keyboard shortcut hints shown in each toolbar toggle button tooltip.
- * Tab cycles: action(1) → slugline(2) → character(3) → parenthetical(4) → dialogue(5)
+ * Mod-Alt-<n> sets element directly (⌘+⌥ on macOS, Ctrl+Alt elsewhere): 1 Action · 2 Scene Heading
+ *   · 3 Character · 4 Parenthetical · 5 Dialogue · 6 Transition. Tab still cycles 1→5.
  * Enter: character→dialogue · parenthetical→dialogue · dialogue→action · slugline→action
  */
 export const ELEMENT_SHORTCUTS: Record<ScreenplayElementType, string> = {
   title:         'Enter → Author  ·  Title page',
   author:        'Enter → Contact',
   contact:       'Enter → Action',
-  slugline:      'Tab ×2 from Action',
-  action:        'Tab ×1  ·  Enter after Dialogue or Scene Heading',
-  character:     'Tab ×3 from Action',
-  parenthetical: 'Tab ×4  ·  Enter after Character',
-  dialogue:      'Tab ×5  ·  Enter after Character or Parenthetical',
-  transition:    'Click to set  (not in Tab cycle)',
+  slugline:      '⌘/Ctrl+⌥/Alt+2  ·  Tab ×2 from Action',
+  action:        '⌘/Ctrl+⌥/Alt+1  ·  Tab ×1  ·  Enter after Dialogue or Scene Heading',
+  character:     '⌘/Ctrl+⌥/Alt+3  ·  Tab ×3 from Action',
+  parenthetical: '⌘/Ctrl+⌥/Alt+4  ·  Tab ×4  ·  Enter after Character',
+  dialogue:      '⌘/Ctrl+⌥/Alt+5  ·  Tab ×5  ·  Enter after Character or Parenthetical',
+  transition:    '⌘/Ctrl+⌥/Alt+6  ·  Click to set  (not in Tab cycle)',
 }
 
 // ─── Tooltip content component ────────────────────────────────────────────────
@@ -724,6 +725,7 @@ function ScreenplayEditorCore({
     setHeaderChrome({
       // <PROTECTED>
       zoom,
+      isAutoZoomed,
       collabActive,
       handlers: editor
         ? {
@@ -742,9 +744,11 @@ function ScreenplayEditorCore({
               )
             },
             zoomReset: () => {
-              isAutoZoomedRef.current = false
-              setIsAutoZoomed(false)
-              setZoom(SCREENPLAY_DISPLAY_SCALE)
+              const workspaceEl = workspaceRef.current
+              if (!workspaceEl) return
+              isAutoZoomedRef.current = true
+              setIsAutoZoomed(true)
+              setZoom(calcAutoFitZoom(workspaceEl))
             },
             print: () => void printScreenplayHidden(editor),
           }
@@ -752,17 +756,24 @@ function ScreenplayEditorCore({
       // </PROTECTED>
     })
     return () => {
-      setHeaderChrome({ handlers: null, collabActive: false, zoom: 1 })
+      setHeaderChrome({ handlers: null, collabActive: false, zoom: 1, isAutoZoomed: false })
     }
-  }, [zoom, collabActive, editor, setHeaderChrome])
+  }, [zoom, isAutoZoomed, collabActive, editor, setHeaderChrome, calcAutoFitZoom])
 
   // ── Derived ──────────────────────────────────────────────────────────────
   const sidePanelUsesFixedWidth =
     sidePanelTab === 'stats' || sidePanelTab === 'inspiration'
-  const navigatorSplitProportions =
-    navigatorOpen && sidePanelExpanded && !sidePanelUsesFixedWidth
-  /** When list is off or only the narrow strip: center the screenplay column; expanded list hugs the right. */
-  const centerEditorColumn = !navigatorOpen || (navigatorOpen && !sidePanelExpanded)
+  /** True only when the open side panel actually renders content that should reserve row width. */
+  const sidePanelHasContent =
+    navigatorOpen &&
+    sidePanelExpanded &&
+    (sidePanelUsesFixedWidth ||
+      (sidePanelTab === 'characters' && (projectCharacters?.length ?? 0) > 0) ||
+      (sidePanelTab === 'scenes' && (projectScenes?.length ?? 0) > 0))
+  /** Char/scene list with content shares the row 50/50; everything else does not split. */
+  const navigatorSplitProportions = sidePanelHasContent && !sidePanelUsesFixedWidth
+  /** Editor is centered in every state except the char/scene 50/50 split (never left-pinned). */
+  const centerEditorColumn = !navigatorSplitProportions
 
   /** Toolbar + scaled paper + gutter + lateral rim shadow must fit workspace width (`flex: 1`), or horizontal overflow clips the right halo. */
   const screenplayToolbarPaperRowMinWidthPx =
@@ -828,6 +839,11 @@ function ScreenplayEditorCore({
 
         {/* Fills remaining row width when centering; marginLeft auto keeps editor right when list expanded */}
         <Box
+          className={
+            centerEditorColumn
+              ? 'screenplay-editor-col screenplay-editor-col--centered'
+              : 'screenplay-editor-col'
+          }
           sx={{
             display: 'flex',
             flex: '1 1 0%',

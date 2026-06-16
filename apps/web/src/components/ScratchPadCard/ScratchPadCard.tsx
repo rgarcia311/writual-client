@@ -24,7 +24,6 @@ const TYPE_LABELS: Record<string, string> = {
 const MOVE_OPTIONS: { value: MoveToDestination; label: string }[] = [
   { value: 'characters', label: 'Character' },
   { value: 'outline', label: 'Outline' },
-  { value: 'treatment', label: 'Treatment' },
   { value: 'chat', label: 'Chat' },
 ];
 

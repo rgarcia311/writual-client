@@ -78,6 +78,14 @@
   overflow-y: visible;
 }
 
+/* Collapsed/empty/fixed-width side panel: size to its content (rail, or a
+   fixed-width tab) instead of growing to share the row, so the editor column
+   spans the full area to the right of the rail and can center. */
+.project-details-float-root--screenplay
+  .screenplay-side-panel.screenplay-side-panel--compact {
+  flex: 0 1 auto;
+}
+
 /* Scrollport is `.screenplay-workspace`; editor shell/root stay visible for rim shadows.
    !important on writual-editor-root: its sx has overflow: hidden in a PROTECTED block;
    emotion-injected class would otherwise win source-order over this CSS rule. */

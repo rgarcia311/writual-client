@@ -22,7 +22,6 @@ import { useSideNavCollapsedStore } from '@/state/sideNavCollapsed';
 const SIDENAV_LINKS = [
   { segment: 'characters', label: 'Characters', Icon: TheaterComedyIcon },
   { segment: 'outline', label: 'Outline', Icon: AccountTreeIcon },
-  { segment: 'treatment', label: 'Treatment', Icon: ArticleIcon },
   { segment: 'screenplay', label: 'Screenplay', Icon: ArticleIcon },
   { segment: 'chat', label: 'Chat', Icon: ChatBubbleIcon },
 ] as const;

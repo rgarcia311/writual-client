@@ -21,10 +21,6 @@ interface ProjectForProgress {
     totalCharacters?: number;
     lockedCharacters?: number;
   } | null;
-  treatment?: {
-    lockedVersion?: number | null;
-    versions?: Array<{ version?: number }> | null;
-  } | null;
   screenplay?: {
     lockedVersion?: number | null;
     versions?: Array<{ version?: number }> | null;
@@ -42,7 +38,6 @@ export function computeProjectProgress(project: ProjectForProgress | null | unde
       { label: 'Logline', status: 'empty' },
       { label: 'Characters', status: 'empty' },
       { label: 'Outline', status: 'empty' },
-      { label: 'Treatment', status: 'empty' },
       { label: 'Screenplay', status: 'empty' },
     ];
   }
@@ -93,15 +88,6 @@ export function computeProjectProgress(project: ProjectForProgress | null | unde
         ? 'complete'
         : 'partial';
 
-  const treatmentVersions = project.treatment?.versions ?? [];
-  const treatmentHasContent = treatmentVersions.length > 0;
-  const treatmentLocked = project.treatment?.lockedVersion != null;
-  const treatmentStatus: ProgressStatus = !treatmentHasContent
-    ? 'empty'
-    : treatmentLocked
-      ? 'complete'
-      : 'partial';
-
   const screenplayVersions = project.screenplay?.versions ?? [];
   const screenplayHasContent = screenplayVersions.length > 0;
   const screenplayLocked = project.screenplay?.lockedVersion != null;
@@ -116,7 +102,6 @@ export function computeProjectProgress(project: ProjectForProgress | null | unde
     { label: 'Logline', status: loglineStatus },
     { label: 'Characters', status: charactersStatus },
     { label: 'Outline', status: outlineStatus },
-    { label: 'Treatment', status: treatmentStatus },
     { label: 'Screenplay', status: screenplayStatus },
   ];
 }

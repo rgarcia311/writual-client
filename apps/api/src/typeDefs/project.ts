@@ -48,7 +48,6 @@ export const ProjectType = `#graphql
     type DevelopmentStatus {
         outlineStarted: Boolean!
         charactersStarted: Boolean!
-        treatmentStarted: Boolean!
         screenplayStarted: Boolean!
     }
 
@@ -204,7 +203,6 @@ export const ProjectType = `#graphql
         characters: [Character]
         outline: Outline
         inspiration: [inspiration]
-        treatment: Treatment
         screenplay: Screenplay
         feedback: Feedback
         stats: ProjectStats
@@ -239,7 +237,6 @@ export const ProjectType = `#graphql
         characters: [CharacterInput]
         outline: OutlineInput
         inspiration: [inspirationInput]
-        treatment: TreatmentInput
         screenplay: ScreenplayInput
         feedback: FeedbackInput
     }
@@ -268,7 +265,6 @@ export const ProjectType = `#graphql
         characters: [CharacterInput]
         outline: OutlineInput
         inspiration: [inspirationInput]
-        treatment: TreatmentInput
         screenplay: ScreenplayInput
         feedback: FeedbackInput
         stats: ProjectStatsInput
@@ -438,26 +434,6 @@ export const ProjectType = `#graphql
         Feature 
         Television
         Short 
-    }
-
-    type Treatment {
-        projectId: String
-        versions: [TreatmentContent]
-        lockedVersion: Int
-    }
-
-    input TreatmentInput {
-        versions: [TreatmentContentInput]
-    }
-
-    type TreatmentContent {
-        version: Int
-        text: String
-    }
-
-    input TreatmentContentInput {
-        version: Int
-        text: String
     }
 
     type Screenplay {
@@ -718,7 +694,7 @@ export const resolvers = {
         {
           $project: {
             _id: 1, title: 1, displayName: 1, genre: 1, type: 1, poster: 1,
-            sharedWith: 1, collaborators: 1, stats: 1, treatment: 1, screenplay: 1, user: 1, createdAt: 1,
+            sharedWith: 1, collaborators: 1, stats: 1, screenplay: 1, user: 1, createdAt: 1,
           },
         },
         {
@@ -793,7 +769,6 @@ export const resolvers = {
         developmentStatus: {
           outlineStarted: (project.stats?.totalScenes ?? 0) > 0,
           charactersStarted: (project.stats?.totalCharacters ?? 0) > 0,
-          treatmentStarted: (project.treatment?.versions?.length ?? 0) > 0,
           screenplayStarted: (project.screenplay?.versions?.length ?? 0) > 0,
         },
         lastMessage: project.lastMessage ?? null,

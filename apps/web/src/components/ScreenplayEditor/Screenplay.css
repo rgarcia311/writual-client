@@ -284,6 +284,15 @@
   margin-top: 0 !important;
 }
 
+/* Block immediately before a page-break widget drops its trailing blank-line spacer so the next
+   page starts flush at the top margin instead of inheriting a leaked blank line (mirror of the
+   rule above). Title-page blocks (title/author/contact) are governed by the separate title-page
+   break path and are excluded. */
+.node-scriptBlock:has(+ .page-break-gap)
+  > .script-block:not([data-element-type='title']):not([data-element-type='author']):not([data-element-type='contact']) {
+  padding-bottom: 0 !important;
+}
+
 /* ── SCENE HEADING (Slugline) ────────────────────────────────────────────── */
 /*
  * Before scene headings: Character / Parenthetical → 1 blank (prev has no bottom pad): slugline
@@ -412,6 +421,21 @@
   order: 1;
   min-width: 0;
   flex: 1 1 auto;
+}
+
+/* Automatic (CONT'D): a character speaking again after an interruption gets the `is-contd` node
+   decoration from the screenplayContd plugin. Display-only — never part of the stored cue text.
+   Constrain the content box to its natural width so the suffix sits right after the name. */
+.script-block[data-element-type='character'].is-contd > [data-node-view-content] {
+  flex: 0 1 auto;
+}
+.script-block[data-element-type='character'].is-contd::after {
+  content: ' (CONT\'D)';
+  order: 2;
+  flex: 0 0 auto;
+  white-space: pre;
+  pointer-events: none;
+  user-select: none;
 }
 
 .script-block[data-element-type='dialogue'] [data-node-view-content] {

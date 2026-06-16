@@ -113,7 +113,11 @@ export function ScreenplaySidePanel({
 
   return (
     <Box
-      className="screenplay-side-panel"
+      className={
+        navigatorSplitProportions
+          ? 'screenplay-side-panel'
+          : 'screenplay-side-panel screenplay-side-panel--compact'
+      }
       sx={{
         display: 'flex',
         flexDirection: 'row',

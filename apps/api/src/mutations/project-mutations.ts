@@ -145,16 +145,6 @@ export const createinspiration = async (root, { input }) => {
   return updated;
 };
 
-export const createTreatment = (root, { input })  =>  {
-    const newTreatment  = new  Projects({
-        projectId: input.projectId,
-        versions: input.treatmentContent
-    })
-
-    newTreatment.id = input._id
-    return  updateData(Projects, {newTreatment}, input.projec_id)
-}
-
 /** Updates only `writingTracker.currentPageCount` when the project's tracker is enabled. */
 export const persistWritingTrackerCurrentPageCount = async (
   projectId: string,

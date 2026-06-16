@@ -51,10 +51,6 @@ query GetProjectTrackingStats($input: ProjectFilters!) {
       trackingStartDate
       draftDueDates { draftNumber label dueDate tag }
     }
-    treatment {
-      lockedVersion
-      versions { version }
-    }
     scenes {
       lockedVersion
     }

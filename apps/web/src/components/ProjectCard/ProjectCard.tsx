@@ -153,7 +153,6 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
     { label: 'Title', status: 'complete' },
     { label: 'Logline', status: 'complete' },
     { label: 'Characters', status: 'complete' },
-    { label: 'Treatment', status: 'partial' },
     { label: 'Outline', status: 'partial' },
     { label: 'Screenplay', status: 'complete' },
   ],

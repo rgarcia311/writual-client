@@ -24,6 +24,7 @@ import { useOutlineFrameworksStore } from '@/state/outlineFrameworks';
 import { ProjectType } from '@/enums/ProjectEnums';
 import { CreateProjectProps, WritingTracker } from '@/interfaces/project';
 
+import { titleFromFilename } from '@/lib/parseScreenplayPdf';
 import { isValidImageUrl, getImageUrlForStorage } from '../../utils/imageUrl';
 import { ScreenplayDropZone } from './ScreenplayDropZone';
 import { WritingTrackerSection, WritingTrackerFormState } from './WritingTrackerSection';
@@ -177,6 +178,13 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
               setScreenplayContent(null);
               setScreenplayPageCount(0);
               setScreenplayPdfFile(file);
+              const derivedTitle = titleFromFilename(file.name);
+              if (derivedTitle) {
+                setFormValues((prev) => ({
+                  ...prev,
+                  title: prev.title?.trim() ? prev.title : derivedTitle,
+                }));
+              }
             }}
             onCleared={() => {
               setCreateCompleteWritualProject(false);

@@ -18,7 +18,7 @@ export const GET_PROJECT_CHATS = gql`
       _id title displayName ownerDisplayName user genre type poster sharedWith createdAt unreadCount
       collaborators { _id email uid status permissionLevel aspects invitedAt }
       developmentStatus {
-        outlineStarted charactersStarted treatmentStarted screenplayStarted
+        outlineStarted charactersStarted screenplayStarted
       }
       lastMessage { _id text senderId clientGeneratedId createdAt
         sender { uid displayName name }

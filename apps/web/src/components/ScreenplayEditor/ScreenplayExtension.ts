@@ -2,7 +2,9 @@
 
 import { Node, mergeAttributes } from '@tiptap/core'
 import { ReactNodeViewRenderer } from '@tiptap/react'
-import { TextSelection } from '@tiptap/pm/state'
+import { TextSelection, Plugin, PluginKey } from '@tiptap/pm/state'
+import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import type { Node as PMNode } from '@tiptap/pm/model'
 import type { Editor } from '@tiptap/core'
 import { useUserProfileStore } from '@/state/user'
 import { TIER_RANK } from '@/types/tier'
@@ -102,6 +104,25 @@ function extractTextFromContent(content: unknown[]): string {
   return (content as Array<{ text?: string }>).map((n) => n.text ?? '').join('').trim()
 }
 
+/**
+ * Set the element type at the cursor for the Mod-Alt-<n> direct shortcuts.
+ * No-op (returns false, leaving the keystroke unhandled) when the editor is read-only
+ * or the selection is not inside a scriptBlock.
+ */
+function setElementTypeShortcut(editor: Editor, type: ScreenplayElementType): boolean {
+  if (!editor.isEditable) return false
+  const { $from } = editor.state.selection
+  let insideBlock = false
+  for (let d = $from.depth; d >= 0; d--) {
+    if ($from.node(d).type.name === 'scriptBlock') {
+      insideBlock = true
+      break
+    }
+  }
+  if (!insideBlock) return false
+  return editor.commands.setElementType(type)
+}
+
 // ─── Command Types ───────────────────────────────────────────────────────────
 
 declare module '@tiptap/core' {
@@ -119,6 +140,46 @@ declare module '@tiptap/core' {
       syncAndCleanMetadata: (nodePos: number) => ReturnType
     }
   }
+}
+
+// ─── Automatic (CONT'D) ──────────────────────────────────────────────────────
+
+const CUE_PAREN_RE = /\([^)]*\)/g
+/** Matches a literal "(CONT'D)" (straight or curly apostrophe) already baked into cue text. */
+export const CONTD_LITERAL_RE = /\(CONT['’]D\)/i
+
+/** Normalized identity of a character cue (parentheticals stripped, whitespace collapsed, upper-cased). */
+export function normalizeCharacterCueName(text: string): string {
+  return text.replace(CUE_PAREN_RE, '').replace(/\s+/g, ' ').trim().toUpperCase()
+}
+
+const contdPluginKey = new PluginKey('screenplayContd')
+
+/**
+ * Mark each character cue that repeats the previous speaker after an interruption with the
+ * `is-contd` class (CSS renders the trailing "(CONT'D)"). A new scene heading (slugline) resets
+ * continuation; a different character cue resets it; all other elements do not.
+ */
+function buildContdDecorations(doc: PMNode): DecorationSet {
+  const decorations: Decoration[] = []
+  let lastSpeaker: string | null = null
+  doc.forEach((node, offset) => {
+    if (node.type.name !== 'scriptBlock') return
+    const elementType = node.attrs.elementType as ScreenplayElementType
+    if (elementType === 'slugline') {
+      lastSpeaker = null
+      return
+    }
+    if (elementType !== 'character') return
+    const raw = node.textContent ?? ''
+    const name = normalizeCharacterCueName(raw)
+    if (!name) return
+    if (lastSpeaker === name && !CONTD_LITERAL_RE.test(raw)) {
+      decorations.push(Decoration.node(offset, offset + node.nodeSize, { class: 'is-contd' }))
+    }
+    lastSpeaker = name
+  })
+  return DecorationSet.create(doc, decorations)
 }
 
 // ─── ScriptBlock Node ────────────────────────────────────────────────────────
@@ -540,6 +601,19 @@ export const ScriptBlock = Node.create({
       },
 
       /**
+       * Mod-Alt-<n> → set the element type at the cursor directly
+       * (Cmd-Option on macOS, Ctrl-Alt on Windows/Linux). Numbering matches the
+       * toolbar element ordering. Mod-Alt (rather than plain Mod or Mod-Shift) avoids
+       * browser tab-switching (Mod-<number>) and macOS screenshot (Cmd-Shift-3/4/5) reservations.
+       */
+      'Mod-Alt-1': () => setElementTypeShortcut(this.editor, 'action'),
+      'Mod-Alt-2': () => setElementTypeShortcut(this.editor, 'slugline'),
+      'Mod-Alt-3': () => setElementTypeShortcut(this.editor, 'character'),
+      'Mod-Alt-4': () => setElementTypeShortcut(this.editor, 'parenthetical'),
+      'Mod-Alt-5': () => setElementTypeShortcut(this.editor, 'dialogue'),
+      'Mod-Alt-6': () => setElementTypeShortcut(this.editor, 'transition'),
+
+      /**
        * Enter → split the block, then set the new block to the correct
        * "next" element type based on the screenplay flow rules above.
        */
@@ -571,6 +645,23 @@ export const ScriptBlock = Node.create({
         return true
       },
     }
+  },
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: contdPluginKey,
+        state: {
+          init: (_config, { doc }) => buildContdDecorations(doc),
+          apply: (tr, old) => (tr.docChanged ? buildContdDecorations(tr.doc) : old),
+        },
+        props: {
+          decorations(state) {
+            return contdPluginKey.getState(state)
+          },
+        },
+      }),
+    ]
   },
 
   addNodeView() {
