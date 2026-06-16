@@ -2,7 +2,6 @@ import mongoose from "mongoose";
 import { ProjectType } from "../enums";
 import { outlineFrameworkSchema } from "./outline-schema";
 import { inspirationSchema } from "./inspiration-schema";
-import { treatmentSchema } from "./treatment-schema";
 import { screenplaySchema } from "./screenplay-schema";
 import { feedbackSchema } from "./feedback-schema";
 
@@ -11,6 +10,8 @@ const collaboratorSchema = new mongoose.Schema({
   uid:             { type: String, default: null },
   status:          { type: String, enum: ['pending', 'active'], default: 'pending' },
   permissionLevel: { type: String, enum: ['edit', 'comment'], default: 'comment' },
+  // 'treatment' is retained for backward compatibility: the Treatment feature was removed, but
+  // existing collaborator docs may still hold this value and would fail enum validation on save.
   aspects:         [{ type: String, enum: ['logline', 'characters', 'outline', 'treatment', 'screenplay'] }],
   inviteToken:     { type: String, default: null },
   invitedAt:       { type: Date, default: Date.now },
@@ -73,7 +74,6 @@ export const projectSchema = new mongoose.Schema({
     outline: { type: outlineFrameworkSchema },
     // Store inspiration as an array of subdocuments so it matches the GraphQL type [inspiration].
     inspiration: { type: [inspirationSchema] },
-    treatment: { type: treatmentSchema },
     screenplay: { type: screenplaySchema },
     feedback: { type: feedbackSchema },
     // Progress: lightweight counts for dashboard (no full scenes/characters).
