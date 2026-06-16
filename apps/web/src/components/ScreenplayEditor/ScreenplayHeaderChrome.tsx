@@ -9,6 +9,7 @@ import ZoomOutIcon from '@mui/icons-material/ZoomOut'
 import FitScreenIcon from '@mui/icons-material/FitScreen'
 import { useScreenplayEditorStore } from '@/state/screenplayEditor'
 import { useScreenplayHeaderChromeStore } from '@/state/screenplayHeaderChrome'
+import { useScreenplayLivePagesStore } from '@/state/screenplayLivePages'
 import {
   SCREENPLAY_ZOOM_MAX,
   SCREENPLAY_ZOOM_MIN,
@@ -18,8 +19,18 @@ function isScreenplayProjectPath(pathname: string | null): boolean {
   return pathname != null && /^\/project\/[^/]+\/screenplay/.test(pathname)
 }
 
+function screenplayProjectIdFromPath(pathname: string | null): string | null {
+  if (!pathname) return null
+  const match = /^\/project\/([^/]+)\/screenplay/.exec(pathname)
+  return match?.[1] ?? null
+}
+
 export function ScreenplayHeaderChrome() {
   const pathname = usePathname()
+  const projectId = screenplayProjectIdFromPath(pathname)
+  const liveBodyPages = useScreenplayLivePagesStore((s) =>
+    projectId && s.projectId === projectId ? s.liveBodyPages : null,
+  )
   const zoom = useScreenplayHeaderChromeStore((s) => s.zoom)
   const isAutoZoomed = useScreenplayHeaderChromeStore((s) => s.isAutoZoomed)
   const collabActive = useScreenplayHeaderChromeStore((s) => s.collabActive)
@@ -56,6 +67,24 @@ export function ScreenplayHeaderChrome() {
       )}
 
       {hasCollabChip ? <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} /> : null}
+
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ fontFamily: 'monospace', whiteSpace: 'nowrap' }}
+        aria-live="polite"
+        aria-label={
+          liveBodyPages != null
+            ? `${liveBodyPages} screenplay ${liveBodyPages === 1 ? 'page' : 'pages'}`
+            : 'Screenplay page count loading'
+        }
+      >
+        {liveBodyPages != null
+          ? `${liveBodyPages} ${liveBodyPages === 1 ? 'page' : 'pages'}`
+          : '—'}
+      </Typography>
+
+      <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
 
       <Tooltip title="Zoom out (Ctrl/Cmd + scroll)">
         <span>

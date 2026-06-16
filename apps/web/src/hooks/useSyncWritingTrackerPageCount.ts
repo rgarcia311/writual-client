@@ -18,8 +18,9 @@ export interface UseScreenplayPaginationProgressOpts {
 }
 
 /**
- * Mirrors pagination into `useScreenplayLivePagesStore` for Screenplay Progress in the shell header.
- * When `canEdit`, also persists `writingTracker.currentPageCount` (tracker must be enabled in Mongo).
+ * Mirrors pagination into `useScreenplayLivePagesStore` for the screenplay toolbar and shell stats.
+ * Body-page total excludes the title page (matches PageBreakPlugin `--total-pages`).
+ * When `canEdit` and the writing tracker is enabled, also persists `writingTracker.currentPageCount`.
  */
 export function useSyncWritingTrackerPageCount(opts: UseScreenplayPaginationProgressOpts) {
   const queryClient = useQueryClient()
@@ -49,8 +50,7 @@ export function useSyncWritingTrackerPageCount(opts: UseScreenplayPaginationProg
 
   React.useEffect(() => {
     const pid = projectId?.trim()
-    /** Only when Mongo writing tracker enabled (same gate as screenplay progress computations). */
-    const shouldObserve = Boolean(pid) && trackerEnabled === true
+    const shouldObserve = Boolean(pid)
 
     const el = pageRef.current
     if (!shouldObserve || !el) {

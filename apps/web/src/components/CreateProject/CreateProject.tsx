@@ -25,6 +25,7 @@ import { ProjectType } from '@/enums/ProjectEnums';
 import { CreateProjectProps, WritingTracker } from '@/interfaces/project';
 
 import { titleFromFilename } from '@/lib/parseScreenplayPdf';
+import type { ScreenplayLayoutConfig } from '@/lib/screenplayLayout';
 import { isValidImageUrl, getImageUrlForStorage } from '../../utils/imageUrl';
 import { ScreenplayDropZone } from './ScreenplayDropZone';
 import { WritingTrackerSection, WritingTrackerFormState } from './WritingTrackerSection';
@@ -65,6 +66,7 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
   const [emailInput, setEmailInput] = React.useState('');
   const [emailError, setEmailError] = React.useState('');
   const [screenplayContent, setScreenplayContent] = React.useState<Record<string, unknown> | null>(null);
+  const [screenplayLayout, setScreenplayLayout] = React.useState<ScreenplayLayoutConfig | null>(null);
   const [screenplayPageCount, setScreenplayPageCount] = React.useState(0);
   const [screenplayPdfFile, setScreenplayPdfFile] = React.useState<File | null>(null);
   const [createCompleteWritualProject, setCreateCompleteWritualProject] = React.useState(false);
@@ -155,10 +157,11 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
         {!isUpdate && (
           <ScreenplayDropZone
             importMode={screenplayImportMode}
-            onParsed={(doc, pageCount, title) => {
+            onParsed={(doc, pageCount, title, layout) => {
               setCreateCompleteWritualProject(false);
               setScreenplayPdfFile(null);
               setScreenplayContent(doc);
+              setScreenplayLayout(layout ?? null);
               setScreenplayPageCount(pageCount);
               if (title) {
                 setFormValues((prev) => ({
@@ -176,6 +179,7 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
             onServerPdfReady={(file) => {
               setCreateCompleteWritualProject(false);
               setScreenplayContent(null);
+              setScreenplayLayout(null);
               setScreenplayPageCount(0);
               setScreenplayPdfFile(file);
               const derivedTitle = titleFromFilename(file.name);
@@ -189,6 +193,7 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
             onCleared={() => {
               setCreateCompleteWritualProject(false);
               setScreenplayContent(null);
+              setScreenplayLayout(null);
               setScreenplayPageCount(0);
               setScreenplayPdfFile(null);
             }}
@@ -380,6 +385,7 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
               outlineName: formValues.outlineName ?? undefined,
               timePeriod: formValues.timePeriod ?? undefined,
               screenplayContent: screenplayContent ?? undefined,
+              screenplayLayout: screenplayLayout ?? undefined,
               screenplayPdfFile: screenplayPdfFile ?? undefined,
               createCompleteWritualProject:
                 screenplayImportMode === 'server' && Boolean(screenplayPdfFile) && createCompleteWritualProject,

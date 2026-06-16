@@ -48,15 +48,18 @@ const WIDGET_HEIGHT =
   SCREENPLAY_MARGIN_BOTTOM_PX + SCREENPLAY_INTER_PAGE_GAP_PX + SCREENPLAY_MARGIN_TOP_PX
 
 /**
- * Block bottoms from getBoundingClientRect()/scale are fractional. Comparing to the integer
- * content band (864px × N) without rounding can push the last line of a page onto the next,
- * even when the layout still fits within the industry line grid in practice.
- *
- * Slight (+2px) headroom absorbs residual sub-pixel error from zoom + font metrics without
- * changing the nominal 54 × 16px page frame.
+ * Compare against the industry 16px line grid (54 lines × 16px = 864px content band).
+ * Sub-pixel bottoms from zoom/font metrics must not push a line that still fits on-page.
  */
-function layoutBottomExceedsPageContentEnd(layoutBottom: number, pageContentEnd: number): boolean {
-  return Math.floor(layoutBottom + 1e-6) > Math.floor(pageContentEnd + 2)
+function layoutBottomExceedsPageContentEnd(
+  layoutBottom: number,
+  pageContentEnd: number,
+  pageContentStart: number,
+): boolean {
+  const relativeBottom = layoutBottom - pageContentStart
+  const maxLines = (pageContentEnd - pageContentStart) / SCREENPLAY_LINE_HEIGHT_PX
+  const usedLines = Math.ceil((relativeBottom - 1e-3) / SCREENPLAY_LINE_HEIGHT_PX)
+  return usedLines > maxLines
 }
 
 /**
@@ -119,6 +122,33 @@ function yLayoutInPm(el: HTMLElement, pmRect: DOMRect, scale: number): { top: nu
 }
 
 /* ── Widget DOM builder ────────────────────────────────────────────────────── */
+
+function findBreakAnchorBottom(
+  blocks: BlockEntry[],
+  blockIndex: number,
+  editorView: EditorView,
+  pmRect: DOMRect,
+  scale: number,
+  cursorOffset: number,
+  pageContentStart: number,
+  pageContentEnd: number,
+): number | null {
+  for (let j = blockIndex - 1; j >= 0; j--) {
+    const t = blocks[j].node.attrs.elementType as string
+    if (t !== 'character' && t !== 'parenthetical') break
+
+    const anchorEl = editorView.nodeDOM(blocks[j].pos) as HTMLElement | null
+    if (!anchorEl) continue
+
+    let bottomRaw = yLayoutInPm(anchorEl, pmRect, scale).bottom
+    bottomRaw = layoutBottomForPaginationOverflow(t, bottomRaw)
+    const projected = bottomRaw + cursorOffset
+    if (!layoutBottomExceedsPageContentEnd(projected, pageContentEnd, pageContentStart)) {
+      return bottomRaw
+    }
+  }
+  return null
+}
 
 interface GapOpts {
   remainder: number
@@ -325,6 +355,7 @@ export const PageBreakExtension = Extension.create({
             const characterFitsCurrentPage = !layoutBottomExceedsPageContentEnd(
               layoutBottomForPaginationOverflow('character', blockBottom),
               pageContentEnd,
+              pageContentStart,
             )
             if (elementType === 'character' && characterFitsCurrentPage && blockTop > pageContentStart + 1) {
               let groupBottom = naturalBottom
@@ -344,32 +375,22 @@ export const PageBreakExtension = Extension.create({
               if (endedOnDialogue) {
                 groupFitBottom = layoutBottomForPaginationOverflow('dialogue', groupFitBottom)
               }
-              if (layoutBottomExceedsPageContentEnd(groupFitBottom, pageContentEnd)) {
+              if (layoutBottomExceedsPageContentEnd(groupFitBottom, pageContentEnd, pageContentStart)) {
                 forceBreak = true
-              }
-            }
-
-            if (elementType === 'parenthetical' && blockBottom <= pageContentEnd && blockTop > pageContentStart + 1) {
-              const nextBlock = blocks[i + 1]
-              if (nextBlock && nextBlock.node.attrs.elementType === 'dialogue') {
-                const nextEl = editorView.nodeDOM(nextBlock.pos) as HTMLElement
-                if (nextEl) {
-                  const nextBottom = yLayoutInPm(nextEl, pmRect, scale).bottom + cursorOffset
-                  const nextFitBottom = layoutBottomForPaginationOverflow('dialogue', nextBottom)
-                  if (layoutBottomExceedsPageContentEnd(nextFitBottom, pageContentEnd)) forceBreak = true
-                }
               }
             }
 
             if (
               elementType === 'slugline' &&
               i < blocks.length - 1 &&
-              blockBottom <= pageContentEnd &&
               blockTop > pageContentStart + 1
             ) {
-              const roomAfter = pageContentEnd - blockBottom
-              if (Math.floor(roomAfter + 1e-6) < SCREENPLAY_LINE_HEIGHT_PX) {
-                forceBreak = true
+              const slugInkBottom = layoutBottomForPaginationOverflow('slugline', blockBottom)
+              if (slugInkBottom <= pageContentEnd) {
+                const roomAfter = pageContentEnd - slugInkBottom
+                if (Math.floor(roomAfter + 1e-6) < SCREENPLAY_LINE_HEIGHT_PX) {
+                  forceBreak = true
+                }
               }
             }
 
@@ -377,7 +398,7 @@ export const PageBreakExtension = Extension.create({
             const blockInkBottom = layoutBottomForPaginationOverflow(elementType, blockBottom)
             if (
               forceBreak ||
-              (layoutBottomExceedsPageContentEnd(blockInkBottom, pageContentEnd) &&
+              (layoutBottomExceedsPageContentEnd(blockInkBottom, pageContentEnd, pageContentStart) &&
                 blockTop > pageContentStart + 1)
             ) {
               
@@ -389,9 +410,36 @@ export const PageBreakExtension = Extension.create({
               // `padding-bottom` on the block before a `.page-break-gap`. Without this, the spacer
               // leaks ~16px onto the next page per break and can split a cue from its dialogue.
               if (i > 0) {
-                const prevEl = editorView.nodeDOM(blocks[i - 1].pos) as HTMLElement
-                if (prevEl) {
-                  const prevType = blocks[i - 1].node.attrs.elementType as string
+                let prevType = blocks[i - 1].node.attrs.elementType as string
+                let prevEl = editorView.nodeDOM(blocks[i - 1].pos) as HTMLElement
+
+                if (
+                  (elementType === 'dialogue' || elementType === 'parenthetical') &&
+                  (prevType === 'character' || prevType === 'parenthetical' || prevType === 'dialogue')
+                ) {
+                  const anchorBottom = findBreakAnchorBottom(
+                    blocks,
+                    i,
+                    editorView,
+                    pmRect,
+                    scale,
+                    cursorOffset,
+                    pageContentStart,
+                    pageContentEnd,
+                  )
+                  if (anchorBottom != null) {
+                    prevBottomRaw = anchorBottom
+                    prevBottom = prevBottomRaw + cursorOffset
+                  } else if (prevEl) {
+                    let bottomRaw = yLayoutInPm(prevEl, pmRect, scale).bottom
+                    const hasGapNext = prevEl.nextElementSibling?.classList.contains('page-break-gap')
+                    if (!hasGapNext) {
+                      bottomRaw = layoutBottomForPaginationOverflow(prevType, bottomRaw)
+                    }
+                    prevBottomRaw = bottomRaw
+                    prevBottom = prevBottomRaw + cursorOffset
+                  }
+                } else if (prevEl) {
                   let bottomRaw = yLayoutInPm(prevEl, pmRect, scale).bottom
 
                   // Prevent double-dip: if CSS `:has(+ .page-break-gap)` has already stripped the

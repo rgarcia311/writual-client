@@ -170,23 +170,35 @@ export const persistWritingTrackerCurrentPageCount = async (
 
 export const saveScreenplay = async (
   root: unknown,
-  {
-    projectId,
-    content,
-    estimatedPageCount,
-  }: {
+  args: {
     projectId: string;
     content: unknown;
     estimatedPageCount?: number | null;
+    layout?: unknown;
   }
 ) => {
+  const { projectId, content, estimatedPageCount, layout } = args;
   const filter = mongoose.Types.ObjectId.isValid(projectId)
     ? { _id: new mongoose.Types.ObjectId(projectId) }
     : { _id: projectId };
 
+  // Atomic, field-level update (no read-before-write, no whole-subdoc replace) so concurrent saves
+  // don't race and fields like `lockedVersion` survive. `screenplay.layout` is only written when a
+  // `layout` argument is explicitly present in the request, so layout-less autosaves preserve it.
+  // Pass `layout: null` to clear it.
+  const setDoc: Record<string, unknown> = {
+    'screenplay.projectId': projectId,
+    'screenplay.versions': [{ version: 0, content }],
+  };
+  if ('layout' in args) {
+    const isPlainObject =
+      layout != null && typeof layout === 'object' && !Array.isArray(layout);
+    setDoc['screenplay.layout'] = isPlainObject ? layout : null;
+  }
+
   const updated = await Projects.findOneAndUpdate(
     filter,
-    { $set: { screenplay: { projectId, versions: [{ version: 0, content }] } } },
+    { $set: setDoc },
     { new: true }
   ).exec();
 

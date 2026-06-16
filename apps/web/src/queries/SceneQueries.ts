@@ -35,6 +35,7 @@ export const PROJECT_SCENES_QUERY = gql`
           version
           content
         }
+        layout
       }
       scenes {
         _id

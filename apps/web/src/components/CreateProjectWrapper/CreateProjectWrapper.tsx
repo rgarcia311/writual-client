@@ -65,6 +65,7 @@ export function CreateProjectWrapper() {
     mutationFn: async (variables: Record<string, unknown>) => {
       const {
         screenplayContent,
+        screenplayLayout,
         screenplayPdfFile,
         createCompleteWritualProject,
         ...projectVars
@@ -188,6 +189,7 @@ export function CreateProjectWrapper() {
           await authRequest(SAVE_SCREENPLAY, {
             projectId: newProjectId,
             content: screenplayContent,
+            ...(screenplayLayout != null ? { layout: screenplayLayout } : {}),
           });
         } catch (err) {
           console.error('[CreateProjectWrapper] Failed to save imported screenplay:', err);

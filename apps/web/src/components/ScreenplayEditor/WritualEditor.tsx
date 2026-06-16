@@ -63,6 +63,12 @@ import { useScreenplaySaveStatusStore } from '@/state/screenplaySaveStatus'
 import { useScreenplayEditorStore } from '@/state/screenplayEditor'
 import { useScreenplayHeaderChromeStore } from '@/state/screenplayHeaderChrome'
 import { GRAPHQL_ENDPOINT } from '@/lib/config'
+import {
+  applyLayoutConfigToPage,
+  clampLayoutConfig,
+  resetLayoutConfigOnPage,
+  type ScreenplayLayoutConfig,
+} from '@/lib/screenplayLayout'
 import { readScreenplayPaginationTotalPages } from '../../utils/screenplayPaginationRead'
 import { courierPrime } from '../../utils/fonts'
 import type { HocuspocusProvider } from '@hocuspocus/provider'
@@ -222,6 +228,7 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
   const project = (scenesData as any)?.getProjectData?.[0]
   const projectScenes: ProjectScene[] = project?.scenes ?? []
   const savedScreenplayContent = project?.screenplay?.versions?.[0]?.content ?? null
+  const savedScreenplayLayout = (project?.screenplay?.layout ?? null) as ScreenplayLayoutConfig | null
   const outlineName = project?.outlineName?.trim() ?? null
   const writingTracker = project?.writingTracker ?? null
 
@@ -272,6 +279,7 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
       canEdit={canEdit}
       projectScenes={projectScenes}
       savedScreenplayContent={savedScreenplayContent}
+      savedScreenplayLayout={savedScreenplayLayout}
       sceneCardSteps={sceneCardSteps}
       writingTracker={writingTracker}
     />
@@ -285,6 +293,7 @@ interface CollabGateProps {
   canEdit: boolean
   projectScenes: ProjectScene[]
   savedScreenplayContent: unknown
+  savedScreenplayLayout: ScreenplayLayoutConfig | null
   sceneCardSteps: SceneCardStepOption[]
   writingTracker: { enabled?: boolean } | null | undefined
 }
@@ -294,6 +303,7 @@ function CollabGate({
   canEdit,
   projectScenes,
   savedScreenplayContent,
+  savedScreenplayLayout,
   sceneCardSteps,
   writingTracker,
 }: CollabGateProps) {
@@ -314,6 +324,7 @@ function CollabGate({
       canEdit={canEdit}
       projectScenes={projectScenes}
       savedScreenplayContent={savedScreenplayContent}
+      savedScreenplayLayout={savedScreenplayLayout}
       sceneCardSteps={sceneCardSteps}
       writingTracker={writingTracker}
       ydoc={failed ? null : ydoc}
@@ -329,6 +340,7 @@ interface ScreenplayEditorCoreProps {
   canEdit: boolean
   projectScenes: ProjectScene[]
   savedScreenplayContent: unknown
+  savedScreenplayLayout: ScreenplayLayoutConfig | null
   sceneCardSteps: SceneCardStepOption[]
   writingTracker: { enabled?: boolean } | null | undefined
   ydoc: Y.Doc | null
@@ -340,6 +352,7 @@ function ScreenplayEditorCore({
   canEdit,
   projectScenes,
   savedScreenplayContent,
+  savedScreenplayLayout,
   sceneCardSteps,
   writingTracker,
   ydoc,
@@ -387,6 +400,25 @@ function ScreenplayEditorCore({
     if (!root) return null
     return readScreenplayPaginationTotalPages(root)
   }, [])
+
+  /**
+   * Apply per-document layout overrides (from an imported PDF's measured geometry) as inline CSS
+   * custom properties on the `.screenplay-page` element. Page width is never changed (8.5×11 stays
+   * exact); only the right margin, element indents, and centered-column right pads shift. Absent
+   * config ⇒ defaults. PageBreakPlugin re-paginates from the DOM after the wrapping changes.
+   */
+  const layoutConfig = React.useMemo(
+    () => clampLayoutConfig(savedScreenplayLayout),
+    [savedScreenplayLayout],
+  )
+  React.useEffect(() => {
+    const page = pageRef.current
+    if (!page) return
+    applyLayoutConfigToPage(page, layoutConfig)
+    return () => {
+      resetLayoutConfigOnPage(page)
+    }
+  }, [layoutConfig])
 
   const applyStageDimensions = React.useCallback(() => {
     // <PROTECTED>
@@ -587,6 +619,19 @@ function ScreenplayEditorCore({
     immediatelyRender: false,
     editable: canEdit,
   })
+
+  // ── Debug: log full editor document as JSON ──────────────────────────────
+  React.useEffect(() => {
+    if (!editor) return
+    const logJson = () => {
+      console.log('[ScreenplayEditor] doc JSON:', JSON.stringify(editor.getJSON(), null, 2))
+    }
+    logJson()
+    editor.on('update', logJson)
+    return () => {
+      editor.off('update', logJson)
+    }
+  }, [editor])
 
   // ── Sync editable state ──────────────────────────────────────────────────
   React.useEffect(() => {

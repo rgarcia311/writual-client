@@ -7,10 +7,9 @@
    All measurements follow the WGA / Final Draft standard for US Letter paper.
 
    Paper:       8.5" × 11" @ 96dpi  →  816px × 1056px (canonical layout; on-screen may scale to ~709×917)
-   On-screen:   The page shell is transparent (white desk). A ::before mask repeats white
-                bands of --sp-paper-height with --sp-inter-page-gap desk between them.
-                ProseMirror + script blocks use opaque white so collapsed margins never
-                reveal the mask; page-break gaps span full bleed so desk shows at breaks.
+   On-screen:   The page shell is opaque white. Inter-page gaps and sheet shadows come from
+                PageBreakPlugin widgets. ProseMirror + script blocks stay opaque so collapsed
+                margins never reveal the workspace background.
    Margins:     1.5" left   →  144px
                 1.0" right  →   96px
                 1.0" top    →   96px
@@ -79,8 +78,8 @@
   /* Paper margins: top right bottom left */
   padding: var(--sp-margin-top) var(--sp-margin-right) var(--sp-margin-bottom) var(--sp-margin-left);
 
-  /* Desk: transparent shell; white “paper” + inter-page gaps come from ::before + script blocks */
-  background-color: transparent;
+  /* Desk: opaque white sheet; inter-page separation comes from page-break widgets only. */
+  background-color: #ffffff;
   isolation: isolate;
   z-index: 0;
 
@@ -100,21 +99,10 @@
     0 8px 12px -6px rgba(0, 0, 0, 0.2);
 }
 
-/* Repeating “sheet + desk gap” mask (1056px + --sp-inter-page-gap). Sits behind ProseMirror; does not
-   receive pointer events. Real breaks still come from PageBreakPlugin widgets. */
+/* Legacy repeating mask removed — it drifted from PageBreakPlugin positions on long scripts and
+   let the desk color bleed through side margins near page tops. Widget gaps own inter-page layout. */
 .screenplay-page::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-image: repeating-linear-gradient(
-    to bottom,
-    #ffffff 0,
-    #ffffff var(--sp-paper-height),
-    transparent var(--sp-paper-height),
-    transparent calc(var(--sp-paper-height) + var(--sp-inter-page-gap))
-  );
+  content: none;
 }
 
 /* ProseMirror container — no z-index stacking needed now that the fixed
@@ -131,7 +119,7 @@
 /* ── Page-break gap (widget decoration) ───────────────────────────────────── */
 /*
  * The PageBreakPlugin injects Decoration.widget() elements — actual <div>s —
- * between blocks (or inline within long blocks) wherever a page break falls.
+ * between blocks wherever a page break falls.
  * Each widget: sheet-trailing (remainder + bottom-margin), gap, sheet-leading (top-margin).
  * Trailing sheet: light bottom drop shadow only. Leading sheet: none. Gap stays white between sheets.
  */

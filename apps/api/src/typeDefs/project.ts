@@ -112,7 +112,7 @@ export const ProjectType = `#graphql
         updateProjectSharedWith(projectId: String!, sharedWith: [String]): Project
         createinspiration(input: inspirationInput!): Project
         deleteinspiration(projectId: String!, inspirationId: String!): Project
-        saveScreenplay(projectId: ID!, content: JSON!, estimatedPageCount: Int): Screenplay
+        saveScreenplay(projectId: ID!, content: JSON!, estimatedPageCount: Int, layout: JSON): Screenplay
         syncWritingTrackerCurrentPages(projectId: ID!, currentPageCount: Int!): Project
         lockAllScenesInOutline(projectId: String!): LockAllScenesResult
         lockAllCharacters(projectId: String!): LockAllCharactersResult
@@ -440,6 +440,7 @@ export const ProjectType = `#graphql
         projectId: String
         versions: [ScreenplayContent]
         lockedVersion: Int
+        layout: JSON
     }
 
     type  ScreenplayContent  {
@@ -818,7 +819,7 @@ export const resolvers = {
     deleteinspiration,
     saveScreenplay: async (
       root: unknown,
-      args: { projectId: string; content: unknown; estimatedPageCount?: number | null },
+      args: { projectId: string; content: unknown; estimatedPageCount?: number | null; layout?: unknown },
       context: { uid: string | null }
     ) => {
       await requireTier(context, 'spec');
