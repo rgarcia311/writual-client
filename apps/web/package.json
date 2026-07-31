@@ -6,13 +6,15 @@
     "dev": "NODE_OPTIONS='--max-old-space-size=12288' next dev -p 8000",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "tsx --test $(find src -name '*.test.ts')"
   },
   "devDependencies": {
     "@types/node": "18.15.11",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
-    "sass": "^1.97.3"
+    "sass": "^1.97.3",
+    "tsx": "^4.23.1"
   },
   "dependencies": {
     "@emotion/react": "latest",

@@ -48,6 +48,23 @@ const WIDGET_HEIGHT =
   SCREENPLAY_MARGIN_BOTTOM_PX + SCREENPLAY_INTER_PAGE_GAP_PX + SCREENPLAY_MARGIN_TOP_PX
 
 /**
+ * `computeDecorations()` predicts each break widget's height analytically (before the real
+ * widgets + `:has(+ .page-break-gap)` CSS rules are live). Small mismatches between that
+ * prediction and what the browser actually renders compound across every later break in a long
+ * document. These bound the self-correction pass in `recalculateWithSelfCorrection()` that
+ * re-measures after dispatch and redoes the computation if drift is found.
+ */
+const MAX_CORRECTION_PASSES = 2
+const GAP_HEIGHT_EPSILON_PX = 1
+
+/**
+ * Target gap between the title page's contact block and the page-content boundary (the
+ * bottom-margin band starts right after `CONTENT_HEIGHT`) — matches the small residual gap
+ * screenplay title pages conventionally leave above the bottom margin (~15pt in source PDFs).
+ */
+const TITLE_PAGE_CONTACT_BOTTOM_GAP_PX = 20
+
+/**
  * Compare against the industry 16px line grid (54 lines × 16px = 864px content band).
  * Sub-pixel bottoms from zoom/font metrics must not push a line that still fits on-page.
  */
@@ -231,6 +248,9 @@ export const PageBreakExtension = Extension.create({
         let resizeObserver: ResizeObserver | null = null
         let zoomAttrObserver: MutationObserver | null = null
         let measuring = false
+        /** Expected height of each `.page-break-gap` widget, in DOM order, from the last
+         * `computeDecorations()` pass — compared against actual rendered heights to detect drift. */
+        let lastExpectedGapHeights: number[] = []
 
         function dispatchDecorations(set: DecorationSet) {
           const tr = editorView.state.tr.setMeta(pageBreakKey, { decorations: set })
@@ -244,6 +264,9 @@ export const PageBreakExtension = Extension.create({
           if (blocks.length === 0) return { set: DecorationSet.empty, totalPages: 1 }
 
           const decorations: Decoration[] = []
+          // Recorded in the same order widgets are pushed to `decorations` (DOM order, since `pos`
+          // is monotonically increasing) — read back by `measureGapHeightDrift()` after dispatch.
+          const expectedGapHeights: number[] = []
           const coverPrefix = docStartsWithCoverTitle(doc)
           const pmRect = editorView.dom.getBoundingClientRect()
           const scale = layoutScaleFromEditorDom(editorView.dom as HTMLElement)
@@ -296,6 +319,33 @@ export const PageBreakExtension = Extension.create({
               i > 0 &&
               TITLE_PAGE_TYPES.has(blocks[i - 1].node.attrs.elementType as string)
             ) {
+              // Use current pageIndex so the remainder is correct even if the
+              // title-page content overflowed past page 1.
+              const titlePageEnd = (pageIndex - 1) * (CONTENT_HEIGHT + WIDGET_HEIGHT) + CONTENT_HEIGHT
+
+              // Push the contact block (address/phone) down so it sits near the page's bottom
+              // margin, matching standard title-page conventions, instead of leaving that space
+              // as blank gap-widget padding after it. `Screenplay.css`'s fixed padding-top on
+              // `[data-element-type='contact']` doesn't account for how much title/author
+              // content precedes it or how much page space remains, so it's computed here instead.
+              const firstContactIdx = blocks.findIndex(
+                (b, idx) => idx < i && (b.node.attrs.elementType as string) === 'contact',
+              )
+              if (firstContactIdx !== -1) {
+                const firstContactEl = editorView.nodeDOM(blocks[firstContactIdx].pos) as HTMLElement | null
+                const lastTitleBlockEl = editorView.nodeDOM(blocks[i - 1].pos) as HTMLElement | null
+                if (firstContactEl && lastTitleBlockEl) {
+                  const currentLastBottom = yLayoutInPm(lastTitleBlockEl, pmRect, scale).bottom
+                  const desiredLastBottom = titlePageEnd - TITLE_PAGE_CONTACT_BOTTOM_GAP_PX
+                  const delta = desiredLastBottom - currentLastBottom
+                  if (delta > GAP_HEIGHT_EPSILON_PX) {
+                    const oldPaddingTop = parseFloat(getComputedStyle(firstContactEl).paddingTop) || 0
+                    firstContactEl.style.paddingTop = `${oldPaddingTop + delta}px`
+                    void editorView.dom.offsetHeight // force reflow before re-measuring below
+                  }
+                }
+              }
+
               const prevEntry = blocks[i - 1]
               const prevEl = editorView.nodeDOM(prevEntry.pos) as HTMLElement
               let prevBottomRaw = 0
@@ -305,10 +355,8 @@ export const PageBreakExtension = Extension.create({
                 prevBottom = prevBottomRaw + cursorOffset
               }
 
-              // Use current pageIndex so the remainder is correct even if the
-              // title-page content overflowed past page 1.
-              const titlePageEnd = (pageIndex - 1) * (CONTENT_HEIGHT + WIDGET_HEIGHT) + CONTENT_HEIGHT
               const remainder = Math.max(0, titlePageEnd - prevBottom)
+              expectedGapHeights.push(remainder + WIDGET_HEIGHT)
 
               decorations.push(
                 Decoration.widget(
@@ -375,8 +423,23 @@ export const PageBreakExtension = Extension.create({
               if (endedOnDialogue) {
                 groupFitBottom = layoutBottomForPaginationOverflow('dialogue', groupFitBottom)
               }
-              if (layoutBottomExceedsPageContentEnd(groupFitBottom, pageContentEnd, pageContentStart)) {
+              // A group taller than one full page would still overflow even starting fresh on the
+              // next page — forcing the move there only delays the identical overflow by one page,
+              // while compounding the risk of a larger, wrong `cursorOffset` shift (see item 2).
+              // Let the generic Core Break Logic below handle the oversized dialogue block on its
+              // own iteration instead (same cosmetic-overrun handling as any other oversized block).
+              const groupNaturalHeight = groupBottom - naturalTop
+              const oversizedGroup = groupNaturalHeight > CONTENT_HEIGHT
+              if (
+                !oversizedGroup &&
+                layoutBottomExceedsPageContentEnd(groupFitBottom, pageContentEnd, pageContentStart)
+              ) {
                 forceBreak = true
+              } else if (oversizedGroup && process.env.NODE_ENV === 'development') {
+                console.warn(
+                  '[PageBreakPlugin] character+dialogue group exceeds one full page and cannot be kept together',
+                  { pos, preview: node.textContent.slice(0, 40) },
+                )
               }
             }
 
@@ -456,6 +519,7 @@ export const PageBreakExtension = Extension.create({
 
               // Because CSS uses strictly padding, the bottom edge is absolute and never collapses
               const remainder = Math.max(0, pageContentEnd - prevBottom)
+              expectedGapHeights.push(remainder + WIDGET_HEIGHT)
 
               decorations.push(
                 Decoration.widget(
@@ -488,7 +552,31 @@ export const PageBreakExtension = Extension.create({
 
           const totalPagesBody = Math.max(1, coverPrefix ? pageIndex - 1 : pageIndex)
 
+          lastExpectedGapHeights = expectedGapHeights
+
           return { set: DecorationSet.create(doc, decorations), totalPages: totalPagesBody }
+        }
+
+        /**
+         * Compares the widget heights `computeDecorations()` predicted against what the browser
+         * actually rendered (now that `.page-break-gap` widgets + the `:has(+ .page-break-gap)`
+         * padding-zeroing CSS rules are live). A non-zero drift means the analytical projection
+         * used while measuring (decorations cleared) diverged from reality — the source of
+         * compounding jitter across long documents. Returns the max absolute drift in px, or
+         * `Infinity` if the gap count itself doesn't match (forces a corrective pass).
+         */
+        function measureGapHeightDrift(): number {
+          const gapEls = Array.from(editorView.dom.querySelectorAll<HTMLElement>('.page-break-gap'))
+          if (gapEls.length !== lastExpectedGapHeights.length) return Infinity
+
+          const scale = layoutScaleFromEditorDom(editorView.dom as HTMLElement)
+          let maxDrift = 0
+          for (let i = 0; i < gapEls.length; i++) {
+            const actual = gapEls[i].getBoundingClientRect().height / scale
+            const drift = Math.abs(actual - lastExpectedGapHeights[i])
+            if (drift > maxDrift) maxDrift = drift
+          }
+          return maxDrift
         }
 
         function recalculate() {
@@ -523,11 +611,34 @@ export const PageBreakExtension = Extension.create({
           }
         }
 
+        /**
+         * `recalculate()` predicts break-widget heights analytically before dispatching them, so a
+         * single pass can drift from what the browser actually renders once real widgets + the
+         * `:has(+ .page-break-gap)` CSS rules apply. This re-measures after each pass and reruns
+         * `recalculate()` (bounded to `MAX_CORRECTION_PASSES` extra passes) until the prediction
+         * matches reality within `GAP_HEIGHT_EPSILON_PX`. `recalculate()` is synchronous and forces
+         * its own reflow, so this converges within one JS task — no visible flicker.
+         */
+        function recalculateWithSelfCorrection(pass = 0) {
+          recalculate()
+          if (pass >= MAX_CORRECTION_PASSES) return
+
+          const drift = measureGapHeightDrift()
+          if (drift > GAP_HEIGHT_EPSILON_PX) {
+            if (process.env.NODE_ENV === 'development') {
+              console.debug(
+                `[PageBreakPlugin] pagination drift ${drift.toFixed(2)}px exceeded epsilon — correcting (pass ${pass + 1})`,
+              )
+            }
+            recalculateWithSelfCorrection(pass + 1)
+          }
+        }
+
         function scheduleRecalc() {
           if (timerId) clearTimeout(timerId)
           timerId = setTimeout(() => {
             if (rafId) cancelAnimationFrame(rafId)
-            rafId = requestAnimationFrame(recalculate)
+            rafId = requestAnimationFrame(() => recalculateWithSelfCorrection())
           }, 100)
         }
 
@@ -555,7 +666,7 @@ export const PageBreakExtension = Extension.create({
         function recalcAfterLayoutSettled(): void {
           requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-              recalculate()
+              recalculateWithSelfCorrection()
             })
           })
         }
@@ -570,7 +681,7 @@ export const PageBreakExtension = Extension.create({
           }
           settleTimerId = window.setTimeout(() => {
             settleTimerId = null
-            recalculate()
+            recalculateWithSelfCorrection()
           }, 500)
         }
 

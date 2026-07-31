@@ -16,36 +16,43 @@ export const SCREENPLAY_ONE_BLANK_INCHES = SCREENPLAY_LINE_HEIGHT_INCHES
 /** Two blank lines (1/3") — used before scene headings after action / dialogue / transition. */
 export const SCREENPLAY_TWO_BLANKS_INCHES = 24 / 72
 
-const ZERO_GAP_KEYS = new Set<string>([
-  'character|parenthetical',
-  'character|dialogue',
-  'parenthetical|dialogue',
-])
+/**
+ * Types whose own `padding-bottom` is 0 in `Screenplay.css` (character/parenthetical cue lines
+ * carry no trailing blank line — the CSS applies this unconditionally, regardless of what follows).
+ */
+const ZERO_BOTTOM_PAD_TYPES = new Set<ScreenplayElementType>(['character', 'parenthetical'])
 
-/** Prev types that get **two** blanks (1/3") before a `slugline` (CSV “1 sometimes 2” — we use full 1/3"). */
-const DOUBLE_BLANK_BEFORE_SLUGLINE_PREV = new Set<ScreenplayElementType>([
-  'action',
-  'dialogue',
-  'transition',
-])
+/** `next` type → prev types that get a `padding-top` override (mirrors `Screenplay.css`'s
+ * `:has(> [type=X]) + .node-scriptBlock > [type=slugline|transition]` rules). */
+const TOP_PAD_OVERRIDE_PREVS: Partial<Record<ScreenplayElementType, Set<ScreenplayElementType>>> = {
+  slugline: new Set<ScreenplayElementType>(['character', 'parenthetical', 'action', 'dialogue', 'transition']),
+  transition: new Set<ScreenplayElementType>(['character', 'parenthetical']),
+}
 
 /**
  * Vertical gap **between** two consecutive script blocks (inches), before rendering `next`.
  *
- * Cue chain (0"): Character→Parenthetical, Character→Dialogue, Parenthetical→Dialogue.
+ * Mirrors the CSS cascade in `Screenplay.css` exactly: `gap = prev's padding-bottom + next's
+ * padding-top override (if any)`, in one-blank-line (1/6") units:
  *
- * **1/3"** (two blanks): Action / Dialogue / **Transition** → Scene Heading (`slugline`).
- *
- * Elsewhere default is **1/6"** unless a pair above applies.
+ * - Character / Parenthetical carry no trailing blank line (their `padding-bottom` is always 0),
+ *   so anything following them gets **0"** unless `next` also has a top-pad override (below).
+ * - Scene Heading (`slugline`) gets **+1/6"** `padding-top` when `prev` is
+ *   character/parenthetical/action/dialogue/transition — combined with the prev-bottom rule above,
+ *   this yields **1/3"** (two blanks) after action/dialogue/transition, and **1/6"** (one blank)
+ *   after character/parenthetical (whose own bottom is 0).
+ * - Transition gets **+1/6"** `padding-top` when `prev` is character/parenthetical.
+ * - Elsewhere: **1/6"** (one blank) by default.
  */
 export function getScreenplayInterBlockGapInches(
   prev: ScreenplayElementType | null,
   next: ScreenplayElementType,
 ): number {
   if (prev == null) return 0
-  if (ZERO_GAP_KEYS.has(`${prev}|${next}`)) return 0
-  if (next === 'slugline' && DOUBLE_BLANK_BEFORE_SLUGLINE_PREV.has(prev)) {
-    return SCREENPLAY_TWO_BLANKS_INCHES
-  }
-  return SCREENPLAY_ONE_BLANK_INCHES
+
+  const prevBottomBlanks = ZERO_BOTTOM_PAD_TYPES.has(prev) ? 0 : 1
+  const topOverrideBlanks = TOP_PAD_OVERRIDE_PREVS[next]?.has(prev) ? 1 : 0
+  const totalBlanks = prevBottomBlanks + topOverrideBlanks
+
+  return totalBlanks * SCREENPLAY_ONE_BLANK_INCHES
 }

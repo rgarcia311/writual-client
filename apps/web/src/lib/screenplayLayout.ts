@@ -147,6 +147,10 @@ const COLUMN_WIDTH_SAFETY_PX = 4.8
 export interface ScreenplayPdfMeasurements {
   pageWidthPt: number
   pageHeightPt: number
+  /** Document's calibrated action-column left edge (pt) from `findBaseX()` — the reference point
+   * all other indents below are measured relative to. Source PDFs don't all share the WGA default
+   * 108pt left margin, so indents must be computed against the document's own baseX, not a constant. */
+  baseXPt: number
   /** Max right edge (pt) across action/slugline lines, or null if none measured. */
   actionRightMaxPt: number | null
   actionLineCount: number
@@ -159,10 +163,11 @@ export interface ScreenplayPdfMeasurements {
   parentheticalRightMaxPt: number | null
 }
 
-function offsetIndentPx(leftPt: number | null): number | undefined {
+function offsetIndentPx(leftPt: number | null, baseXPt: number): number | undefined {
   if (leftPt == null || !Number.isFinite(leftPt)) return undefined
-  // Indent is expressed as an offset from the text-area left (= page left margin).
-  return ptToPx(leftPt) - SCREENPLAY_MARGIN_LEFT_PX
+  // Indent is expressed as an offset from the document's own calibrated left margin (baseX), not
+  // the fixed WGA constant — a PDF with a narrower/wider action margin still gets correct indents.
+  return ptToPx(leftPt - baseXPt)
 }
 
 /**
@@ -182,14 +187,16 @@ export function inferLayoutFromPdfMeasurements(
 
   const cfg: ScreenplayLayoutConfig = { measured: true }
 
+  // Physical-page-edge measurement — both source and editor pages are the same physical Letter
+  // width, so this does not depend on baseX alignment (unlike the indents below).
   const actionRightPx = ptToPx(m.actionRightMaxPt)
   cfg.actionRightMarginPx = Math.round(SCREENPLAY_PAPER_WIDTH_PX - actionRightPx)
 
-  const dialogueIndent = offsetIndentPx(m.dialogueLeftPt)
+  const dialogueIndent = offsetIndentPx(m.dialogueLeftPt, m.baseXPt)
   if (dialogueIndent != null) cfg.dialogueIndentPx = Math.round(dialogueIndent)
-  const parentheticalIndent = offsetIndentPx(m.parentheticalLeftPt)
+  const parentheticalIndent = offsetIndentPx(m.parentheticalLeftPt, m.baseXPt)
   if (parentheticalIndent != null) cfg.parentheticalIndentPx = Math.round(parentheticalIndent)
-  const characterIndent = offsetIndentPx(m.characterLeftPt)
+  const characterIndent = offsetIndentPx(m.characterLeftPt, m.baseXPt)
   if (characterIndent != null) cfg.characterIndentPx = Math.round(characterIndent)
 
   // Dialogue/parenthetical column width = measured right edge − measured left + ~1-char headroom, so

@@ -411,14 +411,6 @@ function ScreenplayEditorCore({
     () => clampLayoutConfig(savedScreenplayLayout),
     [savedScreenplayLayout],
   )
-  React.useEffect(() => {
-    const page = pageRef.current
-    if (!page) return
-    applyLayoutConfigToPage(page, layoutConfig)
-    return () => {
-      resetLayoutConfigOnPage(page)
-    }
-  }, [layoutConfig])
 
   const applyStageDimensions = React.useCallback(() => {
     // <PROTECTED>
@@ -619,6 +611,27 @@ function ScreenplayEditorCore({
     immediatelyRender: false,
     editable: canEdit,
   })
+
+  /**
+   * Apply per-document layout overrides (from an imported PDF's measured geometry) as inline CSS
+   * custom properties on the `.screenplay-page` element. Page width is never changed (8.5×11 stays
+   * exact); only the right margin, element indents, and centered-column right pads shift. Absent
+   * config ⇒ defaults. PageBreakPlugin re-paginates from the DOM after the wrapping changes.
+   *
+   * Depends on `editor`, not just `layoutConfig`: with `immediatelyRender: false`, `editor` is null
+   * on the first render (Tiptap not yet initialized), so the component returns `null` below before
+   * ever attaching `pageRef` — this effect would otherwise only ever see `pageRef.current === null`
+   * and silently no-op forever, since `layoutConfig` itself doesn't change once `editor` becomes
+   * ready a render later.
+   */
+  React.useEffect(() => {
+    const page = pageRef.current
+    if (!page) return
+    applyLayoutConfigToPage(page, layoutConfig)
+    return () => {
+      resetLayoutConfigOnPage(page)
+    }
+  }, [layoutConfig, editor])
 
   // ── Debug: log full editor document as JSON ──────────────────────────────
   React.useEffect(() => {

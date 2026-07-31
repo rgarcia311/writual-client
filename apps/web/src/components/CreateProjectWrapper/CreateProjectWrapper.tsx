@@ -83,7 +83,7 @@ export function CreateProjectWrapper() {
 
       if (useServerPdf && wantsCompleteWritualProject) {
         try {
-          const { doc, pageCount } = await parseScreenplayPdf(pdfFile);
+          const { doc, pageCount, layout } = await parseScreenplayPdf(pdfFile);
           const token = await getFirebaseAuth().currentUser?.getIdToken();
           const r = await fetch('/api/screenplay/import-pdf-ai', {
             method: 'POST',
@@ -95,6 +95,7 @@ export function CreateProjectWrapper() {
               projectId: newProjectId,
               doc,
               pageCount,
+              ...(layout != null ? { layout } : {}),
             }),
             signal: AbortSignal.timeout(600_000),
           });
@@ -168,10 +169,11 @@ export function CreateProjectWrapper() {
       if (useServerPdf && !wantsCompleteWritualProject) {
         if (!pdfFile) return;
         try {
-          const { doc } = await parseScreenplayPdf(pdfFile);
+          const { doc, layout } = await parseScreenplayPdf(pdfFile);
           await authRequest(SAVE_SCREENPLAY, {
             projectId: newProjectId,
             content: doc,
+            ...(layout != null ? { layout } : {}),
           });
         } catch (err) {
           console.error('[CreateProjectWrapper] Screenplay import failed:', err);

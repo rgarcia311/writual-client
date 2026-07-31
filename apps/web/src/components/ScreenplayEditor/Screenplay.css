@@ -256,14 +256,8 @@
 
 /* Provide a visible placeholder when a block is empty and focused */
 .script-block.ProseMirror-selectednode:not([data-page-label])::after,
-.script-block:empty:not([data-page-label])::after,
-.script-block p:empty::after {
+.script-block:empty:not([data-page-label])::after {
   content: '';
-}
-
-.script-block p {
-  margin: 0;
-  padding: 0;
 }
 
 /* First block after a page-break widget sits flush at the top of the new page */
@@ -324,11 +318,6 @@
 .screenplay-page .ProseMirror > .node-scriptBlock:first-child > .script-block[data-element-type='slugline'] {
   padding-top: 0;
   margin-top: 0;
-}
-
-/* Action: second & later paragraphs inside one block = 1 blank line (1/6") per table */
-.script-block[data-element-type='action'] p + p {
-  margin-top: var(--sp-line-single);
 }
 
 /* ── ACTION ──────────────────────────────────────────────────────────────── */
