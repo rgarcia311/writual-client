@@ -259,7 +259,8 @@ function linesToScriptBlocks(
     }
 
     // Accumulate per-element geometry (post pagination-artifact/CONT'D filtering) so imported
-    // screenplays can infer their real margins/indents instead of always using the WGA default.
+    // screenplays can infer their real indents/column widths instead of always using the WGA
+    // default. The right margin is never inferred from this — it's always the fixed WGA 1.0".
     if (elementType === 'action' || elementType === 'slugline') {
       actionLineCount++
       if (Number.isFinite(line.right)) {

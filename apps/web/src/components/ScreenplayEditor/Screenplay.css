@@ -161,6 +161,10 @@
 /* White remainder space at bottom of previous page */
 .page-break-gap__remainder {
   background: #ffffff;
+  /* So .page-break-gap__more's `position: absolute; bottom: 12px` resolves against this variable
+     remaining-content band, not the fixed-height .page-break-gap__sheet-trailing ancestor (which
+     also includes the 96px bottom-margin band below this one). */
+  position: relative;
 }
 
 /* Bottom margin of previous page */

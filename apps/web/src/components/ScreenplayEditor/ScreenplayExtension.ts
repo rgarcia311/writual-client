@@ -7,6 +7,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import type { Editor } from '@tiptap/core'
 import { useUserProfileStore } from '@/state/user'
+import { useScreenplayEditorStore } from '@/state/screenplayEditor'
 import { TIER_RANK } from '@/types/tier'
 import { ScriptBlockNodeView } from './ScriptBlockNodeView'
 
@@ -83,6 +84,25 @@ const ENTER_NEXT: Record<ScreenplayElementType, ScreenplayElementType> = {
   contact: 'action',
 }
 
+/**
+ * Digit set directly by the Mod-e leader chord (tap Mod-e, then a bare digit within
+ * DIRECT_SET_LEADER_TIMEOUT_MS). Numbering matches the toolbar element ordering.
+ *
+ * A true 3-key hold (Mod+e+digit all held at once) isn't reliable: macOS suppresses keyup
+ * events for keys held alongside Cmd in Chrome/Safari, so an "is e still down" flag can get
+ * stuck. A sequential chord (release e, then tap the digit) sidesteps that entirely.
+ */
+const DIRECT_SET_DIGIT_TYPES: Record<string, ScreenplayElementType> = {
+  '1': 'action',
+  '2': 'slugline',
+  '3': 'character',
+  '4': 'parenthetical',
+  '5': 'dialogue',
+  '6': 'transition',
+}
+
+const DIRECT_SET_LEADER_TIMEOUT_MS = 1500
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
@@ -105,7 +125,7 @@ function extractTextFromContent(content: unknown[]): string {
 }
 
 /**
- * Set the element type at the cursor for the Mod-Alt-<n> direct shortcuts.
+ * Set the element type at the cursor for the Mod-e leader + digit direct shortcuts.
  * No-op (returns false, leaving the keystroke unhandled) when the editor is read-only
  * or the selection is not inside a scriptBlock.
  */
@@ -121,6 +141,64 @@ function setElementTypeShortcut(editor: Editor, type: ScreenplayElementType): bo
   }
   if (!insideBlock) return false
   return editor.commands.setElementType(type)
+}
+
+/**
+ * Mod-e then <digit> — a sequential leader chord, not a 3-key hold (see DIRECT_SET_DIGIT_TYPES
+ * for why). Implemented as raw `handleKeyDown` rather than addKeyboardShortcuts bindings because
+ * it needs to disarm on whatever key comes next if that key isn't one of the digits — a
+ * catch-all `addKeyboardShortcuts` can't express, since it only matches specific binding strings.
+ */
+function directSetLeaderPlugin(editor: Editor): Plugin {
+  let leaderArmed = false
+  let leaderTimeoutId: ReturnType<typeof setTimeout> | null = null
+
+  const disarm = () => {
+    leaderArmed = false
+    if (leaderTimeoutId) {
+      clearTimeout(leaderTimeoutId)
+      leaderTimeoutId = null
+    }
+  }
+
+  return new Plugin({
+    key: new PluginKey('screenplayDirectSetLeader'),
+    props: {
+      handleKeyDown(view, event) {
+        if (!view.editable) return false
+
+        const modOnly = (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey
+
+        if (modOnly && event.key.toLowerCase() === 'e') {
+          leaderArmed = true
+          if (leaderTimeoutId) clearTimeout(leaderTimeoutId)
+          leaderTimeoutId = setTimeout(disarm, DIRECT_SET_LEADER_TIMEOUT_MS)
+          event.preventDefault()
+          return true
+        }
+
+        if (!leaderArmed) return false
+
+        const type = DIRECT_SET_DIGIT_TYPES[event.key]
+        const bareDigit = type && !event.metaKey && !event.ctrlKey && !event.altKey
+
+        // Any key while armed consumes the arm — whether or not it's a valid digit — so a
+        // stray keystroke can't leave the leader lingering to ambush a later, unrelated one.
+        disarm()
+
+        if (!bareDigit) return false
+
+        const handled = setElementTypeShortcut(editor, type)
+        if (handled) event.preventDefault()
+        return handled
+      },
+    },
+    view() {
+      return {
+        destroy: disarm,
+      }
+    },
+  })
 }
 
 // ─── Command Types ───────────────────────────────────────────────────────────
@@ -154,6 +232,63 @@ export function normalizeCharacterCueName(text: string): string {
 }
 
 const contdPluginKey = new PluginKey('screenplayContd')
+
+// ─── Automatic Scene Heading Detection ───────────────────────────────────────
+
+/**
+ * INT./EXT. prefix, including reversed and intercut forms (e.g. "INT./EXT.", "I/E.").
+ * The trailing `(?:\s+|$)` accepts the prefix the instant it's typed (cursor right after the
+ * period, before a location is typed) as well as once a space follows it.
+ */
+const SCENE_HEADING_PREFIX_RE =
+  /^(INT\.|EXT\.|INT\.?\s*\/\s*EXT\.|EXT\.?\s*\/\s*INT\.|I\/E\.?)(?:\s+|$)/i
+
+/** A dash followed by a time-of-day / temporal descriptor, e.g. "- DAY", "- CONTINUOUS". */
+const SCENE_HEADING_TIME_SUFFIX_RE =
+  /[-–—]\s*(DAY|NIGHT|MORNING|AFTERNOON|EVENING|DUSK|DAWN|SUNSET|SUNRISE|NOON|MIDNIGHT|CONTINUOUS|LATER|MOMENTS LATER|SAME TIME)\b/i
+
+/**
+ * True if the line reads like a scene heading: an INT./EXT. (or intercut) prefix,
+ * or a "- <time of day>" suffix anywhere in the line.
+ *
+ * Only strips leading whitespace — NOT trailing — because the prefix match depends on the
+ * trailing space the user just typed (e.g. "INT. " must stay "INT. ", not collapse to "INT.",
+ * or the boundary right after the prefix is lost and the very keystroke that should trigger
+ * the conversion is swallowed).
+ */
+export function isSceneHeadingText(text: string): boolean {
+  const leadingTrimmed = text.replace(/^\s+/, '')
+  if (!leadingTrimmed) return false
+  return (
+    SCENE_HEADING_PREFIX_RE.test(leadingTrimmed) || SCENE_HEADING_TIME_SUFFIX_RE.test(leadingTrimmed)
+  )
+}
+
+const sceneHeadingAutoFormatKey = new PluginKey('screenplaySceneHeadingAutoFormat')
+
+// ─── Block Type Menu (double-Enter on an empty Action block) ─────────────────
+
+interface BlockTypeMenuArmState {
+  /** True right after a bare Enter leaves the cursor in a fresh, empty action block. */
+  armed: boolean
+  /** The cursor position that was armed — must still match on the next Enter to fire. */
+  pos: number | null
+}
+
+const BLOCK_TYPE_MENU_ARM_DISARMED: BlockTypeMenuArmState = { armed: false, pos: null }
+
+const blockTypeMenuArmKey = new PluginKey<BlockTypeMenuArmState>('screenplayBlockTypeMenuArm')
+
+/** True when the cursor sits inside a scriptBlock with no text content. */
+function isCursorInEmptyScriptBlock(editor: Editor): boolean {
+  const { $from, empty } = editor.state.selection
+  if (!empty) return false
+  for (let depth = $from.depth; depth >= 0; depth--) {
+    const node = $from.node(depth)
+    if (node.type.name === 'scriptBlock') return node.textContent === ''
+  }
+  return false
+}
 
 /**
  * Mark each character cue that repeats the previous speaker after an interruption with the
@@ -600,27 +735,72 @@ export const ScriptBlock = Node.create({
         return this.editor.commands.setElementType(next)
       },
 
-      /**
-       * Mod-Alt-<n> → set the element type at the cursor directly
-       * (Cmd-Option on macOS, Ctrl-Alt on Windows/Linux). Numbering matches the
-       * toolbar element ordering. Mod-Alt (rather than plain Mod or Mod-Shift) avoids
-       * browser tab-switching (Mod-<number>) and macOS screenshot (Cmd-Shift-3/4/5) reservations.
-       */
-      'Mod-Alt-1': () => setElementTypeShortcut(this.editor, 'action'),
-      'Mod-Alt-2': () => setElementTypeShortcut(this.editor, 'slugline'),
-      'Mod-Alt-3': () => setElementTypeShortcut(this.editor, 'character'),
-      'Mod-Alt-4': () => setElementTypeShortcut(this.editor, 'parenthetical'),
-      'Mod-Alt-5': () => setElementTypeShortcut(this.editor, 'dialogue'),
-      'Mod-Alt-6': () => setElementTypeShortcut(this.editor, 'transition'),
+      // Mod-e + <digit> (direct-set leader chord) is handled in addProseMirrorPlugins() below,
+      // via handleKeyDown rather than a keymap binding string — it needs to disarm on whatever
+      // key comes next if that key isn't a digit, which addKeyboardShortcuts can't express.
 
       /**
        * Enter → split the block, then set the new block to the correct
        * "next" element type based on the screenplay flow rules above.
+       *
+       * Exception: pressing Enter a second time in a row (nothing typed in between) while
+       * left in an empty action block opens the block-type picker instead of splitting again —
+       * the "arm" flag set below is what distinguishes this from three-blocks-deep Enter spam.
        */
       Enter: () => {
-        const current = getActiveElementType(this.editor)
+        const editor = this.editor
+
+        // The block-type menu doesn't take DOM focus (see BlockTypeMenu.tsx), so the editor
+        // still receives keystrokes while it's open — swallow Enter rather than splitting again
+        // out from under an unresolved menu. Pick with a click, or Escape to dismiss.
+        if (useScreenplayEditorStore.getState().blockTypeMenuAnchorPos != null) return true
+
+        const armState = blockTypeMenuArmKey.getState(editor.state)
+        const { $from, empty } = editor.state.selection
+        const current = getActiveElementType(editor)
+
+        if (
+          armState?.armed &&
+          armState.pos === $from.pos &&
+          empty &&
+          current === 'action' &&
+          isCursorInEmptyScriptBlock(editor)
+        ) {
+          useScreenplayEditorStore.getState().openBlockTypeMenu($from.pos)
+          editor.view.dispatch(
+            editor.state.tr.setMeta(blockTypeMenuArmKey, BLOCK_TYPE_MENU_ARM_DISARMED),
+          )
+          return true
+        }
+
         const next = ENTER_NEXT[current]
-        return this.editor.chain().splitBlock().setElementType(next).run()
+        return editor
+          .chain()
+          .splitBlock()
+          .setElementType(next)
+          .command(({ tr }) => {
+            let armed: BlockTypeMenuArmState = BLOCK_TYPE_MENU_ARM_DISARMED
+            if (next === 'action' && tr.selection.empty) {
+              const { $from: newFrom } = tr.selection
+              for (let depth = newFrom.depth; depth >= 0; depth--) {
+                const node = newFrom.node(depth)
+                if (node.type.name === 'scriptBlock') {
+                  if (node.textContent === '') armed = { armed: true, pos: newFrom.pos }
+                  break
+                }
+              }
+            }
+            tr.setMeta(blockTypeMenuArmKey, armed)
+            return true
+          })
+          .run()
+      },
+
+      /** Escape → dismiss the block-type menu without changing the block (see Enter above). */
+      Escape: () => {
+        if (useScreenplayEditorStore.getState().blockTypeMenuAnchorPos == null) return false
+        useScreenplayEditorStore.getState().closeBlockTypeMenu()
+        return true
       },
 
       /**
@@ -661,6 +841,49 @@ export const ScriptBlock = Node.create({
           },
         },
       }),
+      new Plugin({
+        key: sceneHeadingAutoFormatKey,
+        appendTransaction: (transactions, _oldState, newState) => {
+          if (!transactions.some((tr) => tr.docChanged)) return null
+          if (!newState.selection.empty) return null
+
+          const { $from } = newState.selection
+          let blockPos = -1
+          let blockNode: PMNode | null = null
+          for (let d = $from.depth; d >= 0; d--) {
+            const node = $from.node(d)
+            if (node.type.name === 'scriptBlock') {
+              blockPos = $from.before(d)
+              blockNode = node
+              break
+            }
+          }
+          if (!blockNode || blockNode.attrs.elementType !== 'action') return null
+          if (!isSceneHeadingText(blockNode.textContent)) return null
+
+          return newState.tr.setNodeMarkup(blockPos, undefined, {
+            ...blockNode.attrs,
+            elementType: 'slugline' as ScreenplayElementType,
+          })
+        },
+      }),
+      new Plugin<BlockTypeMenuArmState>({
+        key: blockTypeMenuArmKey,
+        state: {
+          init: () => BLOCK_TYPE_MENU_ARM_DISARMED,
+          apply(tr, prev) {
+            const meta = tr.getMeta(blockTypeMenuArmKey)
+            if (meta) return meta as BlockTypeMenuArmState
+            if (tr.docChanged) return BLOCK_TYPE_MENU_ARM_DISARMED
+            if (prev.armed && tr.selectionSet) {
+              const pos = tr.selection.empty ? tr.selection.from : null
+              if (pos !== prev.pos) return BLOCK_TYPE_MENU_ARM_DISARMED
+            }
+            return prev
+          },
+        },
+      }),
+      directSetLeaderPlugin(this.editor),
     ]
   },
 

@@ -1,16 +1,19 @@
 /**
  * Per-document screenplay layout inference + application.
  *
- * Imported PDF screenplays may be typeset with a slightly condensed Courier and a narrower right
- * margin than Writual's WGA defaults (6.0" text area, 10 CPI). When the parser reflows wrapped PDF
- * rows into a single block, the editor re-wraps at its own (narrower) width, producing extra lines
- * and pagination drift. To match the source, we measure the source's per-element geometry at import
- * time and store a `ScreenplayLayoutConfig`, then apply it at render time as inline CSS custom
- * properties on the `.screenplay-page` element.
+ * Imported PDF screenplays may be typeset with a slightly condensed Courier than Writual's WGA
+ * default (6.0" text area, 10 CPI). When the parser reflows wrapped PDF rows into a single block,
+ * the editor re-wraps at its own width, producing extra lines and pagination drift. To match the
+ * source, we measure the source's per-element indents/column-widths at import time and store a
+ * `ScreenplayLayoutConfig`, then apply it at render time as inline CSS custom properties on the
+ * `.screenplay-page` element.
  *
- * IMPORTANT: the on-screen page stays exactly 8.5" × 11" (816 × 1056 px). Only the internal text-area
- * width (via the right margin), element indents, and centered-element right pads change — the extra
- * action width is taken out of the right margin, exactly as the source PDF does.
+ * The right margin is intentionally NOT part of this per-document inference: WGA format fixes it
+ * at 1.0" (ragged, never justified) regardless of how a source PDF was typeset, so Writual always
+ * renders at `SCREENPLAY_MARGIN_RIGHT_PX` — never a narrower, source-measured value.
+ *
+ * IMPORTANT: the on-screen page stays exactly 8.5" × 11" (816 × 1056 px). Only element indents and
+ * centered-element right pads change; the text-area width/right margin are always the WGA default.
  */
 
 import {
@@ -27,8 +30,6 @@ import {
 
 /** Inferred per-document layout overrides. All fields optional; absent ⇒ use the WGA default. */
 export interface ScreenplayLayoutConfig {
-  /** Page right margin in px @96dpi. Smaller ⇒ wider action/scene column (matches a condensed source). */
-  actionRightMarginPx?: number
   /** Dialogue left indent (offset from text-area left), px @96dpi. */
   dialogueIndentPx?: number
   /** Parenthetical left indent (offset from text-area left), px @96dpi. */
@@ -59,7 +60,7 @@ export function ptToPx(pt: number): number {
 
 /**
  * Dialogue/parenthetical text-column widths in the default layout. Centered elements keep these
- * absolute widths even when the right margin shrinks (we recompute their right pad to compensate).
+ * absolute widths even when their indent shifts (we recompute their right pad to compensate).
  */
 const DIALOGUE_TEXT_WIDTH_PX =
   SCREENPLAY_TEXT_AREA_WIDTH_PX - SCREENPLAY_DIALOGUE_INDENT_PX - SCREENPLAY_DIALOGUE_RIGHT_PAD_PX // 344
@@ -68,13 +69,9 @@ const PARENTHETICAL_TEXT_WIDTH_PX =
   SCREENPLAY_PARENTHETICAL_INDENT_PX -
   SCREENPLAY_PARENTHETICAL_RIGHT_PAD_PX // 192
 
-/** Right margin clamp: never below ~0.62" (keeps a visible margin) nor above the 1.0" default. */
-const MIN_RIGHT_MARGIN_PX = 60
-const MAX_RIGHT_MARGIN_PX = SCREENPLAY_MARGIN_RIGHT_PX // 96
-
-/** Indents must stay within the page content box (left margin → before the right margin). */
+/** Indents must stay within the page content box (left margin → before the fixed WGA right margin). */
 const MIN_INDENT_PX = 0
-const MAX_INDENT_PX = SCREENPLAY_PAPER_WIDTH_PX - SCREENPLAY_MARGIN_LEFT_PX - MIN_RIGHT_MARGIN_PX
+const MAX_INDENT_PX = SCREENPLAY_PAPER_WIDTH_PX - SCREENPLAY_MARGIN_LEFT_PX - SCREENPLAY_MARGIN_RIGHT_PX
 
 /** Dialogue column width clamp (px @96dpi): ~2.5"–4.5". Guards against a mis-measured right edge. */
 const MIN_DIALOGUE_WIDTH_PX = 240
@@ -99,8 +96,9 @@ export function clampLayoutConfig(
   if (!raw || typeof raw !== 'object') return null
 
   const out: ScreenplayLayoutConfig = {}
-  const rightMargin = clampNumber(raw.actionRightMarginPx, MIN_RIGHT_MARGIN_PX, MAX_RIGHT_MARGIN_PX)
-  if (rightMargin != null) out.actionRightMarginPx = Math.round(rightMargin)
+  // `actionRightMarginPx` is intentionally not read here: any legacy stored value (from a project
+  // imported before this fix) is discarded so the right margin always renders at the fixed WGA
+  // 1.0" default, never a source-measured override — see module docstring.
 
   const dialogue = clampNumber(raw.dialogueIndentPx, MIN_INDENT_PX, MAX_INDENT_PX)
   if (dialogue != null) out.dialogueIndentPx = Math.round(dialogue)
@@ -187,10 +185,9 @@ export function inferLayoutFromPdfMeasurements(
 
   const cfg: ScreenplayLayoutConfig = { measured: true }
 
-  // Physical-page-edge measurement — both source and editor pages are the same physical Letter
-  // width, so this does not depend on baseX alignment (unlike the indents below).
-  const actionRightPx = ptToPx(m.actionRightMaxPt)
-  cfg.actionRightMarginPx = Math.round(SCREENPLAY_PAPER_WIDTH_PX - actionRightPx)
+  // WGA format fixes the right margin at 1.0" (ragged, never justified) regardless of how the
+  // source PDF was typeset, so — unlike the indents below — it is never inferred from measurement;
+  // `applyLayoutConfigToPage` always renders it at `SCREENPLAY_MARGIN_RIGHT_PX`.
 
   const dialogueIndent = offsetIndentPx(m.dialogueLeftPt, m.baseXPt)
   if (dialogueIndent != null) cfg.dialogueIndentPx = Math.round(dialogueIndent)
@@ -223,9 +220,9 @@ export function median(values: number[]): number | null {
   return sorted.length % 2 === 0 ? (sorted[mid - 1]! + sorted[mid]!) / 2 : sorted[mid]!
 }
 
-/** CSS custom properties this module manages on `.screenplay-page` (for set/reset). */
+/** CSS custom properties this module manages on `.screenplay-page` (for set/reset). Right margin
+ * (`--sp-margin-right`) is deliberately absent: it always stays at the CSS/WGA default (1.0"). */
 const MANAGED_PROPS = [
-  '--sp-margin-right',
   '--sp-dialogue-indent',
   '--sp-parenthetical-indent',
   '--sp-character-indent',
@@ -242,14 +239,12 @@ export function resetLayoutConfigOnPage(pageEl: HTMLElement | null): void {
 /**
  * Apply a (already-clamped) layout config as inline CSS custom properties on the `.screenplay-page`
  * element. Idempotent; sets only inline styles (no protected-source edits) and never changes the
- * paper width. When `cfg` is null, this resets to defaults.
+ * paper width or right margin (fixed WGA 1.0"). When `cfg` is null, this resets to defaults.
  *
- * Shrinking the right margin widens the global content box, so dialogue/parenthetical (whose
- * `padding-right` is measured from the content-box right edge) would otherwise stretch. We recompute
- * `--sp-dialogue-right-pad` / `--sp-parenthetical-right-pad` from the target column width: the
- * measured source width (`cfg.dialogueTextWidthPx` / `cfg.parentheticalTextWidthPx`) when present,
- * else the WGA default (344px / 192px). Matching the source width makes the editor re-wrap exactly
- * like the source PDF, so imported scripts paginate to the same page count.
+ * `--sp-dialogue-right-pad` / `--sp-parenthetical-right-pad` are recomputed from the target column
+ * width — the measured source width (`cfg.dialogueTextWidthPx` / `cfg.parentheticalTextWidthPx`)
+ * when present, else the WGA default (344px / 192px) — against the fixed WGA text-area width, so
+ * dialogue/parenthetical keep their absolute widths regardless of indent.
  */
 export function applyLayoutConfigToPage(
   pageEl: HTMLElement | null,
@@ -261,7 +256,6 @@ export function applyLayoutConfigToPage(
     return
   }
 
-  const rightMargin = cfg.actionRightMarginPx ?? SCREENPLAY_MARGIN_RIGHT_PX
   const dialogueIndent = cfg.dialogueIndentPx ?? SCREENPLAY_DIALOGUE_INDENT_PX
   const parentheticalIndent = cfg.parentheticalIndentPx ?? SCREENPLAY_PARENTHETICAL_INDENT_PX
 
@@ -270,9 +264,8 @@ export function applyLayoutConfigToPage(
   const dialogueWidth = cfg.dialogueTextWidthPx ?? DIALOGUE_TEXT_WIDTH_PX
   const parentheticalWidth = cfg.parentheticalTextWidthPx ?? PARENTHETICAL_TEXT_WIDTH_PX
 
-  const newTextAreaWidth = SCREENPLAY_PAPER_WIDTH_PX - SCREENPLAY_MARGIN_LEFT_PX - rightMargin
-  const dialogueRightPad = newTextAreaWidth - dialogueIndent - dialogueWidth
-  const parentheticalRightPad = newTextAreaWidth - parentheticalIndent - parentheticalWidth
+  const dialogueRightPad = SCREENPLAY_TEXT_AREA_WIDTH_PX - dialogueIndent - dialogueWidth
+  const parentheticalRightPad = SCREENPLAY_TEXT_AREA_WIDTH_PX - parentheticalIndent - parentheticalWidth
 
   const set = (prop: string, value: number | undefined) => {
     if (value == null || !Number.isFinite(value)) {
@@ -282,7 +275,6 @@ export function applyLayoutConfigToPage(
     }
   }
 
-  set('--sp-margin-right', cfg.actionRightMarginPx)
   set('--sp-dialogue-indent', cfg.dialogueIndentPx)
   set('--sp-parenthetical-indent', cfg.parentheticalIndentPx)
   set('--sp-character-indent', cfg.characterIndentPx)
