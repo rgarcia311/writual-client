@@ -149,7 +149,11 @@
   flex-direction: row !important;
   flex: 1 1 auto;
   min-height: 0 !important;
-  max-height: 100%;
+  /* max-height intentionally NOT set here: WritualEditor.tsx's inline `sx` caps this row at one
+     page's on-screen height (screenplayToolbarPaperRowMaxHeightPx) so the toolbar and a fully-
+     scrolled page line up top-and-bottom, not just top. A `max-height: 100%` here would win this
+     property over that inline sx by loading later in the cascade at equal specificity, silently
+     reverting the cap back to "fill all available space" regardless of what the JS computes. */
   overflow: visible !important;
   box-sizing: border-box;
 }
@@ -169,10 +173,19 @@
   overflow-x: auto !important;
 }
 
-/* Scroll inner: reserve vertical bleed so page top/bottom rim shadows survive the scrollport */
+/* Scroll inner: previously reserved vertical bleed here so page top/bottom rim shadows survived
+   the scrollport, but that padding put a permanent gap between the page and the top/bottom of the
+   scroll viewport (and, since the vertical toolbar sits outside this wrapper, threw it out of
+   alignment with the page's top edge). The page should sit flush at both scroll extremes instead;
+   the rim shadow just clips at the very top/bottom of a scroll, which reads as effectively
+   invisible against the white workspace background. */
 .project-details-float-root--screenplay .screenplay-workspace > div {
-  padding-top: var(--screenplay-floating-shadow-bleed-top);
-  padding-bottom: var(--screenplay-floating-shadow-bleed-bottom);
+  /* !important: this must win over a same-specificity Emotion-injected rule regardless of
+     which one happens to load later in <head> — confirmed correct via a real MUI+TipTap
+     render (see WritualEditor.tsx's SCREENPLAY_WORKSPACE_SCROLL_GUTTER_SX for the inline half
+     of this same guarantee). */
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
   box-sizing: border-box;
 }
 

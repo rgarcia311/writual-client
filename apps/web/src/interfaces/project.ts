@@ -16,7 +16,7 @@ export interface WritingTracker {
     draftDueDates: DraftDueDate[];
 }
 
-type Inspiration = {
+export type Inspiration = {
     _id: string;
     projectId: string;
     title: string;

@@ -17,7 +17,6 @@ import {
   Typography,
 } from '@mui/material'
 import ViewSidebarIcon from '@mui/icons-material/ViewSidebar'
-import RefreshIcon from '@mui/icons-material/Refresh'
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline'
 import FormatQuoteIcon from '@mui/icons-material/FormatQuote'
 import NotesIcon from '@mui/icons-material/Notes'
@@ -113,11 +112,16 @@ const SCREENPLAY_WORKSPACE_SCROLL_INNER_PAD_RIGHT_PX =
 /** Outward bleed for SCREENPLAY_FLOATING_SURFACE_SHADOW lateral layer (offset + blur − spread cushion). */
 const SCREENPLAY_STAGE_RIM_HORIZONTAL_OUTSET_PX = 18
 
-/** Horizontal insets for the scroll inner that wraps `stageRef`. Left is 0 — the vertical toolbar is the left visual boundary. */
+/** Horizontal insets for the scroll inner that wraps `stageRef`. Left is 0 — the vertical toolbar is the left visual boundary.
+ *  pt/pb explicit here (not just in screenplayWorkspace.css) so the zero-offset can't be silently
+ *  outranked by a same-specificity Emotion-injected rule that happens to load later in <head>. */
 const SCREENPLAY_WORKSPACE_SCROLL_GUTTER_SX = {
   boxSizing: 'border-box' as const,
   pl: 0,
   pr: `${SCREENPLAY_WORKSPACE_SCROLL_INNER_PAD_RIGHT_PX}px`,
+  pt: 0,
+  pb: 0,
+  mt: 0,
 }
 // </PROTECTED>
 
@@ -135,22 +139,32 @@ export const ELEMENT_ICONS: Record<ScreenplayElementType, React.ReactNode> = {
   transition:    <FastForwardIcon sx={{ fontSize: 14 }} />,
 }
 
-export const ELEMENT_ORDER: ScreenplayElementType[] = [
+/** Title-page-only element types — enabled in the toolbar only while the cursor is on the title page. */
+export const TITLE_PAGE_ELEMENT_ORDER: ScreenplayElementType[] = [
   'title',
   'author',
   'contact',
+]
+
+/** Body (script page) element types, in toolbar display order. */
+export const BODY_ELEMENT_ORDER: ScreenplayElementType[] = [
   'slugline',
   'action',
   'character',
-  'parenthetical',
   'dialogue',
+  'parenthetical',
   'transition',
+]
+
+export const ELEMENT_ORDER: ScreenplayElementType[] = [
+  ...TITLE_PAGE_ELEMENT_ORDER,
+  ...BODY_ELEMENT_ORDER,
 ]
 
 /**
  * Keyboard shortcut hints shown in each toolbar toggle button tooltip.
  * ⌘/Ctrl+E then <n> sets element directly (tap ⌘/Ctrl+E to arm, then a bare digit within ~1.5s):
- *   1 Action · 2 Scene Heading · 3 Character · 4 Parenthetical · 5 Dialogue · 6 Transition.
+ *   1 Scene Heading · 2 Action · 3 Character · 4 Dialogue · 5 Parenthetical · 6 Transition.
  * Tab cycles from Action: ×1 Scene Heading · ×2 Character · ×3 Parenthetical · ×4 Dialogue · ×5 back to Action.
  * Enter: character→dialogue · parenthetical→dialogue · dialogue→action · slugline→action
  */
@@ -158,11 +172,11 @@ export const ELEMENT_SHORTCUTS: Record<ScreenplayElementType, string> = {
   title:         'Enter → Author  ·  Title page',
   author:        'Enter → Contact',
   contact:       'Enter → Action',
-  slugline:      '⌘/Ctrl+E then 2  ·  Tab ×1 from Action',
-  action:        '⌘/Ctrl+E then 1  ·  Tab ×5 cycles back here  ·  Enter after Dialogue or Scene Heading',
+  slugline:      '⌘/Ctrl+E then 1  ·  Tab ×1 from Action',
+  action:        '⌘/Ctrl+E then 2  ·  Tab ×5 cycles back here  ·  Enter after Dialogue or Scene Heading',
   character:     '⌘/Ctrl+E then 3  ·  Tab ×2 from Action',
-  parenthetical: '⌘/Ctrl+E then 4  ·  Tab ×3 from Action  ·  Enter after Character',
-  dialogue:      '⌘/Ctrl+E then 5  ·  Tab ×4 from Action  ·  Enter after Character or Parenthetical',
+  dialogue:      '⌘/Ctrl+E then 4  ·  Tab ×4 from Action  ·  Enter after Character or Parenthetical',
+  parenthetical: '⌘/Ctrl+E then 5  ·  Tab ×3 from Action  ·  Enter after Character',
   transition:    '⌘/Ctrl+E then 6  ·  Click to set  (not in Tab cycle)',
 }
 
@@ -280,7 +294,7 @@ const FALLBACK_BODY_BLOCKS: Record<string, unknown>[] = [
   },
 ]
 
-const TITLE_PAGE_ELEMENT_TYPES = new Set(['title', 'author', 'contact'])
+export const TITLE_PAGE_ELEMENT_TYPES = new Set(['title', 'author', 'contact'])
 
 /** Body content (scene-derived or fallback) with the title page prepended, for seeding a brand-new doc. */
 function buildSeedDoc(
@@ -557,9 +571,9 @@ function ScreenplayEditorCore({
   /** Calculate the zoom factor that fits one canonical page into the workspace, filling edge-to-edge. */
   const calcAutoFitZoom = React.useCallback((workspaceEl: HTMLElement): number => {
     // <PROTECTED>
-    // Reserve exactly the scroll-inner shadow bleed so the page sits flush inside the padding band.
-    const SCROLL_INNER_BLEED_PX = 12 + 14 // --screenplay-floating-shadow-bleed-top + -bottom
-    const availableHeight = workspaceEl.clientHeight - SCROLL_INNER_BLEED_PX
+    // No reserved top/bottom bleed anymore (screenplayWorkspace.css no longer pads the scroll
+    // inner) — the page fits the full workspace height, flush at both scroll extremes.
+    const availableHeight = workspaceEl.clientHeight
     const availableWidth =
       workspaceEl.clientWidth -
       SCREENPLAY_SCROLL_GUTTER_LEFT_PX -
@@ -687,26 +701,6 @@ function ScreenplayEditorCore({
       await queryClient.refetchQueries({ queryKey: ['project-characters', projectId] })
     },
   })
-
-  // ── Refresh formatting ────────────────────────────────────────────────────
-  /**
-   * Re-fetches this project's screenplay/layout from the server and re-applies it, so a formatting
-   * fix (e.g. a margin/indent rule change) takes effect on an already-loaded screenplay without a
-   * full page reload. `layoutConfig` is re-derived from the refetched `savedScreenplayLayout` prop,
-   * which the effect below re-applies to `.screenplay-page`; the ResizeObserver in `PageBreakPlugin`
-   * then re-paginates automatically once the box size changes.
-   */
-  const [refreshingFormatting, setRefreshingFormatting] = React.useState(false)
-  const handleRefreshFormatting = React.useCallback(async () => {
-    if (!projectId || refreshingFormatting) return
-    setRefreshingFormatting(true)
-    try {
-      await queryClient.invalidateQueries({ queryKey: [PROJECT_SCENES_QUERY_KEY, projectId] })
-      await queryClient.refetchQueries({ queryKey: [PROJECT_SCENES_QUERY_KEY, projectId] })
-    } finally {
-      setRefreshingFormatting(false)
-    }
-  }, [projectId, queryClient, refreshingFormatting])
 
   // ── Save status ──────────────────────────────────────────────────────────
   const { savingCount, lastSavedAt, hasPendingChanges, setPending, startSaving, endSaving } = useScreenplaySaveStatusStore()
@@ -966,6 +960,14 @@ function ScreenplayEditorCore({
     SCREENPLAY_WORKSPACE_SCROLL_INNER_PAD_RIGHT_PX +
     SCREENPLAY_STAGE_RIM_HORIZONTAL_OUTSET_PX
 
+  /**
+   * Cap the toolbar + workspace row at exactly one page's on-screen height, so a fully-scrolled
+   * page's top/bottom line up with the toolbar's top/bottom instead of the row stretching to fill
+   * the whole viewport (which reveals a sliver of the next page below a full one on tall screens).
+   * On short viewports this cap is moot — `minHeight: 0` on the row still lets it shrink further.
+   */
+  const screenplayToolbarPaperRowMaxHeightPx = Math.ceil(SCREENPLAY_PAPER_HEIGHT_PX * zoom)
+
   if (!editor) return null
 
   return (
@@ -1074,45 +1076,22 @@ function ScreenplayEditorCore({
               
             }}
           >
-            <Box
-              sx={{
-                width: '100%',
-                boxSizing: 'border-box',
-                pr: `${SCREENPLAY_WORKSPACE_SCROLL_INNER_PAD_RIGHT_PX}px`,
-                mb: 1,
-                flexShrink: 0,
-                minWidth: 0,
-                display: 'flex',
-                justifyContent: 'flex-end',
-                gap: 0.5,
-              }}
-            >
-              <Tooltip title="Refresh screenplay formatting (re-applies the latest margin/indent rules)">
-                <span>
-                  <IconButton
-                    size="small"
-                    onClick={handleRefreshFormatting}
-                    disabled={refreshingFormatting || !projectId}
-                    aria-label="Refresh screenplay formatting"
-                  >
-                    <RefreshIcon
-                      fontSize="small"
-                      sx={
-                        refreshingFormatting
-                          ? {
-                              animation: 'writual-refresh-spin 0.8s linear infinite',
-                              '@keyframes writual-refresh-spin': {
-                                from: { transform: 'rotate(0deg)' },
-                                to: { transform: 'rotate(360deg)' },
-                              },
-                            }
-                          : undefined
-                      }
-                    />
-                  </IconButton>
-                </span>
-              </Tooltip>
-              {!navigatorOpen && (
+            {/* Only rendered when there's something to show — an empty row would still reserve
+                its mb + button height, reintroducing a gap above the toolbar/page row below. */}
+            {!navigatorOpen && (
+              <Box
+                sx={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  pr: `${SCREENPLAY_WORKSPACE_SCROLL_INNER_PAD_RIGHT_PX}px`,
+                  mb: 1,
+                  flexShrink: 0,
+                  minWidth: 0,
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: 0.5,
+                }}
+              >
                 <Tooltip title="Show side panel (characters, scenes, inspiration, stats)">
                   <IconButton
                     size="small"
@@ -1122,13 +1101,15 @@ function ScreenplayEditorCore({
                     <ViewSidebarIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
-              )}
-            </Box>
+              </Box>
+            )}
             {/* Flex row: vertical toolbar (non-scrolling) + scroll workspace */}
             {/* <PROTECTED> */}
             <Box sx={{
               width: `${screenplayToolbarPaperRowMinWidthPx}px`,
-              minHeight: "100%",
+              height: '100%',
+              maxHeight: `${screenplayToolbarPaperRowMaxHeightPx}px`,
+              minHeight: 0,
               display: 'flex',
               flexDirection: 'row',
               alignItems: 'stretch',

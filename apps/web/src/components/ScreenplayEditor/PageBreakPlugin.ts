@@ -982,7 +982,7 @@ export const PageBreakExtension = Extension.create({
           } else {
             recalcAfterLayoutSettled()
           }
-          settleTimerId = window.setTimeout(() => {
+          settleTimerId = setTimeout(() => {
             settleTimerId = null
             recalculateWithSelfCorrection()
           }, 500)

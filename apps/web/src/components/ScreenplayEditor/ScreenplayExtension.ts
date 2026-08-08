@@ -93,11 +93,11 @@ const ENTER_NEXT: Record<ScreenplayElementType, ScreenplayElementType> = {
  * stuck. A sequential chord (release e, then tap the digit) sidesteps that entirely.
  */
 const DIRECT_SET_DIGIT_TYPES: Record<string, ScreenplayElementType> = {
-  '1': 'action',
-  '2': 'slugline',
+  '1': 'slugline',
+  '2': 'action',
   '3': 'character',
-  '4': 'parenthetical',
-  '5': 'dialogue',
+  '4': 'dialogue',
+  '5': 'parenthetical',
   '6': 'transition',
 }
 
