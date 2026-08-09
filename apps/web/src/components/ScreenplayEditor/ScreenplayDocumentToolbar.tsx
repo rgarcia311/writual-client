@@ -5,15 +5,15 @@ import { Box, Paper, Typography, useTheme } from '@mui/material'
 import CloudDoneIcon from '@mui/icons-material/CloudDone'
 import { useScreenplayEditorStore } from '@/state/screenplayEditor'
 import { ScreenplayToolbar } from './ScreenplayToolbar'
-import { SCREENPLAY_TOOLBAR_SHADOW } from './screenplayPaperLayout'
+import { ScreenplayVerticalToolbarShell } from './ScreenplayVerticalToolbarShell'
+import { SCREENPLAY_VERTICAL_TOOLBAR_W_PX } from './screenplayPaperLayout'
 
 // <PROTECTED>
 export const SCREENPLAY_ZOOM_MIN = 0.5
 export const SCREENPLAY_ZOOM_MAX = 2
 export const SCREENPLAY_ZOOM_STEP = 0.1
 
-/** Width of the vertical document toolbar in pixels. */
-export const SCREENPLAY_VERTICAL_TOOLBAR_W_PX = 44
+export { SCREENPLAY_VERTICAL_TOOLBAR_W_PX }
 // </PROTECTED>
 
 export interface ScreenplayDocumentToolbarProps {
@@ -41,33 +41,7 @@ export function ScreenplayDocumentToolbar({
   // ── Vertical layout ───────────────────────────────────────────────────────
   if (orientation === 'vertical') {
     return (
-      <Paper
-        className="screenplay-toolbar screenplay-toolbar-vertical"
-        elevation={0}
-        sx={{
-          // <PROTECTED>
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          alignSelf: 'stretch',
-          width: SCREENPLAY_VERTICAL_TOOLBAR_W_PX,
-          flexShrink: 0,
-          borderRight: `1px solid ${theme.palette.divider}`,
-          borderTopLeftRadius: "8px",
-          borderBottomLeftRadius: "8px",
-          borderTopRightRadius: 0,
-          borderBottomRightRadius: 0,
-          bgcolor: 'background.default',
-          boxShadow: SCREENPLAY_TOOLBAR_SHADOW,
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          scrollbarWidth: 'none',
-          '&::-webkit-scrollbar': { display: 'none' },
-          py: 1,
-          zIndex: 1,
-          // </PROTECTED>
-        }}
-      >
+      <ScreenplayVerticalToolbarShell>
         {showSaveRow && (
           <Box
             sx={{ display: 'flex', justifyContent: 'center', mb: 0.5, flexShrink: 0 }}
@@ -82,7 +56,7 @@ export function ScreenplayDocumentToolbar({
           </Box>
         )}
         {showElementSelectors && <ScreenplayToolbar orientation="vertical" />}
-      </Paper>
+      </ScreenplayVerticalToolbarShell>
     )
   }
 

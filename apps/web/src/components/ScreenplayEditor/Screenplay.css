@@ -7,10 +7,9 @@
    All measurements follow the WGA / Final Draft standard for US Letter paper.
 
    Paper:       8.5" × 11" @ 96dpi  →  816px × 1056px (canonical layout; on-screen may scale to ~709×917)
-   On-screen:   The page shell is transparent (white desk). A ::before mask repeats white
-                bands of --sp-paper-height with --sp-inter-page-gap desk between them.
-                ProseMirror + script blocks use opaque white so collapsed margins never
-                reveal the mask; page-break gaps span full bleed so desk shows at breaks.
+   On-screen:   The page shell is opaque white. Inter-page gaps and sheet shadows come from
+                PageBreakPlugin widgets. ProseMirror + script blocks stay opaque so collapsed
+                margins never reveal the workspace background.
    Margins:     1.5" left   →  144px
                 1.0" right  →   96px
                 1.0" top    →   96px
@@ -79,8 +78,8 @@
   /* Paper margins: top right bottom left */
   padding: var(--sp-margin-top) var(--sp-margin-right) var(--sp-margin-bottom) var(--sp-margin-left);
 
-  /* Desk: transparent shell; white “paper” + inter-page gaps come from ::before + script blocks */
-  background-color: transparent;
+  /* Desk: opaque white sheet; inter-page separation comes from page-break widgets only. */
+  background-color: #ffffff;
   isolation: isolate;
   z-index: 0;
 
@@ -100,21 +99,10 @@
     0 8px 12px -6px rgba(0, 0, 0, 0.2);
 }
 
-/* Repeating “sheet + desk gap” mask (1056px + --sp-inter-page-gap). Sits behind ProseMirror; does not
-   receive pointer events. Real breaks still come from PageBreakPlugin widgets. */
+/* Legacy repeating mask removed — it drifted from PageBreakPlugin positions on long scripts and
+   let the desk color bleed through side margins near page tops. Widget gaps own inter-page layout. */
 .screenplay-page::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-image: repeating-linear-gradient(
-    to bottom,
-    #ffffff 0,
-    #ffffff var(--sp-paper-height),
-    transparent var(--sp-paper-height),
-    transparent calc(var(--sp-paper-height) + var(--sp-inter-page-gap))
-  );
+  content: none;
 }
 
 /* ProseMirror container — no z-index stacking needed now that the fixed
@@ -131,7 +119,7 @@
 /* ── Page-break gap (widget decoration) ───────────────────────────────────── */
 /*
  * The PageBreakPlugin injects Decoration.widget() elements — actual <div>s —
- * between blocks (or inline within long blocks) wherever a page break falls.
+ * between blocks wherever a page break falls.
  * Each widget: sheet-trailing (remainder + bottom-margin), gap, sheet-leading (top-margin).
  * Trailing sheet: light bottom drop shadow only. Leading sheet: none. Gap stays white between sheets.
  */
@@ -173,6 +161,10 @@
 /* White remainder space at bottom of previous page */
 .page-break-gap__remainder {
   background: #ffffff;
+  /* So .page-break-gap__more's `position: absolute; bottom: 12px` resolves against this variable
+     remaining-content band, not the fixed-height .page-break-gap__sheet-trailing ancestor (which
+     also includes the 96px bottom-margin band below this one). */
+  position: relative;
 }
 
 /* Bottom margin of previous page */
@@ -268,20 +260,23 @@
 
 /* Provide a visible placeholder when a block is empty and focused */
 .script-block.ProseMirror-selectednode:not([data-page-label])::after,
-.script-block:empty:not([data-page-label])::after,
-.script-block p:empty::after {
+.script-block:empty:not([data-page-label])::after {
   content: '';
-}
-
-.script-block p {
-  margin: 0;
-  padding: 0;
 }
 
 /* First block after a page-break widget sits flush at the top of the new page */
 .page-break-gap + .node-scriptBlock > .script-block {
   padding-top: 0 !important;
   margin-top: 0 !important;
+}
+
+/* Block immediately before a page-break widget drops its trailing blank-line spacer so the next
+   page starts flush at the top margin instead of inheriting a leaked blank line (mirror of the
+   rule above). Title-page blocks (title/author/contact) are governed by the separate title-page
+   break path and are excluded. */
+.node-scriptBlock:has(+ .page-break-gap)
+  > .script-block:not([data-element-type='title']):not([data-element-type='author']):not([data-element-type='contact']) {
+  padding-bottom: 0 !important;
 }
 
 /* ── SCENE HEADING (Slugline) ────────────────────────────────────────────── */
@@ -327,11 +322,6 @@
 .screenplay-page .ProseMirror > .node-scriptBlock:first-child > .script-block[data-element-type='slugline'] {
   padding-top: 0;
   margin-top: 0;
-}
-
-/* Action: second & later paragraphs inside one block = 1 blank line (1/6") per table */
-.script-block[data-element-type='action'] p + p {
-  margin-top: var(--sp-line-single);
 }
 
 /* ── ACTION ──────────────────────────────────────────────────────────────── */
@@ -412,6 +402,21 @@
   order: 1;
   min-width: 0;
   flex: 1 1 auto;
+}
+
+/* Automatic (CONT'D): a character speaking again after an interruption gets the `is-contd` node
+   decoration from the screenplayContd plugin. Display-only — never part of the stored cue text.
+   Constrain the content box to its natural width so the suffix sits right after the name. */
+.script-block[data-element-type='character'].is-contd > [data-node-view-content] {
+  flex: 0 1 auto;
+}
+.script-block[data-element-type='character'].is-contd::after {
+  content: ' (CONT\'D)';
+  order: 2;
+  flex: 0 0 auto;
+  white-space: pre;
+  pointer-events: none;
+  user-select: none;
 }
 
 .script-block[data-element-type='dialogue'] [data-node-view-content] {

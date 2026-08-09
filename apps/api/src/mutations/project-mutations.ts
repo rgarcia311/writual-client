@@ -13,7 +13,14 @@ export const deleteProject = (root,  { id }) => {
 }
 
 export const createProject = (root, { input }) => {
-    //loop  through input keys to make project
+    const writingTracker = input.writingTracker ?? null;
+    const trackerSignalsProgress =
+        writingTracker != null &&
+        typeof writingTracker === "object" &&
+        writingTracker.enabled === true;
+    const progressTrackingEnabled =
+        Boolean(input.progressTrackingEnabled) || trackerSignalsProgress;
+
     const newProject = new Projects({
         user: input.user,
         displayName: input.displayName,
@@ -29,7 +36,9 @@ export const createProject = (root, { input }) => {
         outlineName: input.outlineName,
         scenes: input.scenes,
         characterOrder: input.characterOrder ?? [],
-        outline: input.outline
+        outline: input.outline,
+        writingTracker,
+        progressTrackingEnabled,
     })
 
 
@@ -136,26 +145,72 @@ export const createinspiration = async (root, { input }) => {
   return updated;
 };
 
-export const createTreatment = (root, { input })  =>  {
-    const newTreatment  = new  Projects({
-        projectId: input.projectId,
-        versions: input.treatmentContent
-    })
-
-    newTreatment.id = input._id
-    return  updateData(Projects, {newTreatment}, input.projec_id)
-}
-
-export const saveScreenplay = async (root, { projectId, content }) => {
+/** Updates only `writingTracker.currentPageCount` when the project's tracker is enabled. */
+export const persistWritingTrackerCurrentPageCount = async (
+  projectId: string,
+  clampedPageCount: number
+) => {
   const filter = mongoose.Types.ObjectId.isValid(projectId)
     ? { _id: new mongoose.Types.ObjectId(projectId) }
     : { _id: projectId };
 
   const updated = await Projects.findOneAndUpdate(
-    filter,
-    { $set: { screenplay: { projectId, versions: [{ version: 0, content }] } } },
+    { ...filter, 'writingTracker.enabled': true },
+    { $set: { 'writingTracker.currentPageCount': clampedPageCount } },
     { new: true }
   ).exec();
+
+  if (updated) return updated;
+
+  const fallbackFilter = mongoose.Types.ObjectId.isValid(projectId)
+    ? { _id: new mongoose.Types.ObjectId(projectId) }
+    : { _id: projectId };
+  return Projects.findOne(fallbackFilter).exec();
+};
+
+export const saveScreenplay = async (
+  root: unknown,
+  args: {
+    projectId: string;
+    content: unknown;
+    estimatedPageCount?: number | null;
+    layout?: unknown;
+  }
+) => {
+  const { projectId, content, estimatedPageCount, layout } = args;
+  const filter = mongoose.Types.ObjectId.isValid(projectId)
+    ? { _id: new mongoose.Types.ObjectId(projectId) }
+    : { _id: projectId };
+
+  // Atomic, field-level update (no read-before-write, no whole-subdoc replace) so concurrent saves
+  // don't race and fields like `lockedVersion` survive. `screenplay.layout` is only written when a
+  // `layout` argument is explicitly present in the request, so layout-less autosaves preserve it.
+  // Pass `layout: null` to clear it.
+  const setDoc: Record<string, unknown> = {
+    'screenplay.projectId': projectId,
+    'screenplay.versions': [{ version: 0, content }],
+  };
+  if ('layout' in args) {
+    const isPlainObject =
+      layout != null && typeof layout === 'object' && !Array.isArray(layout);
+    setDoc['screenplay.layout'] = isPlainObject ? layout : null;
+  }
+
+  const updated = await Projects.findOneAndUpdate(
+    filter,
+    { $set: setDoc },
+    { new: true }
+  ).exec();
+
+  if (estimatedPageCount != null) {
+    const n = typeof estimatedPageCount === "number"
+      ? estimatedPageCount
+      : Number(estimatedPageCount);
+    if (Number.isFinite(n)) {
+      const clamped = Math.min(99999, Math.max(1, Math.round(Number(n))));
+      await persistWritingTrackerCurrentPageCount(projectId, clamped);
+    }
+  }
 
   return updated?.get('screenplay') ?? null;
 };

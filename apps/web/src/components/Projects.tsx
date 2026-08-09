@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { Box } from '@mui/system';
 import { Tabs, Tab } from '@mui/material';
 import { ProjectCard, ProjectCardSkeleton } from './ProjectCard';
+import { EnableProgressTrackingModal, SerializedTracker } from './ProjectCard/EnableProgressTrackingModal';
 import { CreateProject } from './CreateProject';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PROJECTS_QUERY } from '../queries';
@@ -19,6 +20,7 @@ export const Projects = () => {
     const pendingNewProject = useCreateProjectModalStore((s) => s.pendingNewProject);
 
     const [editingProject, setEditingProject] = useState<any>(null);
+    const [progressTrackingProject, setProgressTrackingProject] = useState<any>(null);
 
     const { data }: any = useQuery({
         queryKey: ['projects', userId],
@@ -42,7 +44,22 @@ export const Projects = () => {
         onSuccess: async () => {
           setEditingProject(null);
           await queryClient.invalidateQueries({ queryKey: ['projects'] });
-          await queryClient.refetchQueries({ queryKey: ['projects'] });
+        },
+    });
+
+    const enableProgressTrackingMutation = useMutation({
+        mutationFn: async (variables: {
+          _id: string;
+          user: string;
+          title: string;
+          writingTracker: SerializedTracker;
+        }) => authRequest(UPDATE_PROJECT, { ...variables, progressTrackingEnabled: true }),
+        onSuccess: async () => {
+          setProgressTrackingProject(null);
+          await queryClient.invalidateQueries({ queryKey: ['projects'] });
+        },
+        onError: (error: unknown) => {
+          console.error('Failed to enable progress tracking:', error);
         },
     });
 
@@ -74,6 +91,8 @@ export const Projects = () => {
             budget: formValues.budget != null && formValues.budget !== '' ? Number(formValues.budget) : undefined,
             similarProjects,
             timePeriod: formValues.timePeriod ?? undefined,
+            writingTracker: formValues.writingTracker ?? undefined,
+            progressTrackingEnabled: formValues.progressTrackingEnabled ?? undefined,
           });
         },
         [editingProject, updateProjectMutation]
@@ -100,6 +119,13 @@ export const Projects = () => {
             onEditClick={project._id ? () => setEditingProject(project) : undefined}
             hideBudgetAndSimilarProjects
             progress={computeProjectProgress(project)}
+            writingTracker={project.writingTracker ?? null}
+            progressTrackingEnabled={project.progressTrackingEnabled || project.writingTracker?.enabled || false}
+            onEnableProgressTracking={
+              isOwner && project._id
+                ? () => setProgressTrackingProject(project)
+                : undefined
+            }
         />
     );
 
@@ -140,8 +166,25 @@ export const Projects = () => {
                 <CreateProject
                     setAddProject={(open) => { if (!open) setEditingProject(null); }}
                     handleAddProject={() => {}}
-                    initialData={{ ...editingProject, _id: editingProject._id }}
+                    initialData={{ ...editingProject, _id: editingProject._id, writingTracker: editingProject.writingTracker ?? null }}
                     handleUpdateProject={handleUpdateProject}
+                />
+            )}
+            {progressTrackingProject && (
+                <EnableProgressTrackingModal
+                    open
+                    onClose={() => setProgressTrackingProject(null)}
+                    projectTitle={progressTrackingProject.title}
+                    projectType={progressTrackingProject.type}
+                    isPending={enableProgressTrackingMutation.isPending}
+                    onSubmit={(tracker) =>
+                        enableProgressTrackingMutation.mutate({
+                            _id: progressTrackingProject._id,
+                            user: progressTrackingProject.user,
+                            title: progressTrackingProject.title,
+                            writingTracker: tracker,
+                        })
+                    }
                 />
             )}
         </Box>

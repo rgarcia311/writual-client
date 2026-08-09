@@ -1,7 +1,22 @@
 import { ProjectType } from "../enums";
 import { Scene } from "./scene";
 
-type Inspiration = {
+export interface DraftDueDate {
+    draftNumber: number;
+    label: string;
+    dueDate: string;
+    tag?: string | null;
+}
+
+export interface WritingTracker {
+    enabled: boolean;
+    targetPageCount: number | null;
+    currentPageCount: number | null;
+    trackingStartDate: string | null;
+    draftDueDates: DraftDueDate[];
+}
+
+export type Inspiration = {
     _id: string;
     projectId: string;
     title: string;
@@ -31,6 +46,8 @@ export interface Project {
     outlineName?: string;
     poster?: string;
     scenes: Scene[];
+    writingTracker?: WritingTracker | null;
+    progressTrackingEnabled?: boolean;
 }
 
 export interface TabPanelProps {

@@ -1,6 +1,6 @@
 import { GraphQLJSON } from "graphql-scalars";
 import { getProjectData, getOutlineFrameworks } from "../resolvers";
-import { setProjectOutline, createOutlineFramework, updateOutlineFramework, deleteOutlineFramework, createProject, deleteProject, shareProject, updateProject, updateProjectSharedWith, createinspiration, deleteinspiration, lockAllScenesInOutline, lockAllCharacters, unlockOutlineSection, unlockCharactersSection, saveScreenplay as saveScreenplayFn } from "../mutations";
+import { setProjectOutline, createOutlineFramework, updateOutlineFramework, deleteOutlineFramework, createProject, deleteProject, shareProject, updateProject, updateProjectSharedWith, createinspiration, deleteinspiration, lockAllScenesInOutline, lockAllCharacters, unlockOutlineSection, unlockCharactersSection, saveScreenplay as saveScreenplayFn, persistWritingTrackerCurrentPageCount } from "../mutations";
 import mongoose from "mongoose";
 import { AppUsers, Projects, Scenes, Characters, Messages, Conversations } from "@writual/db";
 import { requireTier } from "../utils/tierUtils";
@@ -48,7 +48,6 @@ export const ProjectType = `#graphql
     type DevelopmentStatus {
         outlineStarted: Boolean!
         charactersStarted: Boolean!
-        treatmentStarted: Boolean!
         screenplayStarted: Boolean!
     }
 
@@ -113,7 +112,8 @@ export const ProjectType = `#graphql
         updateProjectSharedWith(projectId: String!, sharedWith: [String]): Project
         createinspiration(input: inspirationInput!): Project
         deleteinspiration(projectId: String!, inspirationId: String!): Project
-        saveScreenplay(projectId: ID!, content: JSON!): Screenplay
+        saveScreenplay(projectId: ID!, content: JSON!, estimatedPageCount: Int, layout: JSON): Screenplay
+        syncWritingTrackerCurrentPages(projectId: ID!, currentPageCount: Int!): Project
         lockAllScenesInOutline(projectId: String!): LockAllScenesResult
         lockAllCharacters(projectId: String!): LockAllCharactersResult
         unlockOutlineSection(projectId: String!): Project
@@ -133,6 +133,36 @@ export const ProjectType = `#graphql
         removeCollaborator(projectId: ID!, collaboratorId: ID!): Project
         claimInvite(token: String!): Project
         finalizeSignup: Boolean
+    }
+
+    type DraftDueDate {
+        draftNumber: Int!
+        label: String!
+        dueDate: String!
+        tag: String
+    }
+
+    input DraftDueDateInput {
+        draftNumber: Int!
+        label: String!
+        dueDate: String!
+        tag: String
+    }
+
+    type WritingTracker {
+        enabled: Boolean!
+        targetPageCount: Int
+        currentPageCount: Int
+        trackingStartDate: String
+        draftDueDates: [DraftDueDate!]!
+    }
+
+    input WritingTrackerInput {
+        enabled: Boolean!
+        targetPageCount: Int
+        currentPageCount: Int
+        trackingStartDate: String
+        draftDueDates: [DraftDueDateInput!]!
     }
 
     type ProjectStats {
@@ -173,7 +203,6 @@ export const ProjectType = `#graphql
         characters: [Character]
         outline: Outline
         inspiration: [inspiration]
-        treatment: Treatment
         screenplay: Screenplay
         feedback: Feedback
         stats: ProjectStats
@@ -182,6 +211,8 @@ export const ProjectType = `#graphql
         charactersSectionLocked: Boolean
         activeVersion: Int
         lockedVersion: Int
+        writingTracker: WritingTracker
+        progressTrackingEnabled: Boolean
     }
 
     input ProjectFilters {
@@ -206,7 +237,6 @@ export const ProjectType = `#graphql
         characters: [CharacterInput]
         outline: OutlineInput
         inspiration: [inspirationInput]
-        treatment: TreatmentInput
         screenplay: ScreenplayInput
         feedback: FeedbackInput
     }
@@ -235,7 +265,6 @@ export const ProjectType = `#graphql
         characters: [CharacterInput]
         outline: OutlineInput
         inspiration: [inspirationInput]
-        treatment: TreatmentInput
         screenplay: ScreenplayInput
         feedback: FeedbackInput
         stats: ProjectStatsInput
@@ -244,6 +273,8 @@ export const ProjectType = `#graphql
         charactersSectionLocked: Boolean
         activeVersion: Int
         lockedVersion: Int
+        writingTracker: WritingTrackerInput
+        progressTrackingEnabled: Boolean
     }
 
     input ProjectStatsInput {
@@ -405,30 +436,11 @@ export const ProjectType = `#graphql
         Short 
     }
 
-    type Treatment {
-        projectId: String
-        versions: [TreatmentContent]
-        lockedVersion: Int
-    }
-
-    input TreatmentInput {
-        versions: [TreatmentContentInput]
-    }
-
-    type TreatmentContent {
-        version: Int
-        text: String
-    }
-
-    input TreatmentContentInput {
-        version: Int
-        text: String
-    }
-
     type Screenplay {
         projectId: String
         versions: [ScreenplayContent]
         lockedVersion: Int
+        layout: JSON
     }
 
     type  ScreenplayContent  {
@@ -683,7 +695,7 @@ export const resolvers = {
         {
           $project: {
             _id: 1, title: 1, displayName: 1, genre: 1, type: 1, poster: 1,
-            sharedWith: 1, collaborators: 1, stats: 1, treatment: 1, screenplay: 1, user: 1, createdAt: 1,
+            sharedWith: 1, collaborators: 1, stats: 1, screenplay: 1, user: 1, createdAt: 1,
           },
         },
         {
@@ -758,7 +770,6 @@ export const resolvers = {
         developmentStatus: {
           outlineStarted: (project.stats?.totalScenes ?? 0) > 0,
           charactersStarted: (project.stats?.totalCharacters ?? 0) > 0,
-          treatmentStarted: (project.treatment?.versions?.length ?? 0) > 0,
           screenplayStarted: (project.screenplay?.versions?.length ?? 0) > 0,
         },
         lastMessage: project.lastMessage ?? null,
@@ -806,10 +817,39 @@ export const resolvers = {
     updateProjectSharedWith,
     createinspiration,
     deleteinspiration,
-    saveScreenplay: async (root: unknown, args: { projectId: string; content: unknown }, context: { uid: string | null }) => {
+    saveScreenplay: async (
+      root: unknown,
+      args: { projectId: string; content: unknown; estimatedPageCount?: number | null; layout?: unknown },
+      context: { uid: string | null }
+    ) => {
       await requireTier(context, 'spec');
       await verifyProjectWriteAccess(args.projectId, context.uid!);
       return saveScreenplayFn(root, args);
+    },
+    syncWritingTrackerCurrentPages: async (
+      _root: unknown,
+      args: { projectId: string; currentPageCount: number },
+      context: { uid: string | null }
+    ) => {
+      if (!context.uid) {
+        throw new GraphQLError('Unauthorized', { extensions: { code: 'UNAUTHENTICATED' } });
+      }
+      await requireTier(context, 'spec');
+      await verifyProjectWriteAccess(args.projectId, context.uid);
+      const { projectId, currentPageCount } = args;
+      if (!mongoose.Types.ObjectId.isValid(projectId)) {
+        throw new GraphQLError('Invalid projectId', { extensions: { code: 'BAD_USER_INPUT' } });
+      }
+      const rounded = Math.round(Number(currentPageCount));
+      if (!Number.isFinite(rounded)) {
+        throw new GraphQLError('Invalid currentPageCount', { extensions: { code: 'BAD_USER_INPUT' } });
+      }
+      const clamped = Math.min(99999, Math.max(1, rounded));
+      const doc = await persistWritingTrackerCurrentPageCount(projectId, clamped);
+      if (!doc) {
+        throw new GraphQLError('Project not found', { extensions: { code: 'NOT_FOUND' } });
+      }
+      return doc;
     },
     lockAllScenesInOutline,
     lockAllCharacters,

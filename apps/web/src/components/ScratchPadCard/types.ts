@@ -1,6 +1,6 @@
 export type ScratchPadCardType = 'note' | 'link' | 'image' | 'video';
 
-export type MoveToDestination = 'characters' | 'outline' | 'treatment' | 'chat';
+export type MoveToDestination = 'characters' | 'outline' | 'chat';
 
 export interface ScratchPadCardData {
   id: string;

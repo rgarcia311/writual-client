@@ -16,11 +16,11 @@ import {
   MenuItem,
   Tooltip,
   Typography,
-  useTheme,
 } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { request } from 'graphql-request';
 import { ProjectDetailsLayout } from '@/components/ProjectDetailsLayout';
+import { ScrollableContentArea } from '@/components/shared/ScrollableContentArea/ScrollableContentArea';
 import { SceneCard } from '@/components/SceneCard';
 import AddIcon from '@mui/icons-material/Add';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
@@ -36,10 +36,13 @@ import { useUserProfileStore } from '@/state/user';
 import { useOutlineSaveStatusStore } from '@/state/outlineSaveStatus';
 import type { OutlineFrameworkItem } from '@/state/outlineFrameworks';
 import { LOCK_ALL_SCENES_IN_OUTLINE, UNLOCK_OUTLINE_SECTION } from 'mutations/ProjectMutations';
-import { accordionFlat, getAccordionSummaryBordered, getAccordionDetailsBordered, singleLineTruncate } from 'styles';
+import { accordionFlat, singleLineTruncate } from 'styles';
 import { FeatureGate } from '@/components/Auth/FeatureGate';
+import '@/styles/outlinePage.css';
 
 const endpoint = GRAPHQL_ENDPOINT;
+
+const OUTLINE_PAGE_STAT_KEYS = ['scenes', 'glance'] as const;
 
 const DEFAULT_NEW_SCENE_VERSION = {
   version: 1,
@@ -135,7 +138,6 @@ interface OutlineContentProps {
 export function OutlineContent({ projectId }: OutlineContentProps) {
   const id = projectId;
   const queryClient = useQueryClient();
-  const theme = useTheme();
   const { createSceneMutation } = useProjectSceneMutations();
   const { savingCount, lastSavedAt, reset } = useOutlineSaveStatusStore();
   const isSaving = savingCount > 0;
@@ -253,6 +255,7 @@ export function OutlineContent({ projectId }: OutlineContentProps) {
     return (
       <SceneCard
         key={scene._id ?? index}
+        floatSurface
         sceneId={scene._id}
         number={displayNumber}
         newScene={false}
@@ -267,9 +270,9 @@ export function OutlineContent({ projectId }: OutlineContentProps) {
     );
   };
 
-  const headerLeftAdornment = (
+  const statusAdornment = (
     <>
-      <Typography variant="body2" color="text.secondary" sx={{ mr: 1 }}>
+      <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
         {lockedScenes} locked / {totalScenes} total
       </Typography>
       {isSaving && (
@@ -286,9 +289,15 @@ export function OutlineContent({ projectId }: OutlineContentProps) {
     </>
   );
 
-  const headerAction = (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {outlineSectionLocked ? (
+  const breadcrumbActions = (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0, flexWrap: 'wrap' }}>
+      {outlineName ? (
+        <Typography variant="body2" color="text.secondary" fontWeight={600} sx={{ whiteSpace: 'nowrap' }}>
+          {outlineName}
+        </Typography>
+      ) : null}
+      {statusAdornment}
+      {outlineSectionLocked ? (
         <Button
           variant="outlined"
           size="small"
@@ -300,13 +309,13 @@ export function OutlineContent({ projectId }: OutlineContentProps) {
         </Button>
       ) : (
         <>
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<LockIcon />}
-                onClick={() => setLockAllConfirmOpen(true)}
-                disabled={lockAllScenesMutation.isPending || totalScenes === 0}
-              >
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<LockIcon />}
+            onClick={() => setLockAllConfirmOpen(true)}
+            disabled={lockAllScenesMutation.isPending || totalScenes === 0}
+          >
             Lock All
           </Button>
           {allSteps.length > 0 ? (
@@ -335,9 +344,7 @@ export function OutlineContent({ projectId }: OutlineContentProps) {
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
                 transformOrigin={{ vertical: 'top', horizontal: 'right' }}
               >
-                <MenuItem onClick={() => handleNewScene()}>
-                  Assign to Step
-                </MenuItem>
+                <MenuItem onClick={() => handleNewScene()}>Assign to Step</MenuItem>
                 {allSteps.map((stepOption) => (
                   <MenuItem
                     key={`${stepOption.act}-${stepOption.name}`}
@@ -373,11 +380,11 @@ export function OutlineContent({ projectId }: OutlineContentProps) {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setLockAllConfirmOpen(false)}>Cancel</Button>
-              <Button
-                variant="contained"
-                onClick={() => lockAllScenesMutation.mutate()}
-                disabled={lockAllScenesMutation.isPending || totalScenes === 0}
-              >
+          <Button
+            variant="contained"
+            onClick={() => lockAllScenesMutation.mutate()}
+            disabled={lockAllScenesMutation.isPending || totalScenes === 0}
+          >
             Lock All
           </Button>
         </DialogActions>
@@ -387,128 +394,119 @@ export function OutlineContent({ projectId }: OutlineContentProps) {
 
   return (
     <ProjectDetailsLayout
-      contentSx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}
-      headerTitle={outlineName ? `Outline: ${outlineName}` : 'Outline'}
-      headerLeftAdornment={
-        <Box sx={{ display: 'flex', alignItems: 'flex-end' }}>
-          {headerLeftAdornment}
-        </Box>
-      }
-      headerAction={headerAction}
+      showFloatStatsRail
+      floatStatsRailKeys={[...OUTLINE_PAGE_STAT_KEYS]}
+      breadcrumbRightAdornment={breadcrumbActions}
+      contentSx={{
+        display: 'flex',
+        flexDirection: 'column',
+        flex: 'none',
+        minHeight: 0,
+        overflow: 'visible',
+        pl: 0,
+        pt: 0,
+      }}
     >
-      <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-        {useFrameworkView ? (
-          <>
-            {actSteps.map(({ act, actNum, steps }) => (
-              <Accordion key={act} defaultExpanded disableGutters sx={accordionFlat}>
-                <AccordionSummary
-                  expandIcon={<ExpandMoreIcon />}
-                  sx={{ top: 0, zIndex: 2, ...getAccordionSummaryBordered(theme, { backgroundColor: 'default' }) }}
-                >
-                  <Typography fontWeight={600}>Act {act}</Typography>
-                </AccordionSummary>
-                <AccordionDetails
-                  sx={{
-                    mb: 1,
-                    pt: 0,
-                    maxHeight: 'calc(100vh - 400px)',
-                    overflowY: 'scroll',
-                    ...getAccordionDetailsBordered(theme),
-                  }}
-                >
-                  {steps.map((st) => {
-                    const key = `${actNum}:${st.name}`;
-                    const stepScenes = stepKeyToScenes.get(key) ?? [];
-                    return (
-                      <Accordion
-                        key={key}
-                        defaultExpanded
-                        disableGutters
-                        sx={{ ...accordionFlat, zIndex: 1, backgroundColor: theme.palette.background.paper }}
+      {useFrameworkView ? (
+        <Box className="outline-page-framework">
+          {actSteps.map(({ act, actNum, steps }) => (
+            <Accordion
+              key={act}
+              defaultExpanded
+              disableGutters
+              sx={accordionFlat}
+              className="outline-page-act-block"
+            >
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon />}
+                className="outline-page-act-summary"
+                sx={{ top: 0, zIndex: 2, bgcolor: 'background.default' }}
+              >
+                <Typography fontWeight={600}>Act {act}</Typography>
+              </AccordionSummary>
+              <AccordionDetails className="outline-page-act-details" sx={{ mb: 0, pt: 0 }}>
+                {steps.map((st) => {
+                  const key = `${actNum}:${st.name}`;
+                  const stepScenes = stepKeyToScenes.get(key) ?? [];
+                  return (
+                    <Accordion
+                      key={key}
+                      defaultExpanded
+                      disableGutters
+                      sx={{ ...accordionFlat, zIndex: 1 }}
+                    >
+                      <AccordionSummary
+                        expandIcon={<ExpandMoreIcon />}
+                        sx={{
+                          position: 'sticky',
+                          minWidth: 0,
+                          px: 0,
+                          '& .MuiAccordionSummary-content': { minWidth: 0, overflow: 'hidden' },
+                        }}
                       >
-                        <AccordionSummary
-                          expandIcon={<ExpandMoreIcon />}
-                          sx={{
-                            position: 'sticky',
-                            backgroundColor: theme.palette.background.paper,
-                            minWidth: 0,
-                            '& .MuiAccordionSummary-content': { minWidth: 0, overflow: 'hidden' },
-                          }}
-                        >
-                          <Tooltip title={st.instructions || ''} arrow disableHoverListener={!st.instructions}>
-                            <Box sx={{ flex: 1, minWidth: 0, ...singleLineTruncate }}>
-                              <Typography component="span" variant="body1" fontWeight={700}>
-                                STEP {st.number}: {st.name}
+                        <Tooltip title={st.instructions || ''} arrow disableHoverListener={!st.instructions}>
+                          <Box sx={{ flex: 1, minWidth: 0, ...singleLineTruncate }}>
+                            <Typography component="span" variant="body1" fontWeight={700}>
+                              STEP {st.number}: {st.name}
+                            </Typography>
+                            {st.instructions ? (
+                              <Typography component="span" variant="body1" fontWeight={500}>
+                                {' : '}{st.instructions}
                               </Typography>
-                              {st.instructions ? (
-                                <Typography component="span" variant="body1" fontWeight={500}>
-                                  {' : '}{st.instructions}
-                                </Typography>
-                              ) : null}
-                            </Box>
-                          </Tooltip>
-                        </AccordionSummary>
-                        <AccordionDetails sx={{ p: 0 }}>
-                          <Box
-                            sx={{
-                              display: 'flex',
-                              flexDirection: 'row',
-                              flexWrap: 'wrap',
-                              gap: 2,
-                              containerType: 'inline-size',
-                           
-                              maxHeight: '700px', 
-                              overflowY: 'scroll',
-                            }}
-                          >
-                            {stepScenes.map((scene: any, idx: number) => renderSceneCard(scene, idx))}
+                            ) : null}
                           </Box>
-                        </AccordionDetails>
-                      </Accordion>
-                    );
-                  })}
-                </AccordionDetails>
-              </Accordion>
-            ))}
-            {unassignedScenes.length > 0 && (
-              <Accordion defaultExpanded disableGutters sx={accordionFlat}>
-                <AccordionSummary
-                  expandIcon={<ExpandMoreIcon />}
-                  sx={getAccordionSummaryBordered(theme, { backgroundColor: 'default' })}
-                >
-                  <Typography fontWeight={600}>Unassigned</Typography>
-                </AccordionSummary>
-                <AccordionDetails sx={{ mb: 1, pt: 2, ...getAccordionDetailsBordered(theme) }}>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      flexDirection: 'row',
-                      flexWrap: 'wrap',
-                      gap: 2,
-                      containerType: 'inline-size',
-                    }}
-                  >
-                    {unassignedScenes.map((scene: any, idx: number) => renderSceneCard(scene, idx))}
-                  </Box>
-                </AccordionDetails>
-              </Accordion>
-            )}
-          </>
-        ) : (
-          <Box
-            sx={{
-              display: 'flex',
-              flexDirection: 'row',
-              justifyContent: 'flex-start',
-              flexWrap: 'wrap',
-              gap: 2,
-              containerType: 'inline-size',
-            }}
-          >
-            {scenes.map((scene: any, index: number) => renderSceneCard(scene, index))}
-          </Box>
-        )}
-      </Box>
+                        </Tooltip>
+                      </AccordionSummary>
+                      <AccordionDetails sx={{ p: 0 }}>
+                        <Box className="outline-page-step-scenes">
+                          {stepScenes.map((scene: any, idx: number) => renderSceneCard(scene, idx))}
+                        </Box>
+                      </AccordionDetails>
+                    </Accordion>
+                  );
+                })}
+              </AccordionDetails>
+            </Accordion>
+          ))}
+          {unassignedScenes.length > 0 && (
+            <Accordion defaultExpanded disableGutters sx={accordionFlat} className="outline-page-act-block">
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon />}
+                className="outline-page-act-summary"
+                sx={{ bgcolor: 'background.default' }}
+              >
+                <Typography fontWeight={600}>Unassigned</Typography>
+              </AccordionSummary>
+              <AccordionDetails className="outline-page-act-details" sx={{ mb: 0, pt: 2 }}>
+                <Box className="outline-page-unassigned-scenes">
+                  {unassignedScenes.map((scene: any, idx: number) => renderSceneCard(scene, idx))}
+                </Box>
+              </AccordionDetails>
+            </Accordion>
+          )}
+        </Box>
+      ) : (
+        <ScrollableContentArea
+          className="outline-page-scenes-grid"
+          sx={{
+            display: 'flex',
+            flex: 'none',
+            minHeight: 0,
+            height: 'auto',
+            maxHeight: 'none',
+            width: '100%',
+            p: 0,
+            paddingTop: 0,
+            overflow: 'visible',
+            overflowY: 'visible',
+            flexWrap: 'wrap',
+            alignContent: 'flex-start',
+            gap: 'var(--project-float-stat-gap, var(--app-body-padding, 8px))',
+          }}
+        >
+          {scenes.map((scene: any, index: number) => renderSceneCard(scene, index))}
+        </ScrollableContentArea>
+      )}
     </ProjectDetailsLayout>
   );
 }

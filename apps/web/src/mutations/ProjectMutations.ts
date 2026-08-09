@@ -14,6 +14,8 @@ export const CREATE_PROJECT = gql`
     $sharedWith: [String]
     $budget: Int
     $similarProjects: [String]
+    $writingTracker: WritingTrackerInput
+    $progressTrackingEnabled: Boolean
   ) {
     createProject(
       input: {
@@ -29,10 +31,16 @@ export const CREATE_PROJECT = gql`
         sharedWith: $sharedWith
         budget: $budget
         similarProjects: $similarProjects
+        writingTracker: $writingTracker
+        progressTrackingEnabled: $progressTrackingEnabled
       }
     ) {
       _id
       title
+      progressTrackingEnabled
+      writingTracker {
+        enabled
+      }
     }
   }
 `;
@@ -59,6 +67,8 @@ mutation UpdateProject(
     $budget: Int
     $similarProjects: [String]
     $timePeriod: String
+    $writingTracker: WritingTrackerInput
+    $progressTrackingEnabled: Boolean
 ) {
     updateProject(project: {
         _id: $_id
@@ -75,11 +85,21 @@ mutation UpdateProject(
         budget: $budget
         similarProjects: $similarProjects
         timePeriod: $timePeriod
+        writingTracker: $writingTracker
+        progressTrackingEnabled: $progressTrackingEnabled
     }) {
         title
         _id
         user
         type
+        progressTrackingEnabled
+        writingTracker {
+            enabled
+            targetPageCount
+            currentPageCount
+            trackingStartDate
+            draftDueDates { draftNumber label dueDate tag }
+        }
     }
 }
 `;
@@ -89,6 +109,19 @@ export const UPDATE_PROJECT_SHARED_WITH = gql`
     updateProjectSharedWith(sharedWith: $sharedWith) {
       _id
       sharedWith
+    }
+  }
+`;
+
+export const SYNC_WRITING_TRACKER_CURRENT_PAGES = gql`
+  mutation SyncWritingTrackerCurrentPages($projectId: ID!, $currentPageCount: Int!) {
+    syncWritingTrackerCurrentPages(projectId: $projectId, currentPageCount: $currentPageCount) {
+      _id
+      writingTracker {
+        enabled
+        currentPageCount
+        targetPageCount
+      }
     }
   }
 `;

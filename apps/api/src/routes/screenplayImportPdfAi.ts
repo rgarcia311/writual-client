@@ -151,8 +151,14 @@ export function registerScreenplayImportPdfAiRoute(app: Express): void {
           ? Math.floor(pageCountRaw)
           : 0;
 
+      const layoutRaw = req.body?.layout;
+      const layout =
+        layoutRaw != null && typeof layoutRaw === 'object' && !Array.isArray(layoutRaw)
+          ? layoutRaw
+          : undefined;
+
       try {
-        await saveScreenplay(null, { projectId, content: doc });
+        await saveScreenplay(null, { projectId, content: doc, ...(layout ? { layout } : {}) });
       } catch (e) {
         console.error('[import-pdf-ai] saveScreenplay:', e);
         res.status(500).json({ error: 'Failed to save screenplay' });

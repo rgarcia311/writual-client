@@ -65,13 +65,14 @@ export function CreateProjectWrapper() {
     mutationFn: async (variables: Record<string, unknown>) => {
       const {
         screenplayContent,
+        screenplayLayout,
         screenplayPdfFile,
         createCompleteWritualProject,
         ...projectVars
       } = variables;
       const result = await authRequest<{ createProject?: { _id: string } }>(
         CREATE_PROJECT,
-        projectVars as Record<string, string>,
+        projectVars as Record<string, unknown>,
       );
       const newProjectId = result?.createProject?._id;
       if (!newProjectId) return;
@@ -82,7 +83,7 @@ export function CreateProjectWrapper() {
 
       if (useServerPdf && wantsCompleteWritualProject) {
         try {
-          const { doc, pageCount } = await parseScreenplayPdf(pdfFile);
+          const { doc, pageCount, layout } = await parseScreenplayPdf(pdfFile);
           const token = await getFirebaseAuth().currentUser?.getIdToken();
           const r = await fetch('/api/screenplay/import-pdf-ai', {
             method: 'POST',
@@ -94,6 +95,7 @@ export function CreateProjectWrapper() {
               projectId: newProjectId,
               doc,
               pageCount,
+              ...(layout != null ? { layout } : {}),
             }),
             signal: AbortSignal.timeout(600_000),
           });
@@ -167,10 +169,11 @@ export function CreateProjectWrapper() {
       if (useServerPdf && !wantsCompleteWritualProject) {
         if (!pdfFile) return;
         try {
-          const { doc } = await parseScreenplayPdf(pdfFile);
+          const { doc, layout } = await parseScreenplayPdf(pdfFile);
           await authRequest(SAVE_SCREENPLAY, {
             projectId: newProjectId,
             content: doc,
+            ...(layout != null ? { layout } : {}),
           });
         } catch (err) {
           console.error('[CreateProjectWrapper] Screenplay import failed:', err);
@@ -188,6 +191,7 @@ export function CreateProjectWrapper() {
           await authRequest(SAVE_SCREENPLAY, {
             projectId: newProjectId,
             content: screenplayContent,
+            ...(screenplayLayout != null ? { layout: screenplayLayout } : {}),
           });
         } catch (err) {
           console.error('[CreateProjectWrapper] Failed to save imported screenplay:', err);

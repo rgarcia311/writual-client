@@ -35,6 +35,7 @@ import {
 import { PageBreakExtension } from './PageBreakPlugin'
 import { printScreenplayHidden } from './screenplayPdfPrint'
 import { BlockAltsToolbar } from './BlockAltsToolbar'
+import { BlockTypeMenu } from './BlockTypeMenu'
 import {
   ScreenplayDocumentToolbar,
   SCREENPLAY_VERTICAL_TOOLBAR_W_PX,
@@ -45,6 +46,7 @@ import {
 import { updateCharacter as updateCharacterAction } from '@/app/actions/characters'
 import {
   ScreenplaySidePanel,
+  type ScreenplaySidePanelTab,
   type ProjectScene,
   type SceneCardStepOption,
   type SceneVersion,
@@ -56,11 +58,19 @@ import type { OutlineFrameworkItem } from '@/state/outlineFrameworks'
 import { PROJECT_SCENES_QUERY_KEY } from 'hooks'
 import { useAutosave } from '@hooks/useAutosave'
 import { useCollaboration } from '@hooks/useCollaboration'
+import { useSyncWritingTrackerPageCount } from '@hooks/useSyncWritingTrackerPageCount'
 import { useUserProfileStore } from '@/state/user'
 import { useScreenplaySaveStatusStore } from '@/state/screenplaySaveStatus'
 import { useScreenplayEditorStore } from '@/state/screenplayEditor'
 import { useScreenplayHeaderChromeStore } from '@/state/screenplayHeaderChrome'
 import { GRAPHQL_ENDPOINT } from '@/lib/config'
+import {
+  applyLayoutConfigToPage,
+  clampLayoutConfig,
+  resetLayoutConfigOnPage,
+  type ScreenplayLayoutConfig,
+} from '@/lib/screenplayLayout'
+import { readScreenplayPaginationTotalPages } from '../../utils/screenplayPaginationRead'
 import { courierPrime } from '../../utils/fonts'
 import type { HocuspocusProvider } from '@hocuspocus/provider'
 import type * as Y from 'yjs'
@@ -102,11 +112,16 @@ const SCREENPLAY_WORKSPACE_SCROLL_INNER_PAD_RIGHT_PX =
 /** Outward bleed for SCREENPLAY_FLOATING_SURFACE_SHADOW lateral layer (offset + blur − spread cushion). */
 const SCREENPLAY_STAGE_RIM_HORIZONTAL_OUTSET_PX = 18
 
-/** Horizontal insets for the scroll inner that wraps `stageRef`. Left is 0 — the vertical toolbar is the left visual boundary. */
+/** Horizontal insets for the scroll inner that wraps `stageRef`. Left is 0 — the vertical toolbar is the left visual boundary.
+ *  pt/pb explicit here (not just in screenplayWorkspace.css) so the zero-offset can't be silently
+ *  outranked by a same-specificity Emotion-injected rule that happens to load later in <head>. */
 const SCREENPLAY_WORKSPACE_SCROLL_GUTTER_SX = {
   boxSizing: 'border-box' as const,
   pl: 0,
   pr: `${SCREENPLAY_WORKSPACE_SCROLL_INNER_PAD_RIGHT_PX}px`,
+  pt: 0,
+  pb: 0,
+  mt: 0,
 }
 // </PROTECTED>
 
@@ -124,33 +139,45 @@ export const ELEMENT_ICONS: Record<ScreenplayElementType, React.ReactNode> = {
   transition:    <FastForwardIcon sx={{ fontSize: 14 }} />,
 }
 
-export const ELEMENT_ORDER: ScreenplayElementType[] = [
+/** Title-page-only element types — enabled in the toolbar only while the cursor is on the title page. */
+export const TITLE_PAGE_ELEMENT_ORDER: ScreenplayElementType[] = [
   'title',
   'author',
   'contact',
+]
+
+/** Body (script page) element types, in toolbar display order. */
+export const BODY_ELEMENT_ORDER: ScreenplayElementType[] = [
   'slugline',
   'action',
   'character',
-  'parenthetical',
   'dialogue',
+  'parenthetical',
   'transition',
+]
+
+export const ELEMENT_ORDER: ScreenplayElementType[] = [
+  ...TITLE_PAGE_ELEMENT_ORDER,
+  ...BODY_ELEMENT_ORDER,
 ]
 
 /**
  * Keyboard shortcut hints shown in each toolbar toggle button tooltip.
- * Tab cycles: action(1) → slugline(2) → character(3) → parenthetical(4) → dialogue(5)
+ * ⌘/Ctrl+E then <n> sets element directly (tap ⌘/Ctrl+E to arm, then a bare digit within ~1.5s):
+ *   1 Scene Heading · 2 Action · 3 Character · 4 Dialogue · 5 Parenthetical · 6 Transition.
+ * Tab cycles from Action: ×1 Scene Heading · ×2 Character · ×3 Parenthetical · ×4 Dialogue · ×5 back to Action.
  * Enter: character→dialogue · parenthetical→dialogue · dialogue→action · slugline→action
  */
 export const ELEMENT_SHORTCUTS: Record<ScreenplayElementType, string> = {
   title:         'Enter → Author  ·  Title page',
   author:        'Enter → Contact',
   contact:       'Enter → Action',
-  slugline:      'Tab ×2 from Action',
-  action:        'Tab ×1  ·  Enter after Dialogue or Scene Heading',
-  character:     'Tab ×3 from Action',
-  parenthetical: 'Tab ×4  ·  Enter after Character',
-  dialogue:      'Tab ×5  ·  Enter after Character or Parenthetical',
-  transition:    'Click to set  (not in Tab cycle)',
+  slugline:      '⌘/Ctrl+E then 1  ·  Tab ×1 from Action',
+  action:        '⌘/Ctrl+E then 2  ·  Tab ×5 cycles back here  ·  Enter after Dialogue or Scene Heading',
+  character:     '⌘/Ctrl+E then 3  ·  Tab ×2 from Action',
+  dialogue:      '⌘/Ctrl+E then 4  ·  Tab ×4 from Action  ·  Enter after Character or Parenthetical',
+  parenthetical: '⌘/Ctrl+E then 5  ·  Tab ×3 from Action  ·  Enter after Character',
+  transition:    '⌘/Ctrl+E then 6  ·  Click to set  (not in Tab cycle)',
 }
 
 // ─── Tooltip content component ────────────────────────────────────────────────
@@ -195,6 +222,122 @@ function buildDocFromScenes(scenes: ProjectScene[]): Record<string, unknown> {
   return { type: 'doc', content: blocks }
 }
 
+/** Placeholder shown when the user's full name can't be determined from their profile. */
+const CONTACT_NAME_PLACEHOLDER = 'Contact Name'
+/** Placeholder shown when the user's email can't be determined from their profile. */
+const CONTACT_EMAIL_PLACEHOLDER = 'Contact Email'
+
+/**
+ * `title` / `author` / `contact` scriptBlocks pre-filled from the project + signed-in user, to
+ * prepend to a freshly seeded (never-before-saved) screenplay doc. Contact name/email fall back to
+ * literal placeholder text so the user has something in-place to edit; the phone number is always a
+ * placeholder since it isn't stored on the user profile.
+ */
+function buildTitlePageBlocks(
+  projectTitle: string | null | undefined,
+  userDisplayName: string | null | undefined,
+  userName: string | null | undefined,
+  userEmail: string | null | undefined,
+): Record<string, unknown>[] {
+  const blocks: Record<string, unknown>[] = []
+
+  const trimmedTitle = (projectTitle ?? '').trim()
+  if (trimmedTitle) {
+    blocks.push({
+      type: 'scriptBlock',
+      attrs: { elementType: 'title' },
+      content: [{ type: 'text', text: trimmedTitle }],
+    })
+  }
+
+  const contactName = (userDisplayName || userName || '').trim() || CONTACT_NAME_PLACEHOLDER
+  const contactEmail = (userEmail ?? '').trim() || CONTACT_EMAIL_PLACEHOLDER
+
+  blocks.push({
+    type: 'scriptBlock',
+    attrs: { elementType: 'author' },
+    content: [
+      {
+        type: 'text',
+        text: contactName === CONTACT_NAME_PLACEHOLDER ? 'written by' : `written by ${contactName}`,
+      },
+    ],
+  })
+
+  for (const line of [contactName, contactEmail, 'Contact Phone Number']) {
+    blocks.push({
+      type: 'scriptBlock',
+      attrs: { elementType: 'contact' },
+      content: [{ type: 'text', text: line }],
+    })
+  }
+
+  return blocks
+}
+
+/** Body seeded when a project has no outline scenes yet. */
+const FALLBACK_BODY_BLOCKS: Record<string, unknown>[] = [
+  {
+    type: 'scriptBlock',
+    attrs: { elementType: 'slugline' },
+    content: [{ type: 'text', text: 'INT. YOUR SCENE - DAY' }],
+  },
+  {
+    type: 'scriptBlock',
+    attrs: { elementType: 'action' },
+    content: [
+      {
+        type: 'text',
+        text: 'Add scenes in the Outline tab to pre-populate scene headings here.',
+      },
+    ],
+  },
+]
+
+export const TITLE_PAGE_ELEMENT_TYPES = new Set(['title', 'author', 'contact'])
+
+/** Body content (scene-derived or fallback) with the title page prepended, for seeding a brand-new doc. */
+function buildSeedDoc(
+  projectScenes: ProjectScene[],
+  titlePageBlocks: Record<string, unknown>[],
+): Record<string, unknown> {
+  const bodyBlocks = projectScenes.length
+    ? ((buildDocFromScenes(projectScenes).content as Record<string, unknown>[]) ?? [])
+    : FALLBACK_BODY_BLOCKS
+  return { type: 'doc', content: [...titlePageBlocks, ...bodyBlocks] }
+}
+
+function scriptBlockElementType(block: unknown): string {
+  return (block as { attrs?: { elementType?: string } })?.attrs?.elementType ?? ''
+}
+
+function scriptBlockText(block: unknown): string {
+  const content = (block as { content?: Array<{ text?: string }> })?.content
+  if (!Array.isArray(content)) return ''
+  return content.map((node) => node?.text ?? '').join('')
+}
+
+/**
+ * True when `doc`'s body (everything but the title/author/contact blocks) is still exactly the
+ * untouched no-scenes fallback — i.e. nothing the user or a scene-derived seed ever wrote. Compares
+ * only element type + text, not the full node (scriptBlock also carries `versions`/`activeVersionId`
+ * attrs that Tiptap fills with schema defaults on `setContent`, so a full deep-equal against the
+ * plain seed literal never matches the editor's actual `getJSON()` output). Safe to replace because
+ * real typed content (a real scene heading, dialogue, etc.) can never match this exact text.
+ */
+function isUntouchedFallbackBody(doc: unknown): boolean {
+  const content = (doc as { content?: unknown[] } | null)?.content
+  if (!Array.isArray(content)) return false
+  const body = content
+    .filter((block) => !TITLE_PAGE_ELEMENT_TYPES.has(scriptBlockElementType(block)))
+    .map((block) => ({ elementType: scriptBlockElementType(block), text: scriptBlockText(block) }))
+  const fallback = FALLBACK_BODY_BLOCKS.map((block) => ({
+    elementType: scriptBlockElementType(block),
+    text: scriptBlockText(block),
+  }))
+  return JSON.stringify(body) === JSON.stringify(fallback)
+}
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface WritualEditorProps {
@@ -216,9 +359,12 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
   }) as { data: any; isLoading: boolean }
 
   const project = (scenesData as any)?.getProjectData?.[0]
+  const projectTitle: string | null = project?.title ?? null
   const projectScenes: ProjectScene[] = project?.scenes ?? []
   const savedScreenplayContent = project?.screenplay?.versions?.[0]?.content ?? null
+  const savedScreenplayLayout = (project?.screenplay?.layout ?? null) as ScreenplayLayoutConfig | null
   const outlineName = project?.outlineName?.trim() ?? null
+  const writingTracker = project?.writingTracker ?? null
 
   const { data: frameworksData } = useQuery({
     queryKey: ['outline-frameworks', user, projectId],
@@ -265,9 +411,12 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
     <CollabGate
       projectId={projectId}
       canEdit={canEdit}
+      projectTitle={projectTitle}
       projectScenes={projectScenes}
       savedScreenplayContent={savedScreenplayContent}
+      savedScreenplayLayout={savedScreenplayLayout}
       sceneCardSteps={sceneCardSteps}
+      writingTracker={writingTracker}
     />
   )
 }
@@ -277,17 +426,23 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
 interface CollabGateProps {
   projectId?: string
   canEdit: boolean
+  projectTitle: string | null
   projectScenes: ProjectScene[]
   savedScreenplayContent: unknown
+  savedScreenplayLayout: ScreenplayLayoutConfig | null
   sceneCardSteps: SceneCardStepOption[]
+  writingTracker: { enabled?: boolean } | null | undefined
 }
 
 function CollabGate({
   projectId,
   canEdit,
+  projectTitle,
   projectScenes,
   savedScreenplayContent,
+  savedScreenplayLayout,
   sceneCardSteps,
+  writingTracker,
 }: CollabGateProps) {
   const { ydoc, provider, failed } = useCollaboration(projectId)
 
@@ -304,9 +459,12 @@ function CollabGate({
       key={`${projectId}-${failed ? 'solo' : 'collab'}`}
       projectId={projectId}
       canEdit={canEdit}
+      projectTitle={projectTitle}
       projectScenes={projectScenes}
       savedScreenplayContent={savedScreenplayContent}
+      savedScreenplayLayout={savedScreenplayLayout}
       sceneCardSteps={sceneCardSteps}
+      writingTracker={writingTracker}
       ydoc={failed ? null : ydoc}
       provider={failed ? null : provider}
     />
@@ -318,9 +476,12 @@ function CollabGate({
 interface ScreenplayEditorCoreProps {
   projectId?: string
   canEdit: boolean
+  projectTitle: string | null
   projectScenes: ProjectScene[]
   savedScreenplayContent: unknown
+  savedScreenplayLayout: ScreenplayLayoutConfig | null
   sceneCardSteps: SceneCardStepOption[]
+  writingTracker: { enabled?: boolean } | null | undefined
   ydoc: Y.Doc | null
   provider: HocuspocusProvider | null
 }
@@ -328,9 +489,12 @@ interface ScreenplayEditorCoreProps {
 function ScreenplayEditorCore({
   projectId,
   canEdit,
+  projectTitle,
   projectScenes,
   savedScreenplayContent,
+  savedScreenplayLayout,
   sceneCardSteps,
+  writingTracker,
   ydoc,
   provider,
 }: ScreenplayEditorCoreProps) {
@@ -338,7 +502,13 @@ function ScreenplayEditorCore({
   /** Wide list vs. narrow strip (scene INT/EXT chips or character initials). */
   const [sidePanelExpanded, setSidePanelExpanded] = React.useState(true)
   /** Which side panel list is shown when the navigator is open. */
-  const [sidePanelTab, setSidePanelTab] = React.useState<'scenes' | 'characters'>('scenes')
+  const [sidePanelTab, setSidePanelTab] = React.useState<ScreenplaySidePanelTab>('characters')
+  const handleSidePanelTabChange = React.useCallback((tab: ScreenplaySidePanelTab) => {
+    setSidePanelTab(tab)
+    if (tab === 'stats' || tab === 'inspiration') {
+      setSidePanelExpanded(true)
+    }
+  }, [])
   const [characterCardExpandedId, setCharacterCardExpandedId] = React.useState<number | undefined>(
     undefined,
   )
@@ -358,6 +528,31 @@ function ScreenplayEditorCore({
   const zoomRef = React.useRef(zoom)
   zoomRef.current = zoom
 
+  useSyncWritingTrackerPageCount({
+    pageRef,
+    projectId,
+    trackerEnabled: writingTracker?.enabled === true,
+    canEdit,
+  })
+
+  const estimateAutosavePaginationPages = React.useCallback((): number | null => {
+    const root = pageRef.current
+    if (!root) return null
+    return readScreenplayPaginationTotalPages(root)
+  }, [])
+
+  /**
+   * Apply per-document layout overrides (from an imported PDF's measured geometry) as inline CSS
+   * custom properties on the `.screenplay-page` element. Page width and right margin are never
+   * changed (always 8.5×11" with a fixed 1.0" WGA right margin); only element indents and
+   * centered-column right pads shift. Absent config ⇒ defaults. PageBreakPlugin re-paginates from
+   * the DOM after the wrapping changes.
+   */
+  const layoutConfig = React.useMemo(
+    () => clampLayoutConfig(savedScreenplayLayout),
+    [savedScreenplayLayout],
+  )
+
   const applyStageDimensions = React.useCallback(() => {
     // <PROTECTED>
     const stage = stageRef.current
@@ -373,10 +568,12 @@ function ScreenplayEditorCore({
     applyStageDimensions()
   }, [zoom, applyStageDimensions])
 
-  /** Calculate the zoom factor that fits exactly one paper height into the workspace. */
+  /** Calculate the zoom factor that fits one canonical page into the workspace, filling edge-to-edge. */
   const calcAutoFitZoom = React.useCallback((workspaceEl: HTMLElement): number => {
     // <PROTECTED>
-    const availableHeight = workspaceEl.clientHeight - 40
+    // No reserved top/bottom bleed anymore (screenplayWorkspace.css no longer pads the scroll
+    // inner) — the page fits the full workspace height, flush at both scroll extremes.
+    const availableHeight = workspaceEl.clientHeight
     const availableWidth =
       workspaceEl.clientWidth -
       SCREENPLAY_SCROLL_GUTTER_LEFT_PX -
@@ -385,9 +582,7 @@ function ScreenplayEditorCore({
       availableHeight / SCREENPLAY_PAPER_HEIGHT_PX,
       availableWidth / SCREENPLAY_PAPER_WIDTH_PX,
     )
-    // Cap at SCREENPLAY_DISPLAY_SCALE so auto-fit never makes the page larger than 709 × 917 px.
-    // On viewports too small for that size, the viewport-fit constraint still shrinks further.
-    return Math.min(SCREENPLAY_DISPLAY_SCALE, Math.max(SCREENPLAY_ZOOM_MIN, targetScale))
+    return Math.min(SCREENPLAY_ZOOM_MAX, Math.max(SCREENPLAY_ZOOM_MIN, targetScale))
     // </PROTECTED>
   }, [])
 
@@ -400,7 +595,7 @@ function ScreenplayEditorCore({
     setZoom(fitted)
     isAutoZoomedRef.current = true
     setIsAutoZoomed(true)
-    if (fitted < SCREENPLAY_DISPLAY_SCALE - 0.001) {
+    if (fitted <= SCREENPLAY_ZOOM_MIN + 0.001) {
       setAutoZoomSnackbarOpen(true)
     }
     // </PROTECTED>
@@ -471,7 +666,16 @@ function ScreenplayEditorCore({
   const seededRef = React.useRef(false)
 
   const user = useUserProfileStore((s) => s.userProfile?.user)
+  const userDisplayName = useUserProfileStore((s) => s.userProfile?.displayName)
+  const userName = useUserProfileStore((s) => s.userProfile?.name)
+  const userEmail = useUserProfileStore((s) => s.userProfile?.email)
   const queryClient = useQueryClient()
+
+  /** Title/author/contact blocks to prepend when seeding a brand-new (never-saved) screenplay doc. */
+  const titlePageBlocks = React.useMemo(
+    () => buildTitlePageBlocks(projectTitle, userDisplayName, userName, userEmail),
+    [projectTitle, userDisplayName, userName, userEmail],
+  )
 
   const { data: charactersData } = useQuery({
     queryKey: ['project-characters', projectId],
@@ -558,6 +762,40 @@ function ScreenplayEditorCore({
     editable: canEdit,
   })
 
+  /**
+   * Apply per-document layout overrides (from an imported PDF's measured geometry) as inline CSS
+   * custom properties on the `.screenplay-page` element. Page width is never changed (8.5×11 stays
+   * exact); only the right margin, element indents, and centered-column right pads shift. Absent
+   * config ⇒ defaults. PageBreakPlugin re-paginates from the DOM after the wrapping changes.
+   *
+   * Depends on `editor`, not just `layoutConfig`: with `immediatelyRender: false`, `editor` is null
+   * on the first render (Tiptap not yet initialized), so the component returns `null` below before
+   * ever attaching `pageRef` — this effect would otherwise only ever see `pageRef.current === null`
+   * and silently no-op forever, since `layoutConfig` itself doesn't change once `editor` becomes
+   * ready a render later.
+   */
+  React.useEffect(() => {
+    const page = pageRef.current
+    if (!page) return
+    applyLayoutConfigToPage(page, layoutConfig)
+    return () => {
+      resetLayoutConfigOnPage(page)
+    }
+  }, [layoutConfig, editor])
+
+  // ── Debug: log full editor document as JSON ──────────────────────────────
+  React.useEffect(() => {
+    if (!editor) return
+    const logJson = () => {
+      console.log('[ScreenplayEditor] doc JSON:', JSON.stringify(editor.getJSON(), null, 2))
+    }
+    logJson()
+    editor.on('update', logJson)
+    return () => {
+      editor.off('update', logJson)
+    }
+  }, [editor])
+
   // ── Sync editable state ──────────────────────────────────────────────────
   React.useEffect(() => {
     if (!editor) return
@@ -585,37 +823,22 @@ function ScreenplayEditorCore({
       seededRef.current = true
 
       if (editor.isEmpty) {
-        const legacyContent = savedScreenplayContent || (
-          projectScenes.length
-            ? buildDocFromScenes(projectScenes)
-            : {
-                type: 'doc',
-                content: [
-                  {
-                    type: 'scriptBlock',
-                    attrs: { elementType: 'slugline' },
-                    content: [{ type: 'text', text: 'INT. YOUR SCENE - DAY' }],
-                  },
-                  {
-                    type: 'scriptBlock',
-                    attrs: { elementType: 'action' },
-                    content: [
-                      {
-                        type: 'text',
-                        text: 'Add scenes in the Outline tab to pre-populate scene headings here.',
-                      },
-                    ],
-                  },
-                ],
-              }
-        )
+        const legacyContent = savedScreenplayContent || buildSeedDoc(projectScenes, titlePageBlocks)
         editor.commands.setContent(legacyContent)
+      } else if (
+        !savedScreenplayContent &&
+        projectScenes.length > 0 &&
+        isUntouchedFallbackBody(editor.getJSON())
+      ) {
+        // A prior visit seeded the no-scenes fallback before this project had any outline scenes.
+        // Nothing has been typed since (body still matches the fallback exactly) — safe to re-seed.
+        editor.commands.setContent(buildSeedDoc(projectScenes, titlePageBlocks))
       }
     }
 
     provider.on('synced', handleSynced)
     return () => { provider.off('synced', handleSynced) }
-  }, [editor, provider, collabActive, savedScreenplayContent, projectScenes])
+  }, [editor, provider, collabActive, savedScreenplayContent, projectScenes, titlePageBlocks])
 
   // ── Non-collab seeding (standalone mode) ─────────────────────────────────
   React.useEffect(() => {
@@ -623,42 +846,34 @@ function ScreenplayEditorCore({
     seededRef.current = true
 
     if (savedScreenplayContent) {
-      queueMicrotask(() => editor.commands.setContent(savedScreenplayContent))
+      // Self-heal: if a prior visit saved only the untouched no-scenes fallback and this project now
+      // has outline scenes, re-seed from them instead of reloading the stale placeholder.
+      const content =
+        projectScenes.length > 0 && isUntouchedFallbackBody(savedScreenplayContent)
+          ? buildSeedDoc(projectScenes, titlePageBlocks)
+          : savedScreenplayContent
+      queueMicrotask(() => editor.commands.setContent(content))
       return
     }
 
-    const doc = projectScenes.length
-      ? buildDocFromScenes(projectScenes)
-      : {
-          type: 'doc',
-          content: [
-            {
-              type: 'scriptBlock',
-              attrs: { elementType: 'slugline' },
-              content: [{ type: 'text', text: 'INT. YOUR SCENE - DAY' }],
-            },
-            {
-              type: 'scriptBlock',
-              attrs: { elementType: 'action' },
-              content: [
-                {
-                  type: 'text',
-                  text: 'Add scenes in the Outline tab to pre-populate scene headings here.',
-                },
-              ],
-            },
-          ],
-        }
+    const doc = buildSeedDoc(projectScenes, titlePageBlocks)
 
     queueMicrotask(() => editor.commands.setContent(doc))
-  }, [editor, projectScenes, savedScreenplayContent, collabActive])
+  }, [editor, projectScenes, savedScreenplayContent, collabActive, titlePageBlocks])
 
   // ── Autosave (disabled when collab is active) ────────────────────────────
   useAutosave(editor, projectId, {
     enabled: canEdit && !collabActive,
     onPending: () => setPending(true),
     onSaveStart: startSaving,
-    onSaveEnd: endSaving,
+    onSaveEnd: (success) => {
+      endSaving(success)
+      if (success && projectId) {
+        void queryClient.invalidateQueries({ queryKey: ['project', projectId] })
+        void queryClient.invalidateQueries({ queryKey: [PROJECT_SCENES_QUERY_KEY, projectId] })
+      }
+    },
+    estimatePageCount: estimateAutosavePaginationPages,
   })
 
   // ── Sync active element type on selection/content change ─────────────────
@@ -688,6 +903,7 @@ function ScreenplayEditorCore({
     setHeaderChrome({
       // <PROTECTED>
       zoom,
+      isAutoZoomed,
       collabActive,
       handlers: editor
         ? {
@@ -706,9 +922,11 @@ function ScreenplayEditorCore({
               )
             },
             zoomReset: () => {
-              isAutoZoomedRef.current = false
-              setIsAutoZoomed(false)
-              setZoom(SCREENPLAY_DISPLAY_SCALE)
+              const workspaceEl = workspaceRef.current
+              if (!workspaceEl) return
+              isAutoZoomedRef.current = true
+              setIsAutoZoomed(true)
+              setZoom(calcAutoFitZoom(workspaceEl))
             },
             print: () => void printScreenplayHidden(editor),
           }
@@ -716,14 +934,24 @@ function ScreenplayEditorCore({
       // </PROTECTED>
     })
     return () => {
-      setHeaderChrome({ handlers: null, collabActive: false, zoom: 1 })
+      setHeaderChrome({ handlers: null, collabActive: false, zoom: 1, isAutoZoomed: false })
     }
-  }, [zoom, collabActive, editor, setHeaderChrome])
+  }, [zoom, isAutoZoomed, collabActive, editor, setHeaderChrome, calcAutoFitZoom])
 
   // ── Derived ──────────────────────────────────────────────────────────────
-  const navigatorSplitProportions = navigatorOpen && sidePanelExpanded
-  /** When list is off or only the narrow strip: center the screenplay column; expanded list hugs the right. */
-  const centerEditorColumn = !navigatorOpen || (navigatorOpen && !sidePanelExpanded)
+  const sidePanelUsesFixedWidth =
+    sidePanelTab === 'stats' || sidePanelTab === 'inspiration'
+  /** True only when the open side panel actually renders content that should reserve row width. */
+  const sidePanelHasContent =
+    navigatorOpen &&
+    sidePanelExpanded &&
+    (sidePanelUsesFixedWidth ||
+      (sidePanelTab === 'characters' && (projectCharacters?.length ?? 0) > 0) ||
+      (sidePanelTab === 'scenes' && (projectScenes?.length ?? 0) > 0))
+  /** Char/scene list with content shares the row 50/50; everything else does not split. */
+  const navigatorSplitProportions = sidePanelHasContent && !sidePanelUsesFixedWidth
+  /** Editor is centered in every state except the char/scene 50/50 split (never left-pinned). */
+  const centerEditorColumn = !navigatorSplitProportions
 
   /** Toolbar + scaled paper + gutter + lateral rim shadow must fit workspace width (`flex: 1`), or horizontal overflow clips the right halo. */
   const screenplayToolbarPaperRowMinWidthPx =
@@ -732,10 +960,19 @@ function ScreenplayEditorCore({
     SCREENPLAY_WORKSPACE_SCROLL_INNER_PAD_RIGHT_PX +
     SCREENPLAY_STAGE_RIM_HORIZONTAL_OUTSET_PX
 
+  /**
+   * Cap the toolbar + workspace row at exactly one page's on-screen height, so a fully-scrolled
+   * page's top/bottom line up with the toolbar's top/bottom instead of the row stretching to fill
+   * the whole viewport (which reveals a sliver of the next page below a full one on tall screens).
+   * On short viewports this cap is moot — `minHeight: 0` on the row still lets it shrink further.
+   */
+  const screenplayToolbarPaperRowMaxHeightPx = Math.ceil(SCREENPLAY_PAPER_HEIGHT_PX * zoom)
+
   if (!editor) return null
 
   return (
     <Box
+      className="writual-editor-root"
       sx={{
         // <PROTECTED>
         display: 'flex',
@@ -754,6 +991,7 @@ function ScreenplayEditorCore({
 
       {/* ── BODY: side tabs + side panel + editor; moved up 10px vs previous pt(5) ─ */}
       <Box
+        className="writual-editor-body"
         sx={{
           display: 'flex',
           flex: 1,
@@ -761,8 +999,7 @@ function ScreenplayEditorCore({
           overflow: 'hidden',
           alignItems: 'stretch',
           justifyContent: 'flex-start',
-          pt: 1,
-          pb: 1
+          bgcolor: 'background.default',
         }}
       >
 
@@ -771,7 +1008,7 @@ function ScreenplayEditorCore({
           <ScreenplaySidePanel
             navigatorSplitProportions={navigatorSplitProportions}
             sidePanelTab={sidePanelTab}
-            onTabChange={setSidePanelTab}
+            onTabChange={handleSidePanelTabChange}
             sidePanelExpanded={sidePanelExpanded}
             onExpandedChange={setSidePanelExpanded}
             characterCardExpandedId={characterCardExpandedId}
@@ -788,11 +1025,21 @@ function ScreenplayEditorCore({
 
         {/* Fills remaining row width when centering; marginLeft auto keeps editor right when list expanded */}
         <Box
+          className={
+            centerEditorColumn
+              ? 'screenplay-editor-col screenplay-editor-col--centered'
+              : 'screenplay-editor-col'
+          }
           sx={{
             display: 'flex',
+            flex: '1 1 0%',
+            minWidth: 0,
+            minHeight: 0,
+            overflow: 'hidden',
+            alignSelf: 'stretch',
             ...(centerEditorColumn
-              ? { flex: '1 1 0%', minWidth: 0, justifyContent: 'center' }
-              : { flex: '0 0 auto', marginLeft: 'auto' }),
+              ? { justifyContent: 'center' }
+              : { marginLeft: 'auto' }),
           }}
         >
         {/* ── SCREENPLAY: column with optional show-side-panel row; vertical toolbar attached left of page ─ */}
@@ -802,7 +1049,7 @@ function ScreenplayEditorCore({
             width: "max-content",
             minHeight: 0,
             /* clip keeps horizontal bleed contained; reserve right inset so lateral box-shadow survives */
-            overflowX: 'clip',
+            overflowX: 'visible',
             overflowY: 'visible',
             display: 'flex',
             flexDirection: 'column',
@@ -819,9 +1066,7 @@ function ScreenplayEditorCore({
           <Box
             sx={{
               // <PROTECTED>
-              //flex: 1,
               minHeight: "100%",
-              //minWidth: SCREENPLAY_EDITOR_COLUMN_WIDTH_PX,
               alignSelf: centerEditorColumn ? 'center' : 'flex-end',
               display: 'flex',
               flexDirection: 'column',
@@ -831,6 +1076,8 @@ function ScreenplayEditorCore({
               
             }}
           >
+            {/* Only rendered when there's something to show — an empty row would still reserve
+                its mb + button height, reintroducing a gap above the toolbar/page row below. */}
             {!navigatorOpen && (
               <Box
                 sx={{
@@ -842,9 +1089,10 @@ function ScreenplayEditorCore({
                   minWidth: 0,
                   display: 'flex',
                   justifyContent: 'flex-end',
+                  gap: 0.5,
                 }}
               >
-                <Tooltip title="Show side panel (scenes & characters)">
+                <Tooltip title="Show side panel (characters, scenes, inspiration, stats)">
                   <IconButton
                     size="small"
                     onClick={() => setNavigatorOpen(true)}
@@ -857,9 +1105,11 @@ function ScreenplayEditorCore({
             )}
             {/* Flex row: vertical toolbar (non-scrolling) + scroll workspace */}
             {/* <PROTECTED> */}
-            <Box sx={{ 
+            <Box sx={{
               width: `${screenplayToolbarPaperRowMinWidthPx}px`,
-              minHeight: "100%",
+              height: '100%',
+              maxHeight: `${screenplayToolbarPaperRowMaxHeightPx}px`,
+              minHeight: 0,
               display: 'flex',
               flexDirection: 'row',
               alignItems: 'stretch',
@@ -928,6 +1178,7 @@ function ScreenplayEditorCore({
                         <EditorContent editor={editor} />
                         {/* </PROTECTED> */}
                         <BlockAltsToolbar editor={editor} canEdit={canEdit} userId={user} />
+                        <BlockTypeMenu editor={editor} canEdit={canEdit} />
                         {/* <PROTECTED> */}
                       </Box>
                     </Box>

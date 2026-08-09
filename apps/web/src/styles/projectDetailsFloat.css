@@ -1,0 +1,412 @@
+/* Project details float layout — shared chrome tokens + main column root */
+
+.project-details-page {
+  --app-chrome-row-height: 46px;
+  --project-float-radius: 12px;
+  --project-float-elevation-shadow:
+    0 3px 1px -2px rgba(0, 0, 0, 0.2), 0 2px 2px 0 rgba(0, 0, 0, 0.14),
+    0 1px 5px 0 rgba(0, 0, 0, 0.12);
+  /* Inset padding so elevation shadows are not clipped by overflow scroll parents */
+  --project-float-shadow-inset: 6px;
+  --project-float-gap: var(--app-body-padding);
+  --project-breadcrumb-row-height: var(--app-chrome-row-height);
+  --project-float-card-top: calc(
+    var(--project-breadcrumb-row-height) + var(--app-body-padding)
+  );
+  --project-float-card-left: var(--app-body-padding);
+  --project-float-stat-width: 280px;
+  --project-float-stat-min-height: 200px;
+  --project-float-tracking-stat-min-height: 272px;
+  --project-float-stat-gap: var(--app-body-padding);
+  --project-float-stat-surface-padding: 4px;
+  --project-float-stat-inner-padding: 5px;
+  --project-float-poster-aspect-ratio: 2 / 3;
+  --project-float-poster-content-height: calc(
+    var(--project-float-stat-min-height) - 2 * var(--project-float-stat-surface-padding) -
+      2 * var(--project-float-stat-inner-padding)
+  );
+  --project-float-poster-content-width: calc(
+    var(--project-float-poster-content-height) * 2 / 3
+  );
+  --project-float-poster-card-width: calc(
+    var(--project-float-poster-content-width) + 2 * var(--project-float-stat-surface-padding) +
+      2 * var(--project-float-stat-inner-padding)
+  );
+  --project-float-project-tiles-width: calc(
+    var(--project-float-poster-card-width) + var(--project-float-stat-gap) +
+      var(--project-float-stat-width)
+  );
+  --project-float-hero-width: var(--project-float-project-tiles-width);
+  --z-index-breadcrumbs: 20;
+  --z-index-project-card: 10;
+  --z-index-project-stats: 9;
+  --project-float-card-reserved-height: var(--project-float-stat-min-height);
+  --project-content-inset-top: calc(
+    var(--project-float-card-top) + var(--project-float-card-reserved-height) +
+      var(--app-body-padding)
+  );
+  --project-content-inset-left: calc(var(--project-float-hero-width) + var(--app-body-padding));
+  /* Sticky stats block: top pad + stat row + visual gap before character cards */
+  --project-float-sticky-stats-block-height: calc(
+    var(--project-float-stat-min-height) + 2 * var(--app-body-padding)
+  );
+  --project-characters-stats-cards-gap: var(--app-body-padding);
+  /* <PROTECTED> — character card dimensions; see .cursor/rules/character-card-dimensions.mdc */
+  --character-card-width: 305px;
+  --character-card-height: 390px;
+  --character-card-media-height: 240px;
+  /* </PROTECTED> */
+}
+
+.project-details-page {
+  display: flex;
+  flex-direction: row;
+  gap: var(--app-body-padding);
+  padding: var(--app-body-padding);
+  box-sizing: border-box;
+}
+
+/* Characters + tracking stats: in-flow hero; character grid sits below the last stat row */
+.project-details-float-root {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  padding-right: var(--app-body-padding);
+  padding-bottom: var(--app-body-padding);
+  box-sizing: border-box;
+}
+
+.project-details-float-root--with-stats-rail {
+  --project-content-inset-left: var(--app-body-padding);
+  --project-content-inset-top: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.project-details-float-scroll-host {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  container-type: size;
+  container-name: characters-scroll;
+}
+
+.project-float-sticky-stats-band {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--app-body-padding) var(--app-body-padding) 0;
+  box-sizing: border-box;
+}
+
+.project-float-sticky-stats-gap {
+  flex-shrink: 0;
+  width: 100%;
+  height: var(--project-characters-stats-cards-gap);
+  pointer-events: none;
+}
+
+.project-details-float-root--with-stats-rail .project-float-hero--fluid {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+}
+
+.project-characters-scroll-end-spacer {
+  flex-shrink: 0;
+  width: 100%;
+  height: max(0px, calc(100cqh - var(--character-card-height)));
+  pointer-events: none;
+}
+
+@supports not (height: 100cqh) {
+  .project-characters-scroll-end-spacer {
+    height: max(
+      0px,
+      calc(
+        100vh - var(--project-breadcrumb-row-height) - var(--project-float-sticky-stats-block-height) -
+          var(--project-characters-stats-cards-gap) - var(--character-card-height) -
+          2 * var(--app-body-padding)
+      )
+    );
+  }
+}
+
+.project-details-float-root--with-stats-rail .project-details-float-main {
+  flex: none;
+  min-height: 0;
+  overflow: visible;
+  position: relative;
+  z-index: 0;
+}
+
+.project-details-float-root--with-stats-rail .project-details-float-content {
+  flex: none;
+  overflow: visible;
+  padding: 0 var(--app-body-padding) 0;
+}
+
+/* Characters route: floating hero row; card grid scrolls underneath */
+.project-details-float-root--content-overlay {
+  --project-content-inset-left: var(--app-body-padding);
+  --project-content-inset-top: 0;
+}
+
+.project-details-float-root--content-overlay .project-details-float-main {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.project-details-float-root--content-overlay .project-details-float-content {
+  padding-left: var(--app-body-padding);
+  padding-right: var(--app-body-padding);
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.project-float-hero--with-stats {
+  flex-wrap: nowrap;
+  max-width: calc(100% - 2 * var(--app-body-padding));
+}
+
+.project-float-hero--with-stats .project-float-tracking-stat {
+  flex: 0 0 var(--project-float-stat-width);
+  width: var(--project-float-stat-width);
+  min-width: var(--project-float-stat-width);
+  max-width: var(--project-float-stat-width);
+}
+
+.project-float-surface {
+  border-radius: var(--project-float-radius);
+}
+
+.project-float-hero {
+  position: absolute;
+  top: var(--project-float-card-top);
+  left: var(--project-float-card-left);
+  z-index: var(--z-index-project-card);
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: var(--project-float-stat-gap);
+  max-width: calc(100% - 2 * var(--app-body-padding));
+}
+
+.project-float-hero--fluid {
+  position: relative;
+  top: auto;
+  left: auto;
+  flex-wrap: wrap;
+  align-items: stretch;
+  width: auto;
+  max-width: none;
+  margin: var(--app-body-padding);
+  box-sizing: border-box;
+}
+
+.project-float-hero--fluid .project-float-poster-anchor,
+.project-float-hero--fluid .project-float-info-anchor {
+  flex: 0 0 auto;
+  align-self: stretch;
+}
+
+/* Characters stats row: match poster/info height — avoid 272px rail stretch + centered poster image */
+.project-float-hero--fluid .project-float-tracking-stat.project-float-stat-anchor {
+  min-height: var(--project-float-stat-min-height);
+}
+
+.project-float-hero--fluid .project-float-poster-anchor {
+  min-height: auto;
+  height: auto;
+}
+
+.project-float-hero--fluid .project-float-poster-anchor > .MuiBox-root {
+  height: auto;
+  min-height: auto;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.project-float-tracking-stat {
+  flex: 1 1 var(--project-float-stat-width);
+  min-width: min(100%, var(--project-float-stat-width));
+  max-width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+}
+
+.project-float-tracking-stat.project-float-stat-anchor {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--project-float-tracking-stat-min-height);
+  height: auto;
+  overflow: visible;
+}
+
+.project-float-tracking-stat.project-float-stat-anchor > .MuiBox-root {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.project-float-poster-anchor {
+  position: relative;
+  top: auto;
+  left: auto;
+  flex-shrink: 0;
+  width: var(--project-float-poster-card-width);
+  max-width: var(--project-float-poster-card-width);
+  min-height: var(--project-float-stat-min-height);
+  overflow: hidden;
+}
+
+.project-float-info-anchor {
+  position: relative;
+  top: auto;
+  left: auto;
+  flex-shrink: 0;
+  width: var(--project-float-stat-width);
+  max-width: var(--project-float-stat-width);
+  min-height: var(--project-float-stat-min-height);
+  overflow: visible;
+}
+
+.project-float-poster-anchor > .MuiBox-root {
+  height: 100%;
+  min-height: calc(
+    var(--project-float-stat-min-height) - 2 * var(--project-float-stat-surface-padding)
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.project-float-poster-tile__image {
+  display: block;
+  width: var(--project-float-poster-content-width);
+  height: var(--project-float-poster-content-height);
+  max-width: 100%;
+  object-fit: cover;
+  border-radius: calc(var(--project-float-radius, 12px) - 2px);
+}
+
+.project-float-stat-anchor {
+  z-index: var(--z-index-project-stats);
+  width: var(--project-float-stat-width);
+  min-height: var(--project-float-stat-min-height);
+  overflow: visible;
+}
+
+.project-details-float-main {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.project-details-float-content {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+  padding-left: var(--project-content-inset-left);
+  padding-top: var(--project-content-inset-top);
+  padding-right: var(--app-body-padding);
+  box-sizing: border-box;
+}
+
+.project-details-float-content--bleed {
+  padding-left: 0;
+  padding-top: 0;
+}
+
+@media (max-width: 899.95px) {
+  .project-details-float-root {
+    --project-content-inset-left: var(--app-body-padding);
+  }
+
+  .project-float-hero,
+  .project-float-hero--fluid {
+    position: relative;
+    top: auto;
+    left: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    max-width: 100%;
+    margin: var(--app-body-padding);
+    margin-bottom: 0;
+  }
+
+  .project-details-float-root--with-stats-rail .project-float-hero--fluid {
+    margin: 0;
+  }
+
+  .project-float-poster-anchor,
+  .project-float-info-anchor {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .project-float-poster-tile__image {
+    width: auto;
+    max-width: 100%;
+    margin: 0 auto;
+  }
+
+  .project-float-tracking-stat {
+    flex: 1 1 min(100%, var(--project-float-stat-width));
+  }
+
+  .project-details-float-root--content-overlay .project-details-float-content {
+    padding-left: var(--app-body-padding);
+    padding-right: var(--app-body-padding);
+    padding-top: 0;
+  }
+
+  .project-float-hero--with-stats {
+    flex-wrap: wrap;
+    position: relative;
+    top: auto;
+    left: auto;
+    margin: var(--app-body-padding);
+    margin-bottom: 0;
+    max-width: 100%;
+  }
+
+  .project-float-hero--with-stats .project-float-tracking-stat {
+    flex: 1 1 min(100%, var(--project-float-stat-width));
+    width: auto;
+    min-width: min(100%, var(--project-float-stat-width));
+    max-width: 100%;
+  }
+
+  .project-details-float-content {
+    padding-left: var(--app-body-padding);
+    padding-top: var(--app-body-padding);
+  }
+
+  .project-details-float-content--bleed {
+    padding-left: 0;
+    padding-top: var(--app-body-padding);
+  }
+
+  .project-details-float-root--content-overlay .project-details-float-content {
+    padding-top: 0;
+  }
+}

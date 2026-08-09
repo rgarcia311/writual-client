@@ -235,7 +235,7 @@ export const CustomTableBody: React.FC<TableBodyProps> = (props: TableBodyProps)
 
                                                     {
                                                         cell.dataIndex === "progress"  && (
-                                                            <Progress characters={row.characters} scenes={row.scenes}  treatment={row.treatment}/>
+                                                            <Progress characters={row.characters} scenes={row.scenes}/>
                                                         )
                                                     }
                                                     

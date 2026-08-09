@@ -27,12 +27,6 @@ query GetProjectData($input: ProjectFilters) {
     }
     activeVersion
     lockedVersion
-    treatment {
-      lockedVersion
-      versions {
-        version
-      }
-    }
     screenplay {
       lockedVersion
       versions {
@@ -44,6 +38,14 @@ query GetProjectData($input: ProjectFilters) {
         name
       }
     }
+    writingTracker {
+      enabled
+      targetPageCount
+      currentPageCount
+      trackingStartDate
+      draftDueDates { draftNumber label dueDate tag }
+    }
+    progressTrackingEnabled
   }
 }
 `;
@@ -73,16 +75,11 @@ query GetProjectData($input: ProjectFilters) {
         }
         activeVersion
         lockedVersion
-        treatment {
-            lockedVersion
-            versions {
-                version
-            }
-        }
         screenplay {
             lockedVersion
             versions {
                 version
+                content
             }
         }
         characters {
@@ -127,6 +124,14 @@ query GetProjectData($input: ProjectFilters) {
           note
           links
         }
+        writingTracker {
+          enabled
+          targetPageCount
+          currentPageCount
+          trackingStartDate
+          draftDueDates { draftNumber label dueDate tag }
+        }
+        progressTrackingEnabled
     }
 }
 `;

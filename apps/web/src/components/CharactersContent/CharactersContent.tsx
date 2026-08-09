@@ -8,7 +8,6 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
-  Typography,
   Box,
 } from '@mui/material';
 import { ProjectDetailsLayout } from '@/components/ProjectDetailsLayout';
@@ -29,12 +28,15 @@ import { useUserProfileStore } from '@/state/user';
 import { useCreateCharacterModalStore } from '@/state/createCharacterModal';
 import { LOCK_ALL_CHARACTERS, UNLOCK_CHARACTERS_SECTION } from 'mutations/ProjectMutations';
 import { FeatureGate } from '@/components/Auth/FeatureGate';
+import '@/styles/charactersPage.css';
 
 const endpoint = GRAPHQL_ENDPOINT;
 
 interface CharactersContentProps {
   projectId: string;
 }
+
+const CHARACTERS_PAGE_STAT_KEYS = ['characters', 'glance'] as const;
 
 export function CharactersContent({ projectId }: CharactersContentProps) {
   const queryClient = useQueryClient();
@@ -44,6 +46,7 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
   const [errorOpen, setErrorOpen] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState('Failed to create character.');
   const [expandedCardId, setExpandedCardId] = React.useState<number | undefined>(undefined);
+  const [lockAllConfirmOpen, setLockAllConfirmOpen] = React.useState(false);
 
   const getCharacters = async () => {
     const userProfileState = await useUserProfileStore.getState();
@@ -52,26 +55,25 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
     return request(endpoint, PROJECT_CHARACTERS_QUERY, variables);
   };
 
-  const { data }: any = useQuery({
+  const { data } = useQuery({
     queryKey: ['project-characters', projectId],
     queryFn: () => getCharacters(),
     enabled: Boolean(projectId),
-  });
+  }) as { data?: { getProjectData?: Array<Record<string, unknown>> } };
 
   const project = data?.getProjectData?.[0];
-  const characters = project?.characters ?? [];
-  const charactersSectionLocked = project?.charactersSectionLocked ?? false;
-  const stats = project?.stats ?? {};
+  const characters = (project?.characters as Array<Record<string, unknown>> | undefined) ?? [];
+  const charactersSectionLocked = Boolean(project?.charactersSectionLocked);
   const totalCharacters = characters.length;
-  const lockedCharacters = characters.filter((c: any) => c.lockedVersion != null).length;
 
-  const [lockAllConfirmOpen, setLockAllConfirmOpen] = React.useState(false);
   const lockAllCharactersMutation = useMutation({
     mutationFn: () => request(endpoint, LOCK_ALL_CHARACTERS, { projectId }),
     onSuccess: async () => {
       setLockAllConfirmOpen(false);
       await queryClient.invalidateQueries({ queryKey: ['project-characters', projectId] });
       await queryClient.refetchQueries({ queryKey: ['project-characters', projectId] });
+      await queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+      await queryClient.invalidateQueries({ queryKey: ['project-tracking-stats', projectId] });
     },
   });
   const unlockCharactersMutation = useMutation({
@@ -79,6 +81,8 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['project-characters', projectId] });
       await queryClient.refetchQueries({ queryKey: ['project-characters', projectId] });
+      await queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+      await queryClient.invalidateQueries({ queryKey: ['project-tracking-stats', projectId] });
     },
   });
 
@@ -110,7 +114,7 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
     onSettled: () => {
       setPendingNewCharacter(false);
     },
-    onError: (err: any) => {
+    onError: (err: { message?: string }) => {
       setErrorMessage(err?.message || 'Failed to create character.');
       setErrorOpen(true);
     },
@@ -118,8 +122,8 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
 
   const updateCharacterLockMutation = useMutation({
     mutationFn: async ({ characterId, locked }: { characterId: string; locked: boolean }) => {
-      const character = characters.find((c: any) => c._id === characterId);
-      const activeVersion = character?.activeVersion ?? 1;
+      const character = characters.find((c) => c._id === characterId);
+      const activeVersion = (character?.activeVersion as number | undefined) ?? 1;
       return updateCharacterAction(characterId, {
         activeVersion,
         lockedVersion: locked ? activeVersion : null,
@@ -135,87 +139,103 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
     createCharacterMutation.mutate(values);
   };
 
+  const breadcrumbActions = (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+      {charactersSectionLocked ? (
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<LockOpenIcon />}
+          onClick={() => unlockCharactersMutation.mutate()}
+          disabled={unlockCharactersMutation.isPending}
+        >
+          Unlock
+        </Button>
+      ) : (
+        <>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<LockIcon />}
+            onClick={() => setLockAllConfirmOpen(true)}
+            disabled={lockAllCharactersMutation.isPending || totalCharacters === 0}
+          >
+            Lock All
+          </Button>
+          <FeatureGate minTier="indie">
+            <Button
+              variant="contained"
+              color="primary"
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => setCreateOpen(true)}
+            >
+              Create Character
+            </Button>
+          </FeatureGate>
+        </>
+      )}
+      <Dialog open={lockAllConfirmOpen} onClose={() => setLockAllConfirmOpen(false)}>
+        <DialogTitle>Lock all characters?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            This will lock every character at its current version and prevent adding or deleting
+            characters until you unlock the section. You can still edit existing character details.
+            Continue?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLockAllConfirmOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={() => lockAllCharactersMutation.mutate()}
+            disabled={lockAllCharactersMutation.isPending || totalCharacters === 0}
+          >
+            Lock All
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+
   return (
     <ProjectDetailsLayout
-      contentSx={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflowY: 'auto' }}
-      headerTitle="Characters"
-      headerLeftAdornment={
-        <Typography
-          variant="body2"
-          color="text.secondary"
-          sx={{ ml: 1, alignSelf: 'flex-end', lineHeight: 1.2 }}
-        >
-          {lockedCharacters} locked / {totalCharacters} total
-        </Typography>
-      }
-      headerAction={
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {charactersSectionLocked ? (
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<LockOpenIcon />}
-              onClick={() => unlockCharactersMutation.mutate()}
-              disabled={unlockCharactersMutation.isPending}
-            >
-              Unlock
-            </Button>
-          ) : (
-            <>
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<LockIcon />}
-                onClick={() => setLockAllConfirmOpen(true)}
-                disabled={lockAllCharactersMutation.isPending || totalCharacters === 0}
-              >
-                Lock All
-              </Button>
-              <FeatureGate minTier="indie">
-                <Button
-                  variant="contained"
-                  color="primary"
-                  size="small"
-                  startIcon={<AddIcon />}
-                  onClick={() => setCreateOpen(true)}
-                >
-                  Create Character
-                </Button>
-              </FeatureGate>
-            </>
-          )}
-          <Dialog open={lockAllConfirmOpen} onClose={() => setLockAllConfirmOpen(false)}>
-            <DialogTitle>Lock all characters?</DialogTitle>
-            <DialogContent>
-              <DialogContentText>
-                This will lock every character at its current version and prevent adding or deleting characters until you unlock the section. You can still edit existing character details. Continue?
-              </DialogContentText>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setLockAllConfirmOpen(false)}>Cancel</Button>
-              <Button
-                variant="contained"
-                onClick={() => lockAllCharactersMutation.mutate()}
-                disabled={lockAllCharactersMutation.isPending || totalCharacters === 0}
-              >
-                Lock All
-              </Button>
-            </DialogActions>
-          </Dialog>
-        </Box>
-      }
+      showFloatStatsRail
+      floatStatsRailKeys={[...CHARACTERS_PAGE_STAT_KEYS]}
+      breadcrumbRightAdornment={breadcrumbActions}
+      contentSx={{ display: 'flex', flexDirection: 'column', flex: 'none', minHeight: 0, overflow: 'visible', pl: 0, pt: 0 }}
     >
-      <ScrollableContentArea>
-        {pendingNewCharacter && <CharacterCardSkeleton />}
-        {characters.map((character: any, index: number) => {
+      <ScrollableContentArea
+        className="characters-page-cards"
+        sx={{
+          display: 'grid',
+          flex: 'none',
+          minHeight: 0,
+          height: 'auto',
+          maxHeight: 'none',
+          width: '100%',
+          p: 0,
+          paddingTop: 0,
+          overflow: 'visible',
+          overflowY: 'visible',
+          justifyContent: 'space-between',
+          alignContent: 'flex-start',
+          columnGap: 0,
+          rowGap: 'var(--project-float-stat-gap, var(--app-body-padding, 8px))',
+        }}
+      >
+        {pendingNewCharacter && <CharacterCardSkeleton gridTile />}
+        {characters.map((character, index) => {
           const cardId = index + 1;
+          const details = character.details as Array<Record<string, unknown>> | undefined;
           return (
             <CharacterCard
-              imageUrl={character.imageUrl}
-              key={character._id ?? `character-${index}`}
+              gridTile
+              imageUrl={character.imageUrl as string | undefined}
+              key={(character._id as string) ?? `character-${index}`}
               id={cardId}
-              name={character.name}
-              details={character.details}
+              name={character.name as string}
+              details={details}
               expanded={expandedCardId === cardId}
               onExpandClick={() =>
                 setExpandedCardId((prev) => (prev === cardId ? undefined : cardId))
@@ -223,7 +243,7 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
               locked={character.lockedVersion != null}
               onToggleLock={() =>
                 updateCharacterLockMutation.mutate({
-                  characterId: character._id,
+                  characterId: character._id as string,
                   locked: character.lockedVersion == null,
                 })
               }

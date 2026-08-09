@@ -12,21 +12,25 @@ interface UseAutosaveOptions {
   onPending?: () => void;
   onSaveStart?: () => void;
   onSaveEnd?: (success: boolean) => void;
+  /** When set (and finite), persisted with save for writing-tracker page totals. */
+  estimatePageCount?: () => number | null;
 }
 
 export function useAutosave(
   editor: Editor | null,
   projectId: string | undefined,
-  { enabled = true, onPending, onSaveStart, onSaveEnd }: UseAutosaveOptions = {},
+  { enabled = true, onPending, onSaveStart, onSaveEnd, estimatePageCount }: UseAutosaveOptions = {},
 ) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Keep callbacks in a ref so the effect doesn't re-register on every render
   const onPendingRef = useRef(onPending);
   const onSaveStartRef = useRef(onSaveStart);
   const onSaveEndRef = useRef(onSaveEnd);
+  const estimatePageCountRef = useRef(estimatePageCount);
   useEffect(() => { onPendingRef.current = onPending; }, [onPending]);
   useEffect(() => { onSaveStartRef.current = onSaveStart; }, [onSaveStart]);
   useEffect(() => { onSaveEndRef.current = onSaveEnd; }, [onSaveEnd]);
+  useEffect(() => { estimatePageCountRef.current = estimatePageCount; }, [estimatePageCount]);
 
   useEffect(() => {
     if (!editor || !projectId || !enabled) return;
@@ -36,9 +40,18 @@ export function useAutosave(
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(async () => {
         const content = editor.getJSON();
+        const rawEstimate = estimatePageCountRef.current?.() ?? null;
+        const rounded =
+          rawEstimate != null && Number.isFinite(rawEstimate)
+            ? Math.round(Number(rawEstimate))
+            : null;
         onSaveStartRef.current?.();
         try {
-          await authRequest(SAVE_SCREENPLAY, { projectId, content });
+          await authRequest(SAVE_SCREENPLAY, {
+            projectId,
+            content,
+            ...(rounded != null ? { estimatedPageCount: rounded } : {}),
+          });
           onSaveEndRef.current?.(true);
         } catch (e) {
           console.error('[useAutosave] save failed', e);

@@ -1,30 +1,18 @@
 'use client'
 
 import * as React from 'react'
-import { ProjectDetailsLayout } from '@/components/ProjectDetailsLayout'
 import { WritualEditor } from '@/components/ScreenplayEditor'
+import { ScreenplayShell } from '@/components/ScreenplayEditor/ScreenplayShell'
 import { ScreenplayHeaderChrome } from '@/components/ScreenplayEditor/ScreenplayHeaderChrome'
+import '@/styles/screenplayWorkspace.css'
 import { FeatureGate } from '@/components/Auth/FeatureGate'
 
 export function ScreenplayView({ projectId }: { projectId: string }) {
   return (
-    <ProjectDetailsLayout
-      accordionAdornment={<ScreenplayHeaderChrome />}
-      contentSx={{
-        // <PROTECTED>
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: 0,
-        p: 0,
-        pt: 0,
-        paddingTop: '0 !important',
-        overflow: 'hidden',
-        // </PROTECTED>
-      }}
-    >
+    <ScreenplayShell breadcrumbRightAdornment={<ScreenplayHeaderChrome />}>
       <FeatureGate minTier="spec" variant="page">
         <WritualEditor projectId={projectId} />
       </FeatureGate>
-    </ProjectDetailsLayout>
+    </ScreenplayShell>
   )
 }

@@ -1,16 +1,36 @@
 import type { ScreenplayElementType } from '@/components/ScreenplayEditor/ScreenplayExtension'
+import {
+  classifyElementTypeRelative,
+  clearAfterMore,
+  expandDualDialoguePageRows,
+  findBaseX,
+  isContdArtifact,
+  isMoreArtifact,
+  isPageNumberArtifact,
+  mergeScriptBlockText,
+  PAGE_NUMBER_RE,
+  rowToLineGroup,
+  SCENE_HEADING_RE,
+  shouldMergeElementTypes,
+  shouldSkipContdCharacterCue,
+  shouldSkipPaginationLine,
+  stripPaginationMarkerText,
+  type PaginationSkipState,
+  type ParseLineGroup,
+} from './parseScreenplayPdfUtils'
+import {
+  inferLayoutFromPdfMeasurements,
+  median,
+  type ScreenplayLayoutConfig,
+  type ScreenplayPdfMeasurements,
+} from './screenplayLayout'
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20 MB
+
 interface TextItem {
   str: string
   transform: number[] // [scaleX, skewX, skewY, scaleY, x, y]
-}
-
-interface LineGroup {
-  x: number
-  y: number
-  text: string
-  pageNum: number
+  width?: number
 }
 
 interface ScriptBlockNode {
@@ -19,60 +39,16 @@ interface ScriptBlockNode {
   content: Array<{ type: 'text'; text: string }>
 }
 
-// ─── Scene heading patterns ──────────────────────────────────────────────────
-
-const SCENE_HEADING_RE =
-  /^(INT\.|EXT\.|INT\.?\s*\/\s*EXT\.|I\/E\.?)\s+/i
-
-const TRANSITION_RE =
-  /^(FADE\s+(IN|OUT|TO\s+BLACK)|CUT\s+TO|SMASH\s+CUT\s+TO|MATCH\s+CUT\s+TO|DISSOLVE\s+TO|WIPE\s+TO|JUMP\s+CUT\s+TO|IRIS\s+IN|IRIS\s+OUT|INTERCUT|FADE\s+TO):?\s*\.?$/i
-
-const TRANSITION_SUFFIX_RE = /\s+TO:$/
-
-const PAGE_NUMBER_RE = /^\d{1,4}\.?$/
-
-const CONT_RE = /\(CONT['']D\)/i
-
-// ─── Margin thresholds (in PDF points, 72pt = 1 inch) ──────────────────────
-
-const MARGIN_TRANSITION_MIN = 380
-const MARGIN_CHARACTER_MIN = 230
-const MARGIN_CHARACTER_MAX = 310
-const MARGIN_PAREN_MIN = 185
-const MARGIN_PAREN_MAX = 260
-const MARGIN_DIALOGUE_MIN = 155
-const MARGIN_DIALOGUE_MAX = 265
-const MARGIN_ACTION_MAX = 160
-
-/**
- * Max vertical distance (PDF user space, Y bottom-up) between consecutive
- * baselines of the same block type to merge into one scriptBlock (action /
- * dialogue / parenthetical). Above this → start a new block (paragraph break
- * or skipped blank row in the PDF).
- */
-const PDF_LINE_MERGE_MAX_DELTA_Y = 18
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-/**
- * Text runs on one PDF line are separate items; joining with `''` smashes words ("CA" + "Written").
- * Sort left-to-right, join with spaces, normalize whitespace.
- */
-function joinTextRunsToLine(
-  rowItems: Array<{ x: number; str: string }>,
-): string {
-  if (rowItems.length === 0) return ''
-  const sorted = [...rowItems].sort((a, b) => a.x - b.x)
-  return sorted
-    .map((it) => it.str)
-    .join(' ')
-    .replace(/[ \t]+/g, ' ')
-    .trim()
-}
-
-function isAllCaps(text: string): boolean {
-  const letters = text.replace(/[^a-zA-Z]/g, '')
-  return letters.length > 0 && letters === letters.toUpperCase()
+/** Per-element geometry accumulated while classifying lines, for `inferLayoutFromPdfMeasurements`. */
+interface PdfElementGeometry {
+  baseXPt: number
+  actionRightMaxPt: number | null
+  actionLineCount: number
+  dialogueLeftPts: number[]
+  parentheticalLeftPts: number[]
+  characterLeftPts: number[]
+  dialogueRightMaxPt: number | null
+  parentheticalRightMaxPt: number | null
 }
 
 const TITLE_PAGE_NOISE_RE =
@@ -82,25 +58,15 @@ const WRITTEN_BY_RE = /^(written\s+by|screenplay\s+by|story\s+by|by)\b/i
 
 const BASED_ON_RE = /^(based\s+on|based\s+upon|adapted\s+from)\b/i
 
-/**
- * Matches common date formats found on title pages.
- * Intentionally excludes bare 4-digit years to avoid swallowing numerical titles
- * like "1917", "1984", or "2001".
- */
 const DATE_LINE_RE =
   /^(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+(\d{1,2}(?:st|nd|rd|th)?,?\s+)?\d{4}$|^(spring|summer|fall|winter|autumn)\s+\d{4}$|^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/i
 
-/** Fraction of the page's Y range (bottom-up) that is treated as the contact/date corner zone. */
 const CONTACT_ZONE_FRACTION = 0.18
 
-/**
- * Matches common contact-info patterns: phone numbers, postal addresses
- * (street number + street type), email addresses, and "City, ST ZIP" strings.
- */
 const CONTACT_LINE_RE =
   /^\(?\d{3}\)?[\s\-\.]?\d{3}[\s\-\.]\d{4}$|@\w+\.\w{2,}|\d{3,5}\s+\w+\s+(st\.?|street|ave\.?|avenue|blvd\.?|boulevard|rd\.?|road|dr\.?|drive|ln\.?|lane|way|pl\.?|place)\b|[A-Z]{2}\s+\d{5}|,\s*(CA|NY|TX|FL|IL|WA|GA|PA|OH|NC|MA|AZ|MI|TN|VA|NJ|IN|MO|MD|WI|CO|MN|SC|AL|LA|KY|OR|OK|CT|UT|IA|NV|AR|MS|KS|NM|NE|WV|ID|HI|NH|ME|RI|MT|DE|SD|ND|AK|VT|WY|DC)\s+\d{5}/i
 
-function isTitlePage(lines: LineGroup[]): boolean {
+function isTitlePage(lines: ParseLineGroup[]): boolean {
   if (lines.length === 0) return true
 
   const pageWidth = Math.max(...lines.map((l) => l.x)) + 200
@@ -119,7 +85,7 @@ function isTitlePage(lines: LineGroup[]): boolean {
   return centeredRatio > 0.4 && !hasSceneHeading
 }
 
-function extractTitleFromTitlePage(lines: LineGroup[]): string | null {
+function extractTitleFromTitlePage(lines: ParseLineGroup[]): string | null {
   if (lines.length === 0) return null
 
   const pageWidth = Math.max(...lines.map((l) => l.x)) + 200
@@ -132,17 +98,14 @@ function extractTitleFromTitlePage(lines: LineGroup[]): string | null {
   const contactYThreshold =
     pageRange > 0 ? yMin + pageRange * CONTACT_ZONE_FRACTION : -Infinity
 
-  // Centered lines that are not in the bottom contact corner
   const centeredLines = lines.filter((line) => {
     const estimatedLineWidth = line.text.length * 5.5
     const lineCenter = line.x + estimatedLineWidth / 2
     return Math.abs(lineCenter - center) < 80 && line.y >= contactYThreshold
   })
 
-  // s === s.toUpperCase() treats numeric titles (e.g. "1917") as "all caps"
   const looksAllCaps = (s: string) => s === s.toUpperCase()
 
-  // Pass 1: prefer an ALL CAPS centered line (standard title format)
   for (const line of centeredLines) {
     const text = line.text.trim()
     if (!text || text.length < 2) continue
@@ -152,7 +115,6 @@ function extractTitleFromTitlePage(lines: LineGroup[]): string | null {
     if (looksAllCaps(text)) return text
   }
 
-  // Pass 2: fallback — first non-noise, non-date centered line
   for (const line of centeredLines) {
     const text = line.text.trim()
     if (!text || text.length < 2) continue
@@ -165,7 +127,7 @@ function extractTitleFromTitlePage(lines: LineGroup[]): string | null {
   return null
 }
 
-function titleFromFilename(filename: string): string | null {
+export function titleFromFilename(filename: string): string | null {
   const base = filename.replace(/\.pdf$/i, '').trim()
   if (!base) return null
   return base
@@ -175,62 +137,6 @@ function titleFromFilename(filename: string): string | null {
     .replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
-function classifyLine(
-  line: LineGroup,
-  prevType: ScreenplayElementType | null,
-): ScreenplayElementType {
-  const text = line.text.trim()
-  if (!text) return 'action'
-
-  const x = line.x
-
-  if (SCENE_HEADING_RE.test(text)) return 'slugline'
-
-  if (
-    x >= MARGIN_TRANSITION_MIN ||
-    TRANSITION_RE.test(text) ||
-    (isAllCaps(text) && TRANSITION_SUFFIX_RE.test(text))
-  ) {
-    return 'transition'
-  }
-
-  if (
-    x >= MARGIN_CHARACTER_MIN &&
-    x <= MARGIN_CHARACTER_MAX &&
-    isAllCaps(text.replace(CONT_RE, '').replace(/\(.*?\)/g, '').trim())
-  ) {
-    return 'character'
-  }
-
-  if (
-    x >= MARGIN_PAREN_MIN &&
-    x <= MARGIN_PAREN_MAX &&
-    text.startsWith('(')
-  ) {
-    return 'parenthetical'
-  }
-
-  if (
-    x >= MARGIN_DIALOGUE_MIN &&
-    x <= MARGIN_DIALOGUE_MAX &&
-    (prevType === 'character' || prevType === 'parenthetical' || prevType === 'dialogue')
-  ) {
-    return 'dialogue'
-  }
-
-  if (x <= MARGIN_ACTION_MAX) {
-    return 'action'
-  }
-
-  if (prevType === 'dialogue' || prevType === 'character' || prevType === 'parenthetical') {
-    return 'dialogue'
-  }
-
-  return 'action'
-}
-
-// ─── Title page parser ────────────────────────────────────────────────────────
-
 function makeBlock(elementType: ScreenplayElementType, text: string): ScriptBlockNode {
   return {
     type: 'scriptBlock',
@@ -239,23 +145,10 @@ function makeBlock(elementType: ScreenplayElementType, text: string): ScriptBloc
   }
 }
 
-/**
- * Classify lines from a detected title page into title / author / contact
- * blocks. Lines are already sorted top-to-bottom by the page parser.
- *
- * Strategy:
- *  - Date lines (month/season patterns) → skipped (spec scripts omit dates)
- *  - Bottom-corner lines (Y < contactYThreshold) or contact patterns → contact
- *  - Lines matching "written by" / "screenplay by" / "story by" / "by" → author
- *  - Lines matching "based on…" / "adapted from…" → author (preserved credits)
- *  - First non-noise, non-page-number line → title
- *  - Subsequent non-contact, non-noise lines → author
- */
-function parseTitlePageLines(lines: LineGroup[]): ScriptBlockNode[] {
+function parseTitlePageLines(lines: ParseLineGroup[]): ScriptBlockNode[] {
   const blocks: ScriptBlockNode[] = []
   let foundTitle = false
 
-  // PDF Y-axis is bottom-up; compute zone thresholds from the text range on this page.
   const yValues = lines.map((l) => l.y)
   const yMin = yValues.length > 0 ? Math.min(...yValues) : 0
   const yMax = yValues.length > 0 ? Math.max(...yValues) : 0
@@ -267,11 +160,8 @@ function parseTitlePageLines(lines: LineGroup[]): ScriptBlockNode[] {
     const text = line.text.trim()
     if (!text || text.length < 2) continue
     if (PAGE_NUMBER_RE.test(text)) continue
-
-    // Skip date lines — spec scripts should omit dates to avoid dating the material
     if (DATE_LINE_RE.test(text)) continue
 
-    // Bottom-corner lines → contact (covers name-only lines with no email/phone pattern)
     if (line.y < contactYThreshold || CONTACT_LINE_RE.test(text)) {
       blocks.push(makeBlock('contact', text))
       continue
@@ -282,7 +172,6 @@ function parseTitlePageLines(lines: LineGroup[]): ScriptBlockNode[] {
       continue
     }
 
-    // "Based on…" is a valid credits line; preserve it as author before noise guard fires
     if (BASED_ON_RE.test(text)) {
       blocks.push(makeBlock('author', text))
       continue
@@ -295,7 +184,6 @@ function parseTitlePageLines(lines: LineGroup[]): ScriptBlockNode[] {
       continue
     }
 
-    // After the title: skip noise; remaining lines are author names
     if (!TITLE_PAGE_NOISE_RE.test(text)) {
       blocks.push(makeBlock('author', text))
     }
@@ -304,51 +192,221 @@ function parseTitlePageLines(lines: LineGroup[]): ScriptBlockNode[] {
   return blocks
 }
 
-// ─── Main parser ─────────────────────────────────────────────────────────────
+function filterLayoutArtifacts(lines: ParseLineGroup[], pageHeightPt: number): ParseLineGroup[] {
+  const lastIndex = lines.length - 1
+  return lines.filter((line, idx) => {
+    if (isPageNumberArtifact(line, pageHeightPt)) return false
+    if (isMoreArtifact(line, pageHeightPt, idx === lastIndex)) return false
+    if (isContdArtifact(line, pageHeightPt)) return false
+    if (PAGE_NUMBER_RE.test(line.text.trim())) return false
+    if (/^page\s+\d+/i.test(line.text.trim())) return false
+    return true
+  })
+}
 
-export async function parseScreenplayPdf(file: File): Promise<{
+function linesToScriptBlocks(
+  allLines: ParseLineGroup[],
+  baseX: number,
+): {
+  blocks: ScriptBlockNode[]
+  geometry: PdfElementGeometry
+} {
+  const blocks: ScriptBlockNode[] = []
+  let paginationState: PaginationSkipState = { afterMore: false }
+  let lastLineY: number | null = null
+  let lastPageNum: number | null = null
+
+  let actionRightMaxPt: number | null = null
+  let actionLineCount = 0
+  const dialogueLeftPts: number[] = []
+  const parentheticalLeftPts: number[] = []
+  const characterLeftPts: number[] = []
+  let dialogueRightMaxPt: number | null = null
+  let parentheticalRightMaxPt: number | null = null
+
+  for (const line of allLines) {
+    const rawText = line.text.trim()
+    if (rawText.length === 0) {
+      lastLineY = line.y
+      lastPageNum = line.pageNum
+      continue
+    }
+
+    const moreSkip = shouldSkipPaginationLine(rawText, paginationState)
+    if (moreSkip.skip) {
+      paginationState = moreSkip.next
+      lastLineY = line.y
+      lastPageNum = line.pageNum
+      continue
+    }
+
+    const text = stripPaginationMarkerText(rawText)
+    if (text.length === 0) {
+      lastLineY = line.y
+      lastPageNum = line.pageNum
+      continue
+    }
+
+    const elementType = classifyElementTypeRelative(line.x, text, baseX)
+    const lastBlock = blocks[blocks.length - 1]
+    const lastBlockType = lastBlock?.attrs.elementType ?? null
+
+    if (shouldSkipContdCharacterCue(elementType, rawText, lastBlockType)) {
+      paginationState = clearAfterMore(paginationState)
+      lastLineY = line.y
+      lastPageNum = line.pageNum
+      continue
+    }
+
+    // Accumulate per-element geometry (post pagination-artifact/CONT'D filtering) so imported
+    // screenplays can infer their real indents/column widths instead of always using the WGA
+    // default. The right margin is never inferred from this — it's always the fixed WGA 1.0".
+    if (elementType === 'action' || elementType === 'slugline') {
+      actionLineCount++
+      if (Number.isFinite(line.right)) {
+        actionRightMaxPt = actionRightMaxPt == null ? line.right : Math.max(actionRightMaxPt, line.right)
+      }
+    } else if (elementType === 'dialogue') {
+      dialogueLeftPts.push(line.x)
+      if (Number.isFinite(line.right)) {
+        dialogueRightMaxPt = dialogueRightMaxPt == null ? line.right : Math.max(dialogueRightMaxPt, line.right)
+      }
+    } else if (elementType === 'parenthetical') {
+      parentheticalLeftPts.push(line.x)
+      if (Number.isFinite(line.right)) {
+        parentheticalRightMaxPt =
+          parentheticalRightMaxPt == null ? line.right : Math.max(parentheticalRightMaxPt, line.right)
+      }
+    } else if (elementType === 'character') {
+      characterLeftPts.push(line.x)
+    }
+
+    const gap =
+      lastLineY !== null && lastPageNum === line.pageNum
+        ? Math.abs(lastLineY - line.y)
+        : 0
+    const isNewParagraph = gap > 18
+
+    if (
+      !isNewParagraph &&
+      shouldMergeElementTypes(elementType, lastBlockType) &&
+      lastBlock
+    ) {
+      const existing = lastBlock.content[0]?.text ?? ''
+      lastBlock.content = [{ type: 'text', text: mergeScriptBlockText(existing, text) }]
+    } else {
+      blocks.push(makeBlock(elementType, text))
+    }
+
+    if (elementType === 'character') {
+      paginationState = clearAfterMore(paginationState)
+    }
+
+    lastLineY = line.y
+    lastPageNum = line.pageNum
+  }
+
+  return {
+    blocks,
+    geometry: {
+      baseXPt: baseX,
+      actionRightMaxPt,
+      actionLineCount,
+      dialogueLeftPts,
+      parentheticalLeftPts,
+      characterLeftPts,
+      dialogueRightMaxPt,
+      parentheticalRightMaxPt,
+    },
+  }
+}
+
+export interface ParseScreenplayPdfResult {
   doc: Record<string, unknown>
   pageCount: number
   title: string | null
-}> {
-  if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
-    throw new Error('Please select a PDF file.')
-  }
+  layout?: ScreenplayLayoutConfig
+}
 
-  if (file.size > MAX_FILE_SIZE) {
-    throw new Error(
-      `File size (${(file.size / 1024 / 1024).toFixed(1)}MB) exceeds the 20MB limit.`,
-    )
-  }
+/**
+ * Safari never implemented `ReadableStream.prototype[Symbol.asyncIterator]` (unlike Chrome/
+ * Firefox), but pdfjs-dist's `getTextContent()` uses `for await...of` over a native
+ * `ReadableStream` unconditionally. Without this, every PDF import throws
+ * "undefined is not a function (near '...value of readableStream...')" in Safari only.
+ */
+function polyfillReadableStreamAsyncIterator(): void {
+  const proto = ReadableStream.prototype as ReadableStream & { [Symbol.asyncIterator]?: unknown }
+  if (typeof proto[Symbol.asyncIterator] === 'function') return
 
+  proto[Symbol.asyncIterator] = function (this: ReadableStream) {
+    const reader = this.getReader()
+    return {
+      next: () => reader.read(),
+      return: (value: unknown) => {
+        reader.releaseLock()
+        return Promise.resolve({ done: true as const, value })
+      },
+      [Symbol.asyncIterator](): AsyncIterator<unknown> {
+        return this as unknown as AsyncIterator<unknown>
+      },
+    }
+  } as () => AsyncIterableIterator<unknown>
+}
+
+export async function parseScreenplayPdfFromBuffer(
+  data: ArrayBuffer,
+  options?: { filename?: string },
+): Promise<ParseScreenplayPdfResult> {
+  polyfillReadableStreamAsyncIterator()
   const { getDocument, GlobalWorkerOptions } = await import('pdfjs-dist')
   GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
 
-  const arrayBuffer = await file.arrayBuffer()
-  const pdf = await getDocument({ data: arrayBuffer }).promise
+  const pdf = await getDocument({ data }).promise
   const pageCount = pdf.numPages
 
-  const allLines: LineGroup[] = []
+  interface PageRowData {
+    pageNum: number
+    pageHeightPt: number
+    sortedRows: Array<[number, Array<{ x: number; str: string; w: number }>]>
+  }
+
   const titlePageBlocks: ScriptBlockNode[] = []
   let skippedTitlePage = false
   let extractedTitle: string | null = null
+  // Captures the last page's viewport — pages are assumed uniform size, matching how the layout
+  // inference is applied (one config for the whole imported document).
+  let capturedPageWidthPt = 612
+  let capturedPageHeightPt = 792
+
+  // Pass 1: extract every page's raw text rows once (a single pdf.js fetch per page). Row
+  // grouping alone doesn't need a calibrated baseX, so this happens before calibration.
+  const pageRowData: PageRowData[] = []
 
   for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
     const page = await pdf.getPage(pageNum)
+    let pageHeightPt = 792
+    try {
+      const viewport = page.getViewport({ scale: 1 })
+      pageHeightPt = viewport.height
+      capturedPageWidthPt = viewport.width
+      capturedPageHeightPt = viewport.height
+    } catch {
+      /* use Letter default */
+    }
+
     const textContent = await page.getTextContent()
+    const items = (textContent.items as TextItem[]).filter((item) => item.str.trim().length > 0)
+    if (items.length === 0) {
+      pageRowData.push({ pageNum, pageHeightPt, sortedRows: [] })
+      continue
+    }
 
-    const items = (textContent.items as TextItem[]).filter(
-      (item) => item.str.trim().length > 0,
-    )
-
-    if (items.length === 0) continue
-
-    // Stipulation: PDF Y-axis is bottom-up, sort descending by Y for top-to-bottom
-    const lineMap = new Map<number, Array<{ x: number; str: string }>>()
+    const lineMap = new Map<number, Array<{ x: number; str: string; w: number }>>()
 
     for (const item of items) {
       const x = Math.round(item.transform[4])
       const y = Math.round(item.transform[5])
+      const w = typeof item.width === 'number' && Number.isFinite(item.width) ? item.width : 0
 
       let matchedY: number | null = null
       for (const existingY of Array.from(lineMap.keys())) {
@@ -361,112 +419,101 @@ export async function parseScreenplayPdf(file: File): Promise<{
       const key = matchedY ?? y
       const existing = lineMap.get(key)
       if (existing) {
-        existing.push({ x, str: item.str })
+        existing.push({ x, str: item.str, w })
       } else {
-        lineMap.set(key, [{ x, str: item.str }])
+        lineMap.set(key, [{ x, str: item.str, w }])
       }
     }
 
-    const pageLines: LineGroup[] = Array.from(lineMap.entries())
-      .sort(([yA], [yB]) => yB - yA) // descending Y = top-to-bottom
-      .map(([y, rowItems]) => ({
-        x: Math.min(...rowItems.map((r) => r.x)),
-        y,
-        text: joinTextRunsToLine(rowItems),
-        pageNum,
-      }))
+    const sortedRows = Array.from(lineMap.entries()).sort(([yA], [yB]) => yB - yA)
+    pageRowData.push({ pageNum, pageHeightPt, sortedRows })
+  }
+
+  // Pass 2: calibrate the document's baseX from un-split rows (each row treated as a single
+  // line, no dual-dialogue awareness) *before* dual-column expansion — expansion itself now needs
+  // a correctly-calibrated baseX to compute its own column margins (see `isDualColumnRow`), so
+  // calibration can't wait until after expansion the way it used to.
+  const roughLinesForCalibration: ParseLineGroup[] = []
+
+  for (const { pageNum, sortedRows } of pageRowData) {
+    const roughLines = sortedRows
+      .map(([y, rowItems]) => rowToLineGroup(y, rowItems, pageNum))
       .filter((line) => line.text.length > 0)
 
-    if (pageNum === 1 && !skippedTitlePage && isTitlePage(pageLines)) {
-      extractedTitle = extractTitleFromTitlePage(pageLines)
-      titlePageBlocks.push(...parseTitlePageLines(pageLines))
+    if (pageNum === 1 && !skippedTitlePage && isTitlePage(roughLines)) {
+      extractedTitle = extractTitleFromTitlePage(roughLines)
+      titlePageBlocks.push(...parseTitlePageLines(roughLines))
       skippedTitlePage = true
       continue
     }
 
-    const filtered = pageLines.filter((line) => {
-      if (PAGE_NUMBER_RE.test(line.text.trim())) return false
-      if (/^page\s+\d+/i.test(line.text.trim())) return false
-      return true
-    })
-
-    allLines.push(...filtered)
+    roughLinesForCalibration.push(...roughLines)
   }
 
-  if (allLines.length === 0) {
+  const baseX = findBaseX(roughLinesForCalibration)
+
+  // Pass 3: now that baseX is known, expand dual-dialogue rows and strip pagination artifacts.
+  const allLines: ParseLineGroup[] = []
+
+  for (const { pageNum, pageHeightPt, sortedRows } of pageRowData) {
+    if (pageNum === 1 && skippedTitlePage) continue
+
+    const pageLines = expandDualDialoguePageRows(sortedRows, pageNum, baseX).filter(
+      (line) => line.text.length > 0,
+    )
+    allLines.push(...filterLayoutArtifacts(pageLines, pageHeightPt))
+  }
+
+  if (allLines.length === 0 && titlePageBlocks.length === 0) {
     throw new Error(
       'This PDF appears to be a scanned image or contains no extractable text. Please use a PDF with selectable text.',
     )
   }
 
-  // Classify each line and merge consecutive same-type lines into blocks
-  const blocks: ScriptBlockNode[] = []
-  let prevType: ScreenplayElementType | null = null
-  let prevNonEmptyLine: LineGroup | null = null
-
-  for (const line of allLines) {
-    const text = line.text.trim()
-    if (text.length === 0) {
-      continue
-    }
-
-    const elementType = classifyLine(line, prevType)
-
-    const lastBlock = blocks[blocks.length - 1]
-
-    let shouldMerge = Boolean(
-      lastBlock &&
-        lastBlock.attrs.elementType === elementType &&
-        elementType !== 'slugline' &&
-        elementType !== 'character' &&
-        elementType !== 'transition',
-    )
-
-    if (
-      shouldMerge &&
-      (elementType === 'action' ||
-        elementType === 'dialogue' ||
-        elementType === 'parenthetical') &&
-      prevNonEmptyLine
-    ) {
-      if (prevNonEmptyLine.pageNum !== line.pageNum) {
-        shouldMerge = false
-      } else {
-        const deltaY = prevNonEmptyLine.y - line.y
-        if (deltaY > PDF_LINE_MERGE_MAX_DELTA_Y) {
-          shouldMerge = false
-        }
-      }
-    }
-
-    if (shouldMerge && lastBlock) {
-      const existing = lastBlock.content[0]?.text ?? ''
-      // Action: newline preserves PDF line breaks. Dialogue / parenthetical: spaces let the
-      // editor reflow one speech block; PDF text is often many micro-rows—hard newlines would
-      // balloon line count with white-space: pre-wrap.
-      const separator = elementType === 'action' ? '\n' : ' '
-      lastBlock.content = [{ type: 'text', text: existing + separator + text }]
-    } else {
-      blocks.push({
-        type: 'scriptBlock',
-        attrs: { elementType },
-        content: [{ type: 'text', text }],
-      })
-    }
-
-    prevType = elementType
-    prevNonEmptyLine = line
-  }
-
+  const { blocks, geometry } = linesToScriptBlocks(allLines, baseX)
   const allBlocks = [...titlePageBlocks, ...blocks]
-
-  /** Body-page count excludes a detected cover PDF page; never below 1 (title-only file). */
   const screenplayPageTotal = Math.max(1, pageCount - (skippedTitlePage ? 1 : 0))
-  const title = extractedTitle ?? titleFromFilename(file.name)
+  const filename = options?.filename ?? 'screenplay.pdf'
+  const title = extractedTitle ?? titleFromFilename(filename)
+
+  let layout: ScreenplayLayoutConfig | undefined
+  try {
+    const measurements: ScreenplayPdfMeasurements = {
+      pageWidthPt: capturedPageWidthPt,
+      pageHeightPt: capturedPageHeightPt,
+      baseXPt: geometry.baseXPt,
+      actionRightMaxPt: geometry.actionRightMaxPt,
+      actionLineCount: geometry.actionLineCount,
+      dialogueLeftPt: median(geometry.dialogueLeftPts),
+      parentheticalLeftPt: median(geometry.parentheticalLeftPts),
+      characterLeftPt: median(geometry.characterLeftPts),
+      dialogueRightMaxPt: geometry.dialogueRightMaxPt,
+      parentheticalRightMaxPt: geometry.parentheticalRightMaxPt,
+    }
+    layout = inferLayoutFromPdfMeasurements(measurements) ?? undefined
+  } catch (err) {
+    console.warn('[parseScreenplayPdf] layout inference failed; using default layout.', err)
+    layout = undefined
+  }
 
   return {
     doc: { type: 'doc', content: allBlocks },
     pageCount: screenplayPageTotal,
     title,
+    ...(layout ? { layout } : {}),
   }
+}
+
+export async function parseScreenplayPdf(file: File): Promise<ParseScreenplayPdfResult> {
+  if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+    throw new Error('Please select a PDF file.')
+  }
+
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error(
+      `File size (${(file.size / 1024 / 1024).toFixed(1)}MB) exceeds the 20MB limit.`,
+    )
+  }
+
+  return parseScreenplayPdfFromBuffer(await file.arrayBuffer(), { filename: file.name })
 }

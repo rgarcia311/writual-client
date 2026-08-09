@@ -11,20 +11,27 @@ export async function verifyAndLogin(idToken) {
     const uid = decodedToken.uid;
 
     if (uid) {
+      // Safari (unlike Chrome/Firefox) does not treat http://localhost as a secure
+      // context for the Secure cookie attribute, so it silently drops these cookies
+      // in local dev. That desyncs the server's cookie-based auth check from the
+      // client's Firebase auth state, causing the "/" page's redirect() (based on
+      // the user-id cookie) to re-trigger on every reload and spam history.replaceState.
+      const secure = process.env.NODE_ENV === 'production';
+
       // 2. Create a session cookie (required for verifySessionCookie on later requests)
       //const sessionCookie = await auth().createSessionCookie(idToken, { expiresIn: expiresIn / 1000 });
       // 3. Set the session cookie (not the raw ID token)
       (await cookies()).set("firebase-token", idToken, {
         maxAge: Math.floor(expiresIn / 1000),
         httpOnly: true,
-        secure: true,
+        secure,
         path: "/",
       });
 
       (await cookies()).set("user-id", uid, {
         maxAge: Math.floor(expiresIn / 1000),
         httpOnly: true,
-        secure: true,
+        secure,
         path: "/",
       });
       return { status: "success" };

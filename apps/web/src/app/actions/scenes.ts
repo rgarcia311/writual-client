@@ -61,7 +61,6 @@ export async function createScene(
   );
   revalidatePath(`/project/${projectId}`);
   revalidatePath(`/project/${projectId}/outline`);
-  revalidatePath(`/project/${projectId}/treatment`);
   return result.createScene;
 }
 
@@ -91,7 +90,6 @@ export async function updateScene(
   if (projectId) {
     revalidatePath(`/project/${projectId}`);
     revalidatePath(`/project/${projectId}/outline`);
-    revalidatePath(`/project/${projectId}/treatment`);
   }
   return result.updateScene;
 }
@@ -104,7 +102,6 @@ export async function deleteScene(sceneId: string) {
     const projectId = result.deleteScene.projectId;
     revalidatePath(`/project/${projectId}`);
     revalidatePath(`/project/${projectId}/outline`);
-    revalidatePath(`/project/${projectId}/treatment`);
   }
   return result.deleteScene.deleted;
 }

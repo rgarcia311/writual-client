@@ -14,6 +14,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import CloseIcon from '@mui/icons-material/Close'
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
 import { parseScreenplayPdf } from '@/lib/parseScreenplayPdf'
+import type { ScreenplayLayoutConfig } from '@/lib/screenplayLayout'
 import type { ScreenplayImportMode } from '@/interfaces/project'
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20 MB
@@ -27,7 +28,12 @@ type DropZoneState =
 
 interface ScreenplayDropZoneProps {
   importMode: ScreenplayImportMode
-  onParsed: (doc: Record<string, unknown>, pageCount: number, title: string | null) => void
+  onParsed: (
+    doc: Record<string, unknown>,
+    pageCount: number,
+    title: string | null,
+    layout?: ScreenplayLayoutConfig,
+  ) => void
   onServerPdfReady?: (file: File) => void
   onCleared: () => void
 }
@@ -76,9 +82,9 @@ export function ScreenplayDropZone({
       }
 
       try {
-        const { doc, pageCount, title } = await parseScreenplayPdf(file)
+        const { doc, pageCount, title, layout } = await parseScreenplayPdf(file)
         setState({ status: 'success', fileName: file.name, pageCount })
-        onParsed(doc, pageCount, title)
+        onParsed(doc, pageCount, title, layout)
       } catch (err) {
         const message =
           err instanceof Error ? err.message : 'Failed to parse PDF.'

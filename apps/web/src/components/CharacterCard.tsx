@@ -30,6 +30,16 @@ const ExpandMore = styled((props: ExpandMoreProps) => {
 
 const DEFAULT_CHARACTER_IMAGE = '/default-character-image.png';
 
+/** Maps a raw gender string to M / F / X, or '' when absent. */
+function abbreviateGender(gender: unknown): string {
+  if (!gender || typeof gender !== 'string') return '';
+  const lower = gender.trim().toLowerCase();
+  if (lower === 'male' || lower === 'm') return 'M';
+  if (lower === 'female' || lower === 'f') return 'F';
+  if (lower === '') return '';
+  return 'X';
+}
+
 interface CharacterCardProps {
   name?: string;
   details?: any[];
@@ -49,6 +59,8 @@ interface CharacterCardProps {
    * Narrow parents (e.g. screenplay side panel): full width, no grid percentage width.
    */
   fullWidthInParent?: boolean;
+  /** Characters page grid: fixed 305×385px tile via CSS vars. */
+  gridTile?: boolean;
 }
 
 export const CharacterCard: React.FC<CharacterCardProps> = ({
@@ -62,6 +74,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   onAddVersion,
   onToggleLock,
   fullWidthInParent = false,
+  gridTile = false,
 }) => {
   const detailCount = Array.isArray(details) ? Math.max(1, details.length) : 1;
   const [version, setVersion] = React.useState(1);
@@ -76,10 +89,25 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
 
   return (
       <Card
+        className={gridTile ? 'character-card--grid' : undefined}
         sx={{
-          width: fullWidthInParent ? '100%' : 'calc(20% - 8px)',
-          maxWidth: fullWidthInParent ? '100%' : 'none',
-          maxHeight: 'max-content',
+          // <PROTECTED> — character card dimensions; see .cursor/rules/character-card-dimensions.mdc
+          ...(gridTile
+            ? {
+                width: 'var(--character-card-width, 305px)',
+                maxWidth: 'var(--character-card-width, 305px)',
+                height: 'var(--character-card-height, 390px)',
+                maxHeight: 'var(--character-card-height, 390px)',
+                flex: '0 0 auto',
+              }
+            : {
+                width: fullWidthInParent ? '100%' : 'calc(20% - 8px)',
+                maxWidth: fullWidthInParent ? '100%' : 'none',
+                height: expanded ? 'auto' : 'var(--character-card-height, 390px)',
+                maxHeight: expanded ? 'none' : 'var(--character-card-height, 390px)',
+              }),
+          // </PROTECTED>
+          borderRadius: 'var(--project-float-radius, 12px)',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
@@ -126,8 +154,9 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           component="img"
           image={imageSrc}
           alt={name ? `${name} character` : 'Character'}
+          className={gridTile ? 'character-card__media' : undefined}
           sx={{
-            height: '300px',
+            height: gridTile ? 'var(--character-card-media-height, 240px)' : '300px',
             flexShrink: 0,
             objectFit: 'cover',
           }}
@@ -143,8 +172,9 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                 <ExpandMoreIcon />
               </ExpandMore>
             }
-            title={detail ? `${name ?? ''} ${detail.age ?? ''} ${detail.gender ?? ''}`.trim() : name}
+            title={detail ? `${name ?? ''} ${detail.age ?? ''} ${abbreviateGender(detail.gender)}`.trim() : name}
             subheader={detail ? `Version: ${detail.version}` : undefined}
+            titleTypographyProps={{ noWrap: true }}
           />
 
         {expanded && detail && (

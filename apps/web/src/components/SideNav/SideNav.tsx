@@ -22,7 +22,6 @@ import { useSideNavCollapsedStore } from '@/state/sideNavCollapsed';
 const SIDENAV_LINKS = [
   { segment: 'characters', label: 'Characters', Icon: TheaterComedyIcon },
   { segment: 'outline', label: 'Outline', Icon: AccountTreeIcon },
-  { segment: 'treatment', label: 'Treatment', Icon: ArticleIcon },
   { segment: 'screenplay', label: 'Screenplay', Icon: ArticleIcon },
   { segment: 'chat', label: 'Chat', Icon: ChatBubbleIcon },
 ] as const;
@@ -47,7 +46,7 @@ export const StyledSideNav = styled(Paper, {
   width: collapsed ? SIDENAV_WIDTH_COLLAPSED : SIDENAV_WIDTH_EXPANDED,
   minWidth: collapsed ? SIDENAV_WIDTH_COLLAPSED : SIDENAV_WIDTH_EXPANDED,
   borderRadius: "10px",
-  padding: collapsed ? theme.spacing(0.5, 0.25) : '5px',
+  padding: collapsed ? theme.spacing(0.5, 0.25) : theme.spacing(1),
   display: "flex",
   flexDirection: "column",
   gap: 1,
@@ -86,7 +85,8 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
           justifyContent: collapsed ? 'center' : 'space-between',
           width: '100%',
           px: collapsed ? 0 : 1,
-          pt: 1,
+          minHeight: 'var(--app-chrome-row-height, 46px)',
+          pt: 0,
           gap: 0.5,
           flexShrink: 0,
         }}
@@ -99,6 +99,7 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
             alignItems: 'center',
             justifyContent: collapsed ? 'center' : 'flex-start',
             minWidth: 0,
+            minHeight: 'var(--app-chrome-row-height, 46px)',
             textDecoration: 'none',
             color: 'inherit',
           }}
@@ -179,14 +180,16 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
       <Box
         sx={{
           display: 'flex',
-          flexDirection: collapsed ? 'column' : 'row',
-          alignItems: 'center',
+          flexDirection: collapsed ? 'column' : { xs: 'column', md: 'row' },
+          alignItems: collapsed ? 'center' : { xs: 'stretch', md: 'center' },
           justifyContent: collapsed ? 'center' : 'flex-start',
           gap: collapsed ? 0.5 : 1,
           px: collapsed ? 0 : 1,
           py: 1.5,
           flexShrink: 0,
           width: '100%',
+          minWidth: 0,
+          containerType: 'inline-size',
         }}
       >
         <FeatureGate minTier="spec">
@@ -211,9 +214,27 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
             <Button
               variant="contained"
               color="primary"
+              size="small"
               startIcon={<AddIcon />}
               onClick={openCreateProjectModal}
-              sx={{ flex: 1, minWidth: 0 }}
+              sx={{
+                flex: '1 1 auto',
+                minWidth: 0,
+                maxWidth: '100%',
+                width: '100%',
+                whiteSpace: 'nowrap',
+                fontSize: 'clamp(0.625rem, 5.75cqw, 0.8125rem)',
+                lineHeight: 1.25,
+                px: 'clamp(6px, 2.25cqw, 12px)',
+                py: 0.75,
+                '& .MuiButton-startIcon': {
+                  marginRight: 'clamp(4px, 1.25cqw, 8px)',
+                  marginLeft: 0,
+                },
+                '& .MuiButton-startIcon > svg': {
+                  fontSize: 'clamp(1rem, 4.5cqw, 1.125rem)',
+                },
+              }}
             >
               Create Project
             </Button>

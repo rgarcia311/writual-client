@@ -4,6 +4,7 @@ import type { Editor } from '@tiptap/core'
 import { jsPDF } from 'jspdf'
 
 import type { ScreenplayElementType } from './ScreenplayExtension'
+import { CONTD_LITERAL_RE, normalizeCharacterCueName } from './ScreenplayExtension'
 import {
   getScreenplayInterBlockGapInches,
   SCREENPLAY_LINE_HEIGHT_INCHES,
@@ -193,6 +194,9 @@ export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
   }
 
   let prevType: ScreenplayElementType | null = null
+  // Automatic (CONT'D): tracks the last speaker so a character resuming after an interruption is
+  // marked. A scene heading (slugline) resets continuation; a different character cue resets it.
+  let lastSpeaker: string | null = null
 
   for (let i = 0; i < blocksToRender.length; i++) {
     const { type, text } = blocksToRender[i]
@@ -207,6 +211,17 @@ export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
       }
     }
     prevType = type
+
+    let charContd = false
+    if (type === 'slugline') {
+      lastSpeaker = null
+    } else if (type === 'character') {
+      const name = normalizeCharacterCueName(text)
+      if (name) {
+        charContd = lastSpeaker === name && !CONTD_LITERAL_RE.test(text)
+        lastSpeaker = name
+      }
+    }
 
     // Stipulation: safe fallback for any unexpected element types in body
     const spec = LAYOUT[type] ?? LAYOUT['action']
@@ -224,7 +239,8 @@ export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
     }
 
     if (type === 'character' && spec.oneLine) {
-      const t = (trimmed || ' ').toUpperCase()
+      const base = (trimmed || ' ').toUpperCase()
+      const t = charContd ? `${base} (CONT'D)` : base
       const parts = doc.splitTextToSize(t, spec.w)
       const first = parts[0] ?? t
       ensureLineFits()
@@ -233,7 +249,12 @@ export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
       continue
     }
 
-    const body = type === 'character' ? trimmed.toUpperCase() : trimmed
+    const body =
+      type === 'character'
+        ? charContd
+          ? `${trimmed.toUpperCase()} (CONT'D)`
+          : trimmed.toUpperCase()
+        : trimmed
     const lines = doc.splitTextToSize(body || ' ', spec.w)
     for (const line of lines) {
       ensureLineFits()
