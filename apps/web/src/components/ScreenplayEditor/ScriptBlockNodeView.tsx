@@ -21,6 +21,8 @@ import LayersIcon from '@mui/icons-material/Layers'
 import { useUserProfileStore } from '@/state/user'
 import { TIER_RANK } from '@/types/tier'
 import type { BlockVersion } from './ScreenplayExtension'
+import { SceneOutlineButton } from './SceneOutlineButton'
+import { CharacterHoverButton } from './CharacterHoverButton'
 
 function extractText(content: unknown[]): string {
   return (content as Array<{ text?: string }>).map((n) => n.text ?? '').join('').trim()
@@ -161,6 +163,9 @@ export function ScriptBlockNodeView({
       style={{ position: 'relative' }}
       onBlur={handleBlur}
     >
+      {elementType === 'slugline' && <SceneOutlineButton node={node} />}
+      {elementType === 'character' && <CharacterHoverButton node={node} />}
+
       {versions.length > 0 && isEligible && (
         <Box
           component="span"

@@ -594,6 +594,10 @@
 /* :focus-within ensures touch/keyboard users see the indicator when typing.
    .popover-open locks visibility while the switcher is open. */
 
+/* Scene Outline Button (slugline gutter) positioning lives inline via MUI `sx` in
+   SceneOutlineButton.tsx, not here — see that file. The .scene-outline-button-gutter
+   className is kept only as a stable hook for tests/inspection. */
+
 /* TipTap wraps each node — keep spacing fully under .script-block padding only */
 .screenplay-page .ProseMirror > .node-scriptBlock {
   margin: 0;
