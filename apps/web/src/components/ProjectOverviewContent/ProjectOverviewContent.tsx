@@ -57,8 +57,9 @@ export function ProjectOverviewContent({ projectId }: ProjectOverviewContentProp
 
   return (
     <ProjectDetailsLayout
-      headerTitle="Inspiration"
-      headerAction={
+      showFloatStatsRail
+      floatStatsRailKeys={['progress', 'glance']}
+      breadcrumbRightAdornment={
         <Button
           variant="contained"
           color="primary"
@@ -69,14 +70,48 @@ export function ProjectOverviewContent({ projectId }: ProjectOverviewContentProp
           Add Inspiration
         </Button>
       }
+      contentSx={{
+        display: 'flex',
+        flexDirection: 'column',
+        flex: 'none',
+        minHeight: 0,
+        overflow: 'visible',
+        pl: 0,
+        pt: 0,
+      }}
     >
-      <ScrollableContentArea>
+      <ScrollableContentArea
+        sx={{
+          display: 'flex',
+          flex: 'none',
+          minHeight: 0,
+          height: 'auto',
+          maxHeight: 'none',
+          width: '100%',
+          p: 0,
+          paddingTop: 0,
+          overflow: 'visible',
+          overflowY: 'visible',
+          flexWrap: 'wrap',
+          justifyContent: 'flex-start',
+          alignContent: 'flex-start',
+          gap: 'var(--project-float-stat-gap, var(--app-body-padding, 8px))',
+        }}
+      >
         {Array.isArray((projectData as any)?.inspiration) &&
           (projectData as any).inspiration.map((item: any) => (
             <Paper
               elevation={2}
               key={item._id}
-              sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1, position: 'relative' }}
+              sx={{
+                p: 2,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 1,
+                position: 'relative',
+                width: 300,
+                flexShrink: 0,
+              }}
             >
               <Typography variant="subtitle1" fontWeight={600}>
                 {item.title}

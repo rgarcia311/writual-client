@@ -6,6 +6,7 @@ import CloudDoneIcon from '@mui/icons-material/CloudDone'
 import { useScreenplayEditorStore } from '@/state/screenplayEditor'
 import { ScreenplayToolbar } from './ScreenplayToolbar'
 import { ScreenplayDetailTogglesToolbar } from './ScreenplayDetailTogglesToolbar'
+import { ScreenplayContextPanesToolbar } from './ScreenplayContextPanesToolbar'
 import { ScreenplayVerticalToolbarShell } from './ScreenplayVerticalToolbarShell'
 import { SCREENPLAY_VERTICAL_TOOLBAR_W_PX } from './screenplayPaperLayout'
 
@@ -37,8 +38,6 @@ export function ScreenplayDocumentToolbar({
 
   const showSaveRow = !collabActive && (isSavingOrPending || showSaved)
 
-  if (!showElementSelectors && !showSaveRow) return null
-
   // ── Vertical layout ───────────────────────────────────────────────────────
   if (orientation === 'vertical') {
     return (
@@ -62,6 +61,7 @@ export function ScreenplayDocumentToolbar({
             <ScreenplayDetailTogglesToolbar orientation="vertical" />
           </>
         )}
+        <ScreenplayContextPanesToolbar orientation="vertical" />
       </ScreenplayVerticalToolbarShell>
     )
   }
@@ -87,6 +87,24 @@ export function ScreenplayDocumentToolbar({
 
   return (
     <>
+      <Paper
+        elevation={0}
+        sx={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          px: 1.5,
+          py: 0.75,
+          borderBottom: `1px solid ${theme.palette.divider}`,
+          flexShrink: 0,
+          bgcolor: 'background.default',
+          boxShadow: 2,
+        }}
+      >
+        <ScreenplayContextPanesToolbar orientation="horizontal" />
+      </Paper>
+
       {showElementSelectors ? (
         <Paper
           className="screenplay-toolbar screenplay-toolbar-elements"

@@ -1,5 +1,21 @@
 import { create } from 'zustand';
-import type { ProjectScene } from '@/components/ScreenplayEditor/ScreenplaySidePanel';
+
+export interface SceneVersion {
+  sceneHeading?: string;
+  version?: number;
+  step?: string;
+  act?: number;
+  thesis?: string;
+  antithesis?: string;
+  synthesis?: string;
+}
+
+export interface ProjectScene {
+  _id: string;
+  activeVersion?: number;
+  lockedVersion?: number | null;
+  versions?: SceneVersion[];
+}
 
 export interface ProjectSceneOutline {
   _id: string;
