@@ -16,7 +16,6 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material'
-import ViewSidebarIcon from '@mui/icons-material/ViewSidebar'
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline'
 import FormatQuoteIcon from '@mui/icons-material/FormatQuote'
 import NotesIcon from '@mui/icons-material/Notes'
@@ -45,11 +44,8 @@ import {
   SCREENPLAY_ZOOM_MIN,
   SCREENPLAY_ZOOM_STEP,
 } from './ScreenplayDocumentToolbar'
-import {
-  ScreenplaySidePanel,
-  type ScreenplaySidePanelTab,
-  type ProjectScene,
-} from './ScreenplaySidePanel'
+import { ScreenplayInspirationPanesLayer } from './ScreenplayInspirationPanesLayer'
+import { ScreenplayStatsPanesLayer } from './ScreenplayStatsPanesLayer'
 import { PROJECT_CHARACTERS_QUERY } from '@/queries/CharacterQueries'
 import { useScreenplayCharacterLookupStore } from '@/state/screenplayCharacterLookup'
 import { PROJECT_SCENES_QUERY } from '@/queries/SceneQueries'
@@ -61,7 +57,7 @@ import { useUserProfileStore } from '@/state/user'
 import { useScreenplaySaveStatusStore } from '@/state/screenplaySaveStatus'
 import { useScreenplayEditorStore } from '@/state/screenplayEditor'
 import { useScreenplayHeaderChromeStore } from '@/state/screenplayHeaderChrome'
-import { useScreenplaySceneOutlineStore } from '@/state/screenplaySceneOutline'
+import { useScreenplaySceneOutlineStore, type ProjectScene } from '@/state/screenplaySceneOutline'
 import { GRAPHQL_ENDPOINT } from '@/lib/config'
 import {
   applyLayoutConfigToPage,
@@ -470,17 +466,6 @@ function ScreenplayEditorCore({
   ydoc,
   provider,
 }: ScreenplayEditorCoreProps) {
-  const [navigatorOpen, setNavigatorOpen] = React.useState(true)
-  /** Wide list vs. narrow strip (scene INT/EXT chips or character initials). */
-  const [sidePanelExpanded, setSidePanelExpanded] = React.useState(true)
-  /** Which side panel list is shown when the navigator is open. */
-  const [sidePanelTab, setSidePanelTab] = React.useState<ScreenplaySidePanelTab>('inspiration')
-  const handleSidePanelTabChange = React.useCallback((tab: ScreenplaySidePanelTab) => {
-    setSidePanelTab(tab)
-    if (tab === 'stats' || tab === 'inspiration') {
-      setSidePanelExpanded(true)
-    }
-  }, [])
   const [zoom, setZoom] = React.useState(SCREENPLAY_DISPLAY_SCALE)
   const [isAutoZoomed, setIsAutoZoomed] = React.useState(false)
   const [autoZoomSnackbarOpen, setAutoZoomSnackbarOpen] = React.useState(false)
@@ -898,14 +883,8 @@ function ScreenplayEditorCore({
   }, [zoom, isAutoZoomed, collabActive, editor, setHeaderChrome, calcAutoFitZoom])
 
   // ── Derived ──────────────────────────────────────────────────────────────
-  const sidePanelUsesFixedWidth =
-    sidePanelTab === 'stats' || sidePanelTab === 'inspiration'
-  /** True only when the open side panel actually renders content that should reserve row width. */
-  const sidePanelHasContent = navigatorOpen && sidePanelExpanded && sidePanelUsesFixedWidth
-  /** Neither remaining tab (inspiration/stats) splits the row 50/50. */
-  const navigatorSplitProportions = sidePanelHasContent && !sidePanelUsesFixedWidth
-  /** Editor is centered in every state (never left-pinned). */
-  const centerEditorColumn = !navigatorSplitProportions
+  /** Editor is always centered now that the inspiration/stats side panel is gone. */
+  const centerEditorColumn = true
 
   /** Toolbar + scaled paper + gutter + lateral rim shadow must fit workspace width (`flex: 1`), or horizontal overflow clips the right halo. */
   const screenplayToolbarPaperRowMinWidthPx =
@@ -957,25 +936,9 @@ function ScreenplayEditorCore({
         }}
       >
 
-        {/* ── Side tabs + panel (inspiration / stats) — flush with layout's left content edge via root bleed ─ */}
-        {navigatorOpen && (
-          <ScreenplaySidePanel
-            navigatorSplitProportions={navigatorSplitProportions}
-            sidePanelTab={sidePanelTab}
-            onTabChange={handleSidePanelTabChange}
-            sidePanelExpanded={sidePanelExpanded}
-            onExpandedChange={setSidePanelExpanded}
-            projectId={projectId}
-          />
-        )}
-
-        {/* Fills remaining row width when centering; marginLeft auto keeps editor right when list expanded */}
+        {/* Fills remaining row width, centering the editor column */}
         <Box
-          className={
-            centerEditorColumn
-              ? 'screenplay-editor-col screenplay-editor-col--centered'
-              : 'screenplay-editor-col'
-          }
+          className="screenplay-editor-col screenplay-editor-col--centered"
           sx={{
             display: 'flex',
             flex: '1 1 0%',
@@ -983,12 +946,10 @@ function ScreenplayEditorCore({
             minHeight: 0,
             overflow: 'hidden',
             alignSelf: 'stretch',
-            ...(centerEditorColumn
-              ? { justifyContent: 'center' }
-              : { marginLeft: 'auto' }),
+            justifyContent: 'center',
           }}
         >
-        {/* ── SCREENPLAY: column with optional show-side-panel row; vertical toolbar attached left of page ─ */}
+        {/* ── SCREENPLAY: vertical toolbar attached left of page ─ */}
         <Box
           sx={{
             // <PROTECTED>
@@ -1019,36 +980,9 @@ function ScreenplayEditorCore({
               alignItems: 'stretch',
               ...(centerEditorColumn ? { marginLeft: 'auto', marginRight: 'auto' } : {}),
               // </PROTECTED>
-              
+
             }}
           >
-            {/* Only rendered when there's something to show — an empty row would still reserve
-                its mb + button height, reintroducing a gap above the toolbar/page row below. */}
-            {!navigatorOpen && (
-              <Box
-                sx={{
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  pr: `${SCREENPLAY_WORKSPACE_SCROLL_INNER_PAD_RIGHT_PX}px`,
-                  mb: 1,
-                  flexShrink: 0,
-                  minWidth: 0,
-                  display: 'flex',
-                  justifyContent: 'flex-end',
-                  gap: 0.5,
-                }}
-              >
-                <Tooltip title="Show side panel (characters, scenes, inspiration, stats)">
-                  <IconButton
-                    size="small"
-                    onClick={() => setNavigatorOpen(true)}
-                    aria-label="Show side panel"
-                  >
-                    <ViewSidebarIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-            )}
             {/* Flex row: vertical toolbar (non-scrolling) + scroll workspace */}
             {/* <PROTECTED> */}
             <Box sx={{
@@ -1156,6 +1090,8 @@ function ScreenplayEditorCore({
 
       <ScreenplayScenePanesLayer />
       <ScreenplayCharacterPanesLayer />
+      <ScreenplayInspirationPanesLayer />
+      <ScreenplayStatsPanesLayer />
     </Box>
   )
 }
