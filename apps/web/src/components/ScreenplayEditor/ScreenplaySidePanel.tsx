@@ -8,14 +8,10 @@ import {
   Typography,
   useTheme,
 } from '@mui/material'
-import LocalMoviesIcon from '@mui/icons-material/LocalMovies'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
-import PersonIcon from '@mui/icons-material/Person'
 import LightbulbOutlinedIcon from '@mui/icons-material/LightbulbOutlined'
 import InsightsIcon from '@mui/icons-material/Insights'
-import { SceneCard } from '@/components/SceneCard'
-import { CharacterCard } from '@/components/CharacterCard'
 import { ScreenplayInspirationPanel } from './ScreenplayInspirationPanel'
 import { ScreenplayProjectStatsPanel } from './ScreenplayProjectStatsPanel'
 import '@/styles/screenplayWorkspace.css'
@@ -27,6 +23,9 @@ export interface SceneVersion {
   version?: number
   step?: string
   act?: number
+  thesis?: string
+  antithesis?: string
+  synthesis?: string
 }
 
 export interface ProjectScene {
@@ -36,34 +35,18 @@ export interface ProjectScene {
   versions?: SceneVersion[]
 }
 
-export interface SceneCardStepOption {
-  name: string
-  number: number
-  act: string
-}
-
-interface ProjectCharacter {
-  _id: string
-  name?: string
-  imageUrl?: string
-  details?: any[]
-  lockedVersion?: number | null
-}
-
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 /** Vertical tab rail on the left edge of the screenplay area. */
 const SIDE_PANEL_TABS_W_PX = 35
 
-export type ScreenplaySidePanelTab = 'characters' | 'scenes' | 'inspiration' | 'stats'
+export type ScreenplaySidePanelTab = 'inspiration' | 'stats'
 
 const SIDE_PANEL_TABS: ReadonlyArray<{
   id: ScreenplaySidePanelTab
   label: string
-  Icon: typeof PersonIcon
+  Icon: typeof LightbulbOutlinedIcon
 }> = [
-  { id: 'characters', label: 'Characters', Icon: PersonIcon },
-  { id: 'scenes', label: 'Scenes', Icon: LocalMoviesIcon },
   { id: 'inspiration', label: 'Inspiration', Icon: LightbulbOutlinedIcon },
   { id: 'stats', label: 'Stats', Icon: InsightsIcon },
 ]
@@ -77,13 +60,7 @@ interface ScreenplaySidePanelProps {
   onTabChange: (tab: ScreenplaySidePanelTab) => void
   sidePanelExpanded: boolean
   onExpandedChange: (expanded: boolean) => void
-  characterCardExpandedId: number | undefined
-  onCharacterCardExpandedChange: (id: number | undefined) => void
-  projectScenes: ProjectScene[]
-  projectCharacters: ProjectCharacter[]
   projectId: string | undefined
-  sceneCardSteps: SceneCardStepOption[]
-  onToggleCharacterLock: (characterId: string, locked: boolean) => void
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -94,13 +71,7 @@ export function ScreenplaySidePanel({
   onTabChange,
   sidePanelExpanded,
   onExpandedChange,
-  characterCardExpandedId,
-  onCharacterCardExpandedChange,
-  projectScenes,
-  projectCharacters,
   projectId,
-  sceneCardSteps,
-  onToggleCharacterLock,
 }: ScreenplaySidePanelProps) {
   const theme = useTheme()
   const usesFixedWidthPanel = sidePanelTab === 'stats' || sidePanelTab === 'inspiration'
@@ -308,121 +279,6 @@ export function ScreenplaySidePanel({
             {sidePanelTab === 'inspiration' && projectId ? (
               <ScreenplayInspirationPanel projectId={projectId} />
             ) : null}
-
-            {sidePanelTab === 'scenes' && (
-              <>
-                {projectScenes.length === 0 ? (
-                  <Box sx={{ px: 2, py: 3, textAlign: 'center' }}>
-                    <Typography variant="caption" color="text.disabled">
-                      No scenes in your outline yet.
-                      <br />
-                      Add scenes in the Outline tab to see them here.
-                    </Typography>
-                  </Box>
-                ) : (
-                  <Box
-                    sx={{
-                      p: 1,
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                      gap: 1,
-                      width: '100%',
-                      minWidth: 0,
-                      boxSizing: 'border-box',
-                    }}
-                  >
-                    {projectScenes.map((scene, i) => {
-                      const activeVersion = scene.activeVersion ?? 1
-                      const avIdx = Math.max(0, activeVersion - 1)
-                      const v = scene.versions?.[avIdx] ?? scene.versions?.[0]
-                      return (
-                        <Box
-                          key={scene._id ?? i}
-                          sx={{
-                            minWidth: 0,
-                            width: '100%',
-                            '& > .MuiCard-root': { mb: 0 },
-                          }}
-                        >
-                          <SceneCard
-                            sceneId={scene._id}
-                            number={i + 1}
-                            newScene={false}
-                            versions={scene.versions ?? []}
-                            activeVersion={activeVersion}
-                            lockedVersion={scene.lockedVersion ?? null}
-                            projectId={projectId}
-                            step={v?.step ?? ''}
-                            act={v?.act}
-                            steps={sceneCardSteps}
-                            fullWidthInParent
-                            compactSideBySide
-                          />
-                        </Box>
-                      )
-                    })}
-                  </Box>
-                )}
-              </>
-            )}
-
-            {sidePanelTab === 'characters' && (
-              <>
-                {projectCharacters.length === 0 ? (
-                  <Box sx={{ px: 2, py: 3, textAlign: 'center' }}>
-                    <Typography variant="caption" color="text.disabled">
-                      No characters yet.
-                      <br />
-                      Add characters on the Characters page.
-                    </Typography>
-                  </Box>
-                ) : (
-                  <Box
-                    sx={{
-                      p: 1,
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-                      gap: 1,
-                      width: '100%',
-                      minWidth: 0,
-                      boxSizing: 'border-box',
-                    }}
-                  >
-                    {projectCharacters.map((character, index) => {
-                      const cardId = index + 1
-                      return (
-                        <Box
-                          key={character._id ?? `character-${index}`}
-                          sx={{
-                            minWidth: 0,
-                            width: '100%',
-                            '& > .MuiCard-root': { mb: 0 },
-                          }}
-                        >
-                          <CharacterCard
-                            id={cardId}
-                            name={character.name}
-                            imageUrl={character.imageUrl}
-                            details={character.details}
-                            expanded={characterCardExpandedId === cardId}
-                            onExpandClick={() =>
-                              onCharacterCardExpandedChange(
-                                characterCardExpandedId === cardId ? undefined : cardId,
-                              )
-                            }
-                            locked={character.lockedVersion != null}
-                            onToggleLock={() =>
-                              onToggleCharacterLock(character._id, character.lockedVersion == null)
-                            }
-                            fullWidthInParent
-                          />
-                        </Box>
-                      )
-                    })}
-                  </Box>
-                )}
-              </>
-            )}
           </Box>
         </Paper>
       )}

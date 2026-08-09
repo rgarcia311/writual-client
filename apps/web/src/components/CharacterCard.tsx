@@ -11,6 +11,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { Box, IconButton as MuiIconButton, Tooltip } from '@mui/material';
 import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
+import EditIcon from '@mui/icons-material/Edit';
 import { VersionSelectorWithAdd } from '@/components/VersionSelectorWithAdd/VersionSelectorWithAdd';
 
 interface ExpandMoreProps extends IconButtonProps {
@@ -55,6 +56,8 @@ interface CharacterCardProps {
   onAddVersion?: () => void;
   /** Called when user toggles the locked state */
   onToggleLock?: () => void;
+  /** Called when user clicks the edit icon; receives the currently displayed version's details. */
+  onEditClick?: (detail: Record<string, unknown> | undefined) => void;
   /**
    * Narrow parents (e.g. screenplay side panel): full width, no grid percentage width.
    */
@@ -73,6 +76,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   locked = false,
   onAddVersion,
   onToggleLock,
+  onEditClick,
   fullWidthInParent = false,
   gridTile = false,
 }) => {
@@ -127,18 +131,30 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             zIndex: 1,
           }}
         >
-          <Tooltip title={locked ? 'Unlock character' : 'Lock character'}>
-            <MuiIconButton
-              size="small"
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleLock?.();
-              }}
-              sx={{ pointerEvents: 'auto' }}
-            >
-              {locked ? <LockIcon fontSize="small" /> : <LockOpenIcon fontSize="small" />}
-            </MuiIconButton>
-          </Tooltip>
+          <Box sx={{ display: 'flex', alignItems: 'center', pointerEvents: 'auto' }}>
+            <Tooltip title={locked ? 'Unlock character' : 'Lock character'}>
+              <MuiIconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleLock?.();
+                }}
+              >
+                {locked ? <LockIcon fontSize="small" /> : <LockOpenIcon fontSize="small" />}
+              </MuiIconButton>
+            </Tooltip>
+            <Tooltip title="Edit character">
+              <MuiIconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditClick?.(detail);
+                }}
+              >
+                <EditIcon fontSize="small" />
+              </MuiIconButton>
+            </Tooltip>
+          </Box>
           <Box sx={{ pointerEvents: 'auto' }}>
             <VersionSelectorWithAdd
               value={String(version)}

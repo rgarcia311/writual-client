@@ -47,6 +47,11 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
   const [errorMessage, setErrorMessage] = React.useState('Failed to create character.');
   const [expandedCardId, setExpandedCardId] = React.useState<number | undefined>(undefined);
   const [lockAllConfirmOpen, setLockAllConfirmOpen] = React.useState(false);
+  const [editingCharacter, setEditingCharacter] = React.useState<{
+    characterId: string;
+    version: number | undefined;
+    initialValues: NewCharacterValues;
+  } | null>(null);
 
   const getCharacters = async () => {
     const userProfileState = await useUserProfileStore.getState();
@@ -135,8 +140,60 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
     },
   });
 
+  const updateCharacterDetailsMutation = useMutation({
+    mutationFn: async (values: NewCharacterValues) => {
+      if (!editingCharacter) throw new Error('No character selected for edit.');
+      return updateCharacterAction(editingCharacter.characterId, {
+        imageUrl: values.imageUrl.trim() || undefined,
+        details: [
+          {
+            version: editingCharacter.version,
+            name: values.name,
+            gender: values.gender,
+            age: values.age === '' ? undefined : Number(values.age),
+            bio: values.bio,
+            want: values.want,
+            need: values.need,
+          },
+        ],
+      });
+    },
+    onSuccess: async () => {
+      setEditingCharacter(null);
+      await queryClient.invalidateQueries({ queryKey: ['project-characters', projectId] });
+      await queryClient.refetchQueries({ queryKey: ['project-characters', projectId] });
+    },
+    onError: (err: { message?: string }) => {
+      setErrorMessage(err?.message || 'Failed to update character.');
+      setErrorOpen(true);
+    },
+  });
+
   const handleSubmit = (values: NewCharacterValues) => {
     createCharacterMutation.mutate(values);
+  };
+
+  const handleEditClick = (
+    character: Record<string, unknown>,
+    detail: Record<string, unknown> | undefined
+  ) => {
+    setEditingCharacter({
+      characterId: character._id as string,
+      version: detail?.version as number | undefined,
+      initialValues: {
+        name: (detail?.name as string) ?? (character.name as string) ?? '',
+        gender: (detail?.gender as string) ?? '',
+        age: (detail?.age as number | undefined) ?? '',
+        bio: (detail?.bio as string) ?? '',
+        want: (detail?.want as string) ?? '',
+        need: (detail?.need as string) ?? '',
+        imageUrl: (character.imageUrl as string) ?? '',
+      },
+    });
+  };
+
+  const handleEditSubmit = (values: NewCharacterValues) => {
+    updateCharacterDetailsMutation.mutate(values);
   };
 
   const breadcrumbActions = (
@@ -247,6 +304,7 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
                   locked: character.lockedVersion == null,
                 })
               }
+              onEditClick={(detail) => handleEditClick(character, detail)}
             />
           );
         })}
@@ -257,6 +315,13 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
         onCancel={() => setCreateOpen(false)}
         onSubmit={handleSubmit}
         submitting={createCharacterMutation.isPending}
+      />
+      <NewCharacterForm
+        open={Boolean(editingCharacter)}
+        onCancel={() => setEditingCharacter(null)}
+        onSubmit={handleEditSubmit}
+        submitting={updateCharacterDetailsMutation.isPending}
+        initialValues={editingCharacter?.initialValues}
       />
       <AppAlert
         open={errorOpen}

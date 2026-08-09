@@ -5,6 +5,7 @@ import { Box, Paper, Typography, useTheme } from '@mui/material'
 import CloudDoneIcon from '@mui/icons-material/CloudDone'
 import { useScreenplayEditorStore } from '@/state/screenplayEditor'
 import { ScreenplayToolbar } from './ScreenplayToolbar'
+import { ScreenplayDetailTogglesToolbar } from './ScreenplayDetailTogglesToolbar'
 import { ScreenplayVerticalToolbarShell } from './ScreenplayVerticalToolbarShell'
 import { SCREENPLAY_VERTICAL_TOOLBAR_W_PX } from './screenplayPaperLayout'
 
@@ -55,7 +56,12 @@ export function ScreenplayDocumentToolbar({
             />
           </Box>
         )}
-        {showElementSelectors && <ScreenplayToolbar orientation="vertical" />}
+        {showElementSelectors && (
+          <>
+            <ScreenplayToolbar orientation="vertical" />
+            <ScreenplayDetailTogglesToolbar orientation="vertical" />
+          </>
+        )}
       </ScreenplayVerticalToolbarShell>
     )
   }
@@ -107,6 +113,7 @@ export function ScreenplayDocumentToolbar({
           }}
         >
           <ScreenplayToolbar />
+          <ScreenplayDetailTogglesToolbar orientation="horizontal" />
         </Paper>
       ) : null}
 

@@ -24,28 +24,34 @@ export interface NewCharacterValues {
   imageUrl: string;
 }
 
+const BLANK_VALUES: NewCharacterValues = {
+  name: '',
+  gender: '',
+  age: '',
+  bio: '',
+  want: '',
+  need: '',
+  imageUrl: '',
+};
+
 interface NewCharacterFormProps {
   open: boolean;
   onCancel: () => void;
   onSubmit: (values: NewCharacterValues) => void;
   submitting?: boolean;
+  /** When provided, the form opens pre-filled with these values for editing an existing character. */
+  initialValues?: NewCharacterValues;
 }
 
-export function NewCharacterForm({ open, onCancel, onSubmit, submitting = false }: NewCharacterFormProps) {
+export function NewCharacterForm({ open, onCancel, onSubmit, submitting = false, initialValues }: NewCharacterFormProps) {
   const theme = useTheme();
-  const [values, setValues] = React.useState<NewCharacterValues>({
-    name: '',
-    gender: '',
-    age: '',
-    bio: '',
-    want: '',
-    need: '',
-    imageUrl: '',
-  });
+  const isEdit = Boolean(initialValues);
+  const [values, setValues] = React.useState<NewCharacterValues>(initialValues ?? BLANK_VALUES);
 
   React.useEffect(() => {
     if (!open) return;
-    setValues({ name: '', gender: '', age: '', bio: '', want: '', need: '', imageUrl: '' });
+    setValues(initialValues ?? BLANK_VALUES);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const update = (key: keyof NewCharacterValues) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -78,7 +84,7 @@ export function NewCharacterForm({ open, onCancel, onSubmit, submitting = false 
       onClose={onCancel}
       PaperProps={{ style: { backgroundColor: theme.palette.background.default } }}
     >
-      <DialogTitle sx={{ paddingLeft: 4, paddingTop: 3 }}>CREATE CHARACTER</DialogTitle>
+      <DialogTitle sx={{ paddingLeft: 4, paddingTop: 3 }}>{isEdit ? 'EDIT CHARACTER' : 'CREATE CHARACTER'}</DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, padding: 4, overflow: 'visible', '& .MuiTextField-root': inputAutofillSx }}>
         <TextField
           label="Name"
@@ -114,7 +120,7 @@ export function NewCharacterForm({ open, onCancel, onSubmit, submitting = false 
           Cancel
         </Button>
         <Button onClick={handleSubmit} variant="contained" color="primary" disabled={!canSubmit}>
-          Submit
+          {isEdit ? 'Save' : 'Submit'}
         </Button>
       </DialogActions>
     </Dialog>

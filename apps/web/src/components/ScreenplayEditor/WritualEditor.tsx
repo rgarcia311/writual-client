@@ -5,7 +5,7 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Collaboration from '@tiptap/extension-collaboration'
 import { CollaborationCursor } from './CollaborationCursorExtension'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { request } from 'graphql-request'
 import {
   Alert,
@@ -36,6 +36,8 @@ import { PageBreakExtension } from './PageBreakPlugin'
 import { printScreenplayHidden } from './screenplayPdfPrint'
 import { BlockAltsToolbar } from './BlockAltsToolbar'
 import { BlockTypeMenu } from './BlockTypeMenu'
+import { ScreenplayScenePanesLayer } from './ScreenplayScenePanesLayer'
+import { ScreenplayCharacterPanesLayer } from './ScreenplayCharacterPanesLayer'
 import {
   ScreenplayDocumentToolbar,
   SCREENPLAY_VERTICAL_TOOLBAR_W_PX,
@@ -43,18 +45,14 @@ import {
   SCREENPLAY_ZOOM_MIN,
   SCREENPLAY_ZOOM_STEP,
 } from './ScreenplayDocumentToolbar'
-import { updateCharacter as updateCharacterAction } from '@/app/actions/characters'
 import {
   ScreenplaySidePanel,
   type ScreenplaySidePanelTab,
   type ProjectScene,
-  type SceneCardStepOption,
-  type SceneVersion,
 } from './ScreenplaySidePanel'
-import { OUTLINE_FRAMEWORKS_QUERY } from '@/queries/OutlineQueries'
 import { PROJECT_CHARACTERS_QUERY } from '@/queries/CharacterQueries'
+import { useScreenplayCharacterLookupStore } from '@/state/screenplayCharacterLookup'
 import { PROJECT_SCENES_QUERY } from '@/queries/SceneQueries'
-import type { OutlineFrameworkItem } from '@/state/outlineFrameworks'
 import { PROJECT_SCENES_QUERY_KEY } from 'hooks'
 import { useAutosave } from '@hooks/useAutosave'
 import { useCollaboration } from '@hooks/useCollaboration'
@@ -63,6 +61,7 @@ import { useUserProfileStore } from '@/state/user'
 import { useScreenplaySaveStatusStore } from '@/state/screenplaySaveStatus'
 import { useScreenplayEditorStore } from '@/state/screenplayEditor'
 import { useScreenplayHeaderChromeStore } from '@/state/screenplayHeaderChrome'
+import { useScreenplaySceneOutlineStore } from '@/state/screenplaySceneOutline'
 import { GRAPHQL_ENDPOINT } from '@/lib/config'
 import {
   applyLayoutConfigToPage,
@@ -361,34 +360,13 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
   const project = (scenesData as any)?.getProjectData?.[0]
   const projectTitle: string | null = project?.title ?? null
   const projectScenes: ProjectScene[] = project?.scenes ?? []
+  const setScreenplaySceneOutlines = useScreenplaySceneOutlineStore((s) => s.setScenes)
+  React.useEffect(() => {
+    setScreenplaySceneOutlines(projectScenes)
+  }, [projectScenes, setScreenplaySceneOutlines])
   const savedScreenplayContent = project?.screenplay?.versions?.[0]?.content ?? null
   const savedScreenplayLayout = (project?.screenplay?.layout ?? null) as ScreenplayLayoutConfig | null
-  const outlineName = project?.outlineName?.trim() ?? null
   const writingTracker = project?.writingTracker ?? null
-
-  const { data: frameworksData } = useQuery({
-    queryKey: ['outline-frameworks', user, projectId],
-    queryFn: async () => request(GRAPHQL_ENDPOINT, OUTLINE_FRAMEWORKS_QUERY, { user }),
-    enabled: Boolean(outlineName && user && projectId),
-  }) as { data: { getOutlineFrameworks?: any[] } | undefined }
-
-  const outlineFramework: OutlineFrameworkItem | null = React.useMemo(() => {
-    const list = frameworksData?.getOutlineFrameworks ?? []
-    return list.find((f) => (f.name ?? '').trim() === outlineName) ?? null
-  }, [frameworksData, outlineName])
-
-  /** Same `steps` list as the Outline page `SceneCard` (assign-to-step). */
-  const sceneCardSteps = React.useMemo(
-    () => {
-      if (!outlineFramework?.format?.steps?.length) return []
-      return outlineFramework.format.steps.map((s: { name?: string; number?: number; act?: string }) => ({
-        name: (s.name ?? '').trim() || `Step ${s.number ?? 0}`,
-        number: s.number ?? 0,
-        act: s.act ?? '',
-      }))
-    },
-    [outlineFramework],
-  )
 
   const canEdit = React.useMemo(() => {
     if (!project || !user) return false
@@ -415,7 +393,6 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
       projectScenes={projectScenes}
       savedScreenplayContent={savedScreenplayContent}
       savedScreenplayLayout={savedScreenplayLayout}
-      sceneCardSteps={sceneCardSteps}
       writingTracker={writingTracker}
     />
   )
@@ -430,7 +407,6 @@ interface CollabGateProps {
   projectScenes: ProjectScene[]
   savedScreenplayContent: unknown
   savedScreenplayLayout: ScreenplayLayoutConfig | null
-  sceneCardSteps: SceneCardStepOption[]
   writingTracker: { enabled?: boolean } | null | undefined
 }
 
@@ -441,7 +417,6 @@ function CollabGate({
   projectScenes,
   savedScreenplayContent,
   savedScreenplayLayout,
-  sceneCardSteps,
   writingTracker,
 }: CollabGateProps) {
   const { ydoc, provider, failed } = useCollaboration(projectId)
@@ -463,7 +438,6 @@ function CollabGate({
       projectScenes={projectScenes}
       savedScreenplayContent={savedScreenplayContent}
       savedScreenplayLayout={savedScreenplayLayout}
-      sceneCardSteps={sceneCardSteps}
       writingTracker={writingTracker}
       ydoc={failed ? null : ydoc}
       provider={failed ? null : provider}
@@ -480,7 +454,6 @@ interface ScreenplayEditorCoreProps {
   projectScenes: ProjectScene[]
   savedScreenplayContent: unknown
   savedScreenplayLayout: ScreenplayLayoutConfig | null
-  sceneCardSteps: SceneCardStepOption[]
   writingTracker: { enabled?: boolean } | null | undefined
   ydoc: Y.Doc | null
   provider: HocuspocusProvider | null
@@ -493,7 +466,6 @@ function ScreenplayEditorCore({
   projectScenes,
   savedScreenplayContent,
   savedScreenplayLayout,
-  sceneCardSteps,
   writingTracker,
   ydoc,
   provider,
@@ -502,16 +474,13 @@ function ScreenplayEditorCore({
   /** Wide list vs. narrow strip (scene INT/EXT chips or character initials). */
   const [sidePanelExpanded, setSidePanelExpanded] = React.useState(true)
   /** Which side panel list is shown when the navigator is open. */
-  const [sidePanelTab, setSidePanelTab] = React.useState<ScreenplaySidePanelTab>('characters')
+  const [sidePanelTab, setSidePanelTab] = React.useState<ScreenplaySidePanelTab>('inspiration')
   const handleSidePanelTabChange = React.useCallback((tab: ScreenplaySidePanelTab) => {
     setSidePanelTab(tab)
     if (tab === 'stats' || tab === 'inspiration') {
       setSidePanelExpanded(true)
     }
   }, [])
-  const [characterCardExpandedId, setCharacterCardExpandedId] = React.useState<number | undefined>(
-    undefined,
-  )
   const [zoom, setZoom] = React.useState(SCREENPLAY_DISPLAY_SCALE)
   const [isAutoZoomed, setIsAutoZoomed] = React.useState(false)
   const [autoZoomSnackbarOpen, setAutoZoomSnackbarOpen] = React.useState(false)
@@ -687,20 +656,10 @@ function ScreenplayEditorCore({
   })
   const projectCharacters: any[] = (charactersData as any)?.getProjectData?.[0]?.characters ?? []
 
-  const updateCharacterLockMutation = useMutation({
-    mutationFn: async ({ characterId, locked }: { characterId: string; locked: boolean }) => {
-      const character = projectCharacters.find((c) => c._id === characterId)
-      const activeVersion = character?.activeVersion ?? 1
-      return updateCharacterAction(characterId, {
-        activeVersion,
-        lockedVersion: locked ? activeVersion : null,
-      })
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['project-characters', projectId] })
-      await queryClient.refetchQueries({ queryKey: ['project-characters', projectId] })
-    },
-  })
+  const setScreenplayCharacters = useScreenplayCharacterLookupStore((s) => s.setCharacters)
+  React.useEffect(() => {
+    setScreenplayCharacters(projectCharacters)
+  }, [projectCharacters, setScreenplayCharacters])
 
   // ── Save status ──────────────────────────────────────────────────────────
   const { savingCount, lastSavedAt, hasPendingChanges, setPending, startSaving, endSaving } = useScreenplaySaveStatusStore()
@@ -942,15 +901,10 @@ function ScreenplayEditorCore({
   const sidePanelUsesFixedWidth =
     sidePanelTab === 'stats' || sidePanelTab === 'inspiration'
   /** True only when the open side panel actually renders content that should reserve row width. */
-  const sidePanelHasContent =
-    navigatorOpen &&
-    sidePanelExpanded &&
-    (sidePanelUsesFixedWidth ||
-      (sidePanelTab === 'characters' && (projectCharacters?.length ?? 0) > 0) ||
-      (sidePanelTab === 'scenes' && (projectScenes?.length ?? 0) > 0))
-  /** Char/scene list with content shares the row 50/50; everything else does not split. */
+  const sidePanelHasContent = navigatorOpen && sidePanelExpanded && sidePanelUsesFixedWidth
+  /** Neither remaining tab (inspiration/stats) splits the row 50/50. */
   const navigatorSplitProportions = sidePanelHasContent && !sidePanelUsesFixedWidth
-  /** Editor is centered in every state except the char/scene 50/50 split (never left-pinned). */
+  /** Editor is centered in every state (never left-pinned). */
   const centerEditorColumn = !navigatorSplitProportions
 
   /** Toolbar + scaled paper + gutter + lateral rim shadow must fit workspace width (`flex: 1`), or horizontal overflow clips the right halo. */
@@ -1003,7 +957,7 @@ function ScreenplayEditorCore({
         }}
       >
 
-        {/* ── Side tabs + panel (scenes or character cards) — flush with layout's left content edge via root bleed ─ */}
+        {/* ── Side tabs + panel (inspiration / stats) — flush with layout's left content edge via root bleed ─ */}
         {navigatorOpen && (
           <ScreenplaySidePanel
             navigatorSplitProportions={navigatorSplitProportions}
@@ -1011,15 +965,7 @@ function ScreenplayEditorCore({
             onTabChange={handleSidePanelTabChange}
             sidePanelExpanded={sidePanelExpanded}
             onExpandedChange={setSidePanelExpanded}
-            characterCardExpandedId={characterCardExpandedId}
-            onCharacterCardExpandedChange={setCharacterCardExpandedId}
-            projectScenes={projectScenes}
-            projectCharacters={projectCharacters}
             projectId={projectId}
-            sceneCardSteps={sceneCardSteps}
-            onToggleCharacterLock={(characterId, locked) =>
-              updateCharacterLockMutation.mutate({ characterId, locked })
-            }
           />
         )}
 
@@ -1207,6 +1153,9 @@ function ScreenplayEditorCore({
           Zoom adjusted to fit your screen resolution. Use Ctrl+Scroll or the header controls to adjust.
         </Alert>
       </Snackbar>
+
+      <ScreenplayScenePanesLayer />
+      <ScreenplayCharacterPanesLayer />
     </Box>
   )
 }

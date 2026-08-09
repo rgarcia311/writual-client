@@ -211,10 +211,13 @@ export async function updateCharacter(
     };
     charObj.details.push(newDetail);
   } else if (detailPayload) {
-    const lastIndex = versions.length - 1;
-    if (lastIndex >= 0) {
-      const existing = versions[lastIndex];
-      charObj.details[lastIndex] = {
+    const targetIndex =
+      detailPayload.version != null
+        ? versions.findIndex((v: any) => Number(v.version) === Number(detailPayload.version))
+        : versions.length - 1;
+    if (targetIndex >= 0) {
+      const existing = versions[targetIndex];
+      charObj.details[targetIndex] = {
         ...(existing.toObject?.() ?? existing),
         bio: detailPayload.bio ?? existing.bio ?? "",
         name: detailPayload.name ?? existing.name ?? "",
