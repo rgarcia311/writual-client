@@ -11,11 +11,14 @@ import Typography from '@mui/material/Typography'
 import CloseIcon from '@mui/icons-material/Close'
 import { useScreenplaySceneOutlineStore } from '@/state/screenplaySceneOutline'
 import { useScreenplayScenePanesStore } from '@/state/screenplayScenePanes'
+import { useIsSpatialEnvironment } from '@/hooks/useIsSpatialEnvironment'
 
 const GLASS_INK = '#1c294a'
 const GLASS_MOSS = '#2D8060'
 const GLASS_MOSS_DARK = '#236348'
 const PANE_WIDTH_PX = 400
+/** Pixels of real depth per stacking step; tune against the PICO headset. */
+const XR_BACK_STEP_PX = 24
 
 interface SceneDetailPaneProps {
   paneId: string
@@ -30,6 +33,7 @@ const OUTLINE_SECTIONS: { key: 'thesis' | 'antithesis' | 'synthesis'; label: str
 export function SceneDetailPane({ paneId }: SceneDetailPaneProps) {
   const params = useParams<{ id?: string }>()
   const projectId = params?.id
+  const isSpatial = useIsSpatialEnvironment()
 
   const pane = useScreenplayScenePanesStore((s) => s.panes[paneId])
   const bringToFront = useScreenplayScenePanesStore((s) => s.bringToFront)
@@ -41,27 +45,36 @@ export function SceneDetailPane({ paneId }: SceneDetailPaneProps) {
 
   if (!pane) return null
 
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId)
-    dragOffsetRef.current = { dx: e.clientX - pane.x, dy: e.clientY - pane.y }
-  }
+  // Native spatial drag takes over on-device; the manual pointer-drag reposition
+  // logic below only runs for flat-browser mouse/touch.
+  const handlePointerDown = isSpatial
+    ? undefined
+    : (e: React.PointerEvent<HTMLDivElement>) => {
+        e.currentTarget.setPointerCapture(e.pointerId)
+        dragOffsetRef.current = { dx: e.clientX - pane.x, dy: e.clientY - pane.y }
+      }
 
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    const offset = dragOffsetRef.current
-    if (!offset) return
-    updatePanePosition(paneId, e.clientX - offset.dx, e.clientY - offset.dy)
-  }
+  const handlePointerMove = isSpatial
+    ? undefined
+    : (e: React.PointerEvent<HTMLDivElement>) => {
+        const offset = dragOffsetRef.current
+        if (!offset) return
+        updatePanePosition(paneId, e.clientX - offset.dx, e.clientY - offset.dy)
+      }
 
-  const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (dragOffsetRef.current === null) return
-    dragOffsetRef.current = null
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId)
-    }
-  }
+  const endDrag = isSpatial
+    ? undefined
+    : (e: React.PointerEvent<HTMLDivElement>) => {
+        if (dragOffsetRef.current === null) return
+        dragOffsetRef.current = null
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+          e.currentTarget.releasePointerCapture(e.pointerId)
+        }
+      }
 
   return (
     <Box
+      enable-xr
       onPointerDown={() => bringToFront(paneId)}
       sx={{
         position: 'fixed',
@@ -77,6 +90,12 @@ export function SceneDetailPane({ paneId }: SceneDetailPaneProps) {
         borderRadius: 3,
         color: GLASS_INK,
       }}
+      style={
+        {
+          '--xr-back': `${pane.zIndex * XR_BACK_STEP_PX}px`,
+          '--xr-background-material': 'translucent',
+        } as React.CSSProperties
+      }
     >
       <Box
         onPointerDown={handlePointerDown}

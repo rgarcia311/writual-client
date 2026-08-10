@@ -9,8 +9,19 @@ function ensureSecureWsIfNeeded(url: string): string {
   return url
 }
 
+/**
+ * In the browser with no explicit override, default to the page's own hostname
+ * (rather than a hardcoded "localhost") so the app also works when accessed
+ * over the LAN from another device — the API/Hocuspocus servers run on the
+ * same machine that served the page, just on different ports.
+ */
+function browserHost(): string | undefined {
+  return typeof window !== 'undefined' ? window.location.hostname : undefined;
+}
+
 export const GRAPHQL_ENDPOINT =
-  process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || "http://localhost:8080";
+  process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT ||
+  (browserHost() ? `http://${browserHost()}:8080` : "http://localhost:8080");
 
 /** REST API origin (same host as GraphQL by default). Used for PDF AI import. */
 export function getApiOrigin(): string {
@@ -25,5 +36,6 @@ export function getApiOrigin(): string {
 }
 
 export const HOCUSPOCUS_URL = ensureSecureWsIfNeeded(
-  process.env.NEXT_PUBLIC_HOCUSPOCUS_URL || "ws://localhost:8787"
+  process.env.NEXT_PUBLIC_HOCUSPOCUS_URL ||
+    (browserHost() ? `ws://${browserHost()}:8787` : "ws://localhost:8787")
 );

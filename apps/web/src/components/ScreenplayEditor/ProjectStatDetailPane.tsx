@@ -11,11 +11,14 @@ import CloseIcon from '@mui/icons-material/Close'
 import { useProjectShellContext, buildProjectStatTiles } from '@/components/ProjectFloat'
 import { useScreenplayStatsPanesStore, type ScreenplayStatPaneKey } from '@/state/screenplayStatsPanes'
 import { toTitleCase } from 'utils/stringFormatting'
+import { useIsSpatialEnvironment } from '@/hooks/useIsSpatialEnvironment'
 
 const GLASS_INK = '#1c294a'
 const GLASS_MOSS = '#2D8060'
 const GLASS_MOSS_DARK = '#236348'
 const PANE_WIDTH_PX = 300
+/** Pixels of real depth per stacking step; tune against the PICO headset. */
+const XR_BACK_STEP_PX = 24
 
 export const STAT_PANE_LABELS: Record<ScreenplayStatPaneKey, string> = {
   overview: 'Overview',
@@ -32,6 +35,7 @@ interface ProjectStatDetailPaneProps {
 export function ProjectStatDetailPane({ paneId }: ProjectStatDetailPaneProps) {
   const params = useParams<{ id?: string }>()
   const projectId = params?.id
+  const isSpatial = useIsSpatialEnvironment()
 
   const pane = useScreenplayStatsPanesStore((s) => s.panes[paneId])
   const bringToFront = useScreenplayStatsPanesStore((s) => s.bringToFront)
@@ -44,30 +48,39 @@ export function ProjectStatDetailPane({ paneId }: ProjectStatDetailPaneProps) {
 
   if (!pane) return null
 
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId)
-    dragOffsetRef.current = { dx: e.clientX - pane.x, dy: e.clientY - pane.y }
-  }
+  // Native spatial drag takes over on-device; the manual pointer-drag reposition
+  // logic below only runs for flat-browser mouse/touch.
+  const handlePointerDown = isSpatial
+    ? undefined
+    : (e: React.PointerEvent<HTMLDivElement>) => {
+        e.currentTarget.setPointerCapture(e.pointerId)
+        dragOffsetRef.current = { dx: e.clientX - pane.x, dy: e.clientY - pane.y }
+      }
 
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    const offset = dragOffsetRef.current
-    if (!offset) return
-    updatePanePosition(paneId, e.clientX - offset.dx, e.clientY - offset.dy)
-  }
+  const handlePointerMove = isSpatial
+    ? undefined
+    : (e: React.PointerEvent<HTMLDivElement>) => {
+        const offset = dragOffsetRef.current
+        if (!offset) return
+        updatePanePosition(paneId, e.clientX - offset.dx, e.clientY - offset.dy)
+      }
 
-  const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (dragOffsetRef.current === null) return
-    dragOffsetRef.current = null
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId)
-    }
-  }
+  const endDrag = isSpatial
+    ? undefined
+    : (e: React.PointerEvent<HTMLDivElement>) => {
+        if (dragOffsetRef.current === null) return
+        dragOffsetRef.current = null
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+          e.currentTarget.releasePointerCapture(e.pointerId)
+        }
+      }
 
   const statNode =
     paneId === 'overview' ? null : buildProjectStatTiles(statTileData).find((t) => t.key === paneId)?.node ?? null
 
   return (
     <Box
+      enable-xr
       onPointerDown={() => bringToFront(paneId)}
       sx={{
         position: 'fixed',
@@ -84,6 +97,12 @@ export function ProjectStatDetailPane({ paneId }: ProjectStatDetailPaneProps) {
         color: GLASS_INK,
         overflow: 'hidden',
       }}
+      style={
+        {
+          '--xr-back': `${pane.zIndex * XR_BACK_STEP_PX}px`,
+          '--xr-background-material': 'translucent',
+        } as React.CSSProperties
+      }
     >
       {paneId === 'overview' ? (
         <Box

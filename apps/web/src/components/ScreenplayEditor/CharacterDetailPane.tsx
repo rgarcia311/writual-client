@@ -11,12 +11,15 @@ import Typography from '@mui/material/Typography'
 import CloseIcon from '@mui/icons-material/Close'
 import { useScreenplayCharacterLookupStore } from '@/state/screenplayCharacterLookup'
 import { useScreenplayCharacterPanesStore } from '@/state/screenplayCharacterPanes'
+import { useIsSpatialEnvironment } from '@/hooks/useIsSpatialEnvironment'
 
 const GLASS_INK = '#1c294a'
 const GLASS_MOSS = '#2D8060'
 const GLASS_MOSS_DARK = '#236348'
 const DEFAULT_CHARACTER_IMAGE = '/default-character-image.png'
 const PANE_WIDTH_PX = 340
+/** Pixels of real depth per stacking step; tune against the PICO headset. */
+const XR_BACK_STEP_PX = 24
 
 interface CharacterDetailPaneProps {
   paneId: string
@@ -41,6 +44,7 @@ function abbreviateGender(gender: unknown): string {
 export function CharacterDetailPane({ paneId }: CharacterDetailPaneProps) {
   const params = useParams<{ id?: string }>()
   const projectId = params?.id
+  const isSpatial = useIsSpatialEnvironment()
 
   const pane = useScreenplayCharacterPanesStore((s) => s.panes[paneId])
   const bringToFront = useScreenplayCharacterPanesStore((s) => s.bringToFront)
@@ -59,27 +63,36 @@ export function CharacterDetailPane({ paneId }: CharacterDetailPaneProps) {
   const genderAbbrev = abbreviateGender(detail?.gender)
   const badgeLabel = [detail?.age, genderAbbrev].filter(Boolean).join(' ')
 
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId)
-    dragOffsetRef.current = { dx: e.clientX - pane.x, dy: e.clientY - pane.y }
-  }
+  // Native spatial drag takes over on-device; the manual pointer-drag reposition
+  // logic below only runs for flat-browser mouse/touch.
+  const handlePointerDown = isSpatial
+    ? undefined
+    : (e: React.PointerEvent<HTMLDivElement>) => {
+        e.currentTarget.setPointerCapture(e.pointerId)
+        dragOffsetRef.current = { dx: e.clientX - pane.x, dy: e.clientY - pane.y }
+      }
 
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    const offset = dragOffsetRef.current
-    if (!offset) return
-    updatePanePosition(paneId, e.clientX - offset.dx, e.clientY - offset.dy)
-  }
+  const handlePointerMove = isSpatial
+    ? undefined
+    : (e: React.PointerEvent<HTMLDivElement>) => {
+        const offset = dragOffsetRef.current
+        if (!offset) return
+        updatePanePosition(paneId, e.clientX - offset.dx, e.clientY - offset.dy)
+      }
 
-  const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (dragOffsetRef.current === null) return
-    dragOffsetRef.current = null
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId)
-    }
-  }
+  const endDrag = isSpatial
+    ? undefined
+    : (e: React.PointerEvent<HTMLDivElement>) => {
+        if (dragOffsetRef.current === null) return
+        dragOffsetRef.current = null
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+          e.currentTarget.releasePointerCapture(e.pointerId)
+        }
+      }
 
   return (
     <Box
+      enable-xr
       onPointerDown={() => bringToFront(paneId)}
       sx={{
         position: 'fixed',
@@ -96,6 +109,16 @@ export function CharacterDetailPane({ paneId }: CharacterDetailPaneProps) {
         color: GLASS_INK,
         overflow: 'hidden',
       }}
+      style={
+        {
+          // Real depth stacking on spatial platforms; automatically ignored on flat browsers,
+          // where the zIndex above still does the job.
+          '--xr-back': `${pane.zIndex * XR_BACK_STEP_PX}px`,
+          // Replaces the manual backdrop-filter glass effect above with native translucent
+          // material on spatial platforms; the sx backdropFilter is the flat-browser fallback.
+          '--xr-background-material': 'translucent',
+        } as React.CSSProperties
+      }
     >
       <Box
         onPointerDown={handlePointerDown}
