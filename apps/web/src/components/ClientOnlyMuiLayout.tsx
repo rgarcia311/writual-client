@@ -56,7 +56,9 @@ export function ClientOnlyMuiLayout({ children }: { children: React.ReactNode })
           name: data.me.name,
           displayName: data.me.displayName ?? firebaseUser.displayName,
           email: firebaseUser.email,
-          tier: data.me.tier,
+          // BETA OVERRIDE: ignore data.me.tier and force top-tier access while
+          // in beta. Restore `tier: data.me.tier` to bring back real gating.
+          tier: 'beta-access',
           settings: data.me.settings,
         });
       } catch {
