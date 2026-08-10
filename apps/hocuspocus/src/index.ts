@@ -155,6 +155,11 @@ const LOCALHOST_PREFIXES = [
   'https://127.0.0.1:',
 ];
 
+// RFC 1918 private ranges, so devices on the same LAN can reach the dev server
+// when the app is opened via the host machine's local IP instead of localhost.
+const LAN_ORIGIN_PATTERN =
+  /^https?:\/\/(10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})(:\d+)?$/;
+
 function normalizeOrigin(origin: string): string {
   return origin
     .trim()
@@ -180,7 +185,10 @@ function isAllowedOrigin(
     return normalizeOrigin(requestOrigin) === normalizeOrigin(frontendOrigin);
   }
 
-  return LOCALHOST_PREFIXES.some((prefix) => requestOrigin.startsWith(prefix));
+  return (
+    LOCALHOST_PREFIXES.some((prefix) => requestOrigin.startsWith(prefix)) ||
+    LAN_ORIGIN_PATTERN.test(normalizeOrigin(requestOrigin))
+  );
 }
 
 // ---------------------------------------------------------------------------
