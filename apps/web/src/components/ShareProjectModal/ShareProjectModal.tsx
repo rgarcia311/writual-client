@@ -140,7 +140,22 @@ export function ShareProjectModal({ open, onClose, projectId, projectTitle, coll
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      maxWidth="sm"
+      fullWidth
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+      PaperProps={{
+        'enable-xr': true,
+        style: {
+          position: 'relative',
+          '--xr-back': '32px',
+          '--xr-background-material': 'translucent',
+        } as React.CSSProperties,
+      }}
+    >
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         Share "{projectTitle}"
         <IconButton onClick={handleClose} size="small"><CloseIcon /></IconButton>

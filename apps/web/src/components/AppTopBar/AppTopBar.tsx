@@ -83,6 +83,7 @@ export function AppTopBar() {
   return (
     <>
       <Box
+        enable-xr
         sx={{
           display: 'flex',
           flexDirection: 'row',
@@ -96,6 +97,11 @@ export function AppTopBar() {
           zIndex: 3,
           backgroundColor: 'background.default',
         }}
+        style={
+          // `--xr-back` needs position relative/absolute/fixed, which `sticky` above doesn't
+          // qualify for, so this bar only picks up the translucent material, not a depth lift.
+          { '--xr-background-material': 'translucent' } as React.CSSProperties
+        }
       >
         <MuiLink
           component={Link}

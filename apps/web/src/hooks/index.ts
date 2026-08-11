@@ -1,5 +1,7 @@
 export * from "./useAutosave"
 export * from "./useCreateMutation"
 export * from "./useDebounce"
+export * from "./useInstallPrompt"
 export * from "./useIsSpatialEnvironment"
 export * from "./useProjectSceneMutations"
+export * from "./useSpatialHoverLift"

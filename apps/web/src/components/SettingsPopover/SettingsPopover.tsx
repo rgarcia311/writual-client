@@ -65,6 +65,12 @@ export function SettingsPopover({ standalone = false }: SettingsPopoverProps) {
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         PaperProps={{
           sx: { minWidth: 220, mt: 1.5 },
+          'enable-xr': true,
+          style: {
+            position: 'relative',
+            '--xr-back': '24px',
+            '--xr-background-material': 'translucent',
+          } as React.CSSProperties,
         }}
       >
         <Box sx={{ py: 1 }}>
