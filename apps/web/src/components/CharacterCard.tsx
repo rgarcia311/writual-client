@@ -13,6 +13,7 @@ import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import EditIcon from '@mui/icons-material/Edit';
 import { VersionSelectorWithAdd } from '@/components/VersionSelectorWithAdd/VersionSelectorWithAdd';
+import { useSpatialHoverLift } from '@/hooks/useSpatialHoverLift';
 
 interface ExpandMoreProps extends IconButtonProps {
   expand: boolean;
@@ -81,6 +82,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   gridTile = false,
 }) => {
   const detailCount = Array.isArray(details) ? Math.max(1, details.length) : 1;
+  const { hoverHandlers, xrStyle } = useSpatialHoverLift(8, 24);
   const [version, setVersion] = React.useState(1);
   const versionOptions = React.useMemo(
     () => Array.from({ length: detailCount }, (_, i) => i + 1),
@@ -93,7 +95,10 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
 
   return (
       <Card
+        enable-xr
         className={gridTile ? 'character-card--grid' : undefined}
+        {...hoverHandlers}
+        style={xrStyle}
         sx={{
           // <PROTECTED> — character card dimensions; see .cursor/rules/character-card-dimensions.mdc
           ...(gridTile

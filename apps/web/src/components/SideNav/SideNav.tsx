@@ -39,9 +39,14 @@ const SEARCH_MENU_ITEMS = ['Project', 'Scenes', 'Characters'];
 const SIDENAV_WIDTH_EXPANDED = 240;
 const SIDENAV_WIDTH_COLLAPSED = 45;
 
+/** Pixels of real depth this panel sits in front of page content on spatial platforms. */
+const XR_SIDENAV_BACK_PX = 16;
+
 export const StyledSideNav = styled(Paper, {
   shouldForwardProp: (prop) => prop !== 'collapsed',
 })<{ collapsed?: boolean }>(({ theme, collapsed }) => ({
+  // `--xr-back` (applied below) only takes effect on positioned elements.
+  position: 'relative',
   height: "100%",
   width: collapsed ? SIDENAV_WIDTH_COLLAPSED : SIDENAV_WIDTH_EXPANDED,
   minWidth: collapsed ? SIDENAV_WIDTH_COLLAPSED : SIDENAV_WIDTH_EXPANDED,
@@ -76,7 +81,17 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
     projectId ? `/project/${projectId}/${segment}` : '/projects';
 
   return (
-    <StyledSideNav elevation={2} collapsed={collapsed}>
+    <StyledSideNav
+      elevation={2}
+      collapsed={collapsed}
+      enable-xr
+      style={
+        {
+          '--xr-back': `${XR_SIDENAV_BACK_PX}px`,
+          '--xr-background-material': 'translucent',
+        } as React.CSSProperties
+      }
+    >
       <Box
         sx={{
           display: 'flex',

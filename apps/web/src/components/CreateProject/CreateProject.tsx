@@ -148,7 +148,15 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
       fullWidth
       open
       onClose={() => setAddProject(false)}
-      PaperProps={{ style: { backgroundColor: theme.palette.background.default } }}
+      PaperProps={{
+        'enable-xr': true,
+        style: {
+          backgroundColor: theme.palette.background.default,
+          position: 'relative',
+          '--xr-back': '32px',
+          '--xr-background-material': 'translucent',
+        } as React.CSSProperties,
+      }}
     >
       <DialogTitle sx={{ paddingLeft: 4, paddingTop: 3 }}>
         {isUpdate ? 'Update Project' : 'CREATE PROJECT'}

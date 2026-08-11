@@ -21,6 +21,7 @@ import { multiLineTruncate } from 'styles';
 import { ShareProjectModal } from '@/components/ShareProjectModal/ShareProjectModal';
 import type { Collaborator } from '@/interfaces/collaborator';
 import type { WritingTracker } from '@/interfaces/project';
+import { useSpatialHoverLift } from '@/hooks/useSpatialHoverLift';
 
 interface ProgressItem {
   label: string;
@@ -159,6 +160,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 }) => {
   const router = useRouter();
   const theme = useTheme();
+  const { hoverHandlers, xrStyle } = useSpatialHoverLift(8, 28);
   const [shareModalOpen, setShareModalOpen] = React.useState(false);
   const [actionsAnchorEl, setActionsAnchorEl] = React.useState<HTMLElement | null>(null);
   const [imageError, setImageError] = React.useState(false);
@@ -180,10 +182,13 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 
   return (
     <Card
+      enable-xr
       role={to && !headerOnly ? 'button' : undefined}
       tabIndex={to && !headerOnly ? 0 : undefined}
       onKeyDown={to && !headerOnly ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(to); } } : undefined}
       onClick={headerOnly ? undefined : handleCardClick}
+      {...hoverHandlers}
+      style={xrStyle}
       elevation={enableCardShadow ? 1 : 0}
       sx={{
         display: 'flex',

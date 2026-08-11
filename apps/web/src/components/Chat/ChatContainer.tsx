@@ -215,7 +215,17 @@ export function ChatContainer({ projectId }: Props) {
       </Drawer>
 
       {/* Right pane */}
-      <Paper elevation={2} sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, borderRadius: '10px' }}>
+      <Paper
+        elevation={2}
+        enable-xr
+        sx={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, borderRadius: '10px' }}
+        style={
+          {
+            '--xr-back': '16px',
+            '--xr-background-material': 'translucent',
+          } as React.CSSProperties
+        }
+      >
         {conversationsLoading ? null : !selectedThread ? (
           <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'text.disabled' }}>
             <ForumIcon sx={{ fontSize: 64, mb: 2, opacity: 0.3 }} />

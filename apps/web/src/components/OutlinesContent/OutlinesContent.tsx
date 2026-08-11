@@ -12,8 +12,70 @@ import { OutlineFrameworkForm, type OutlineFrameworkFormValues } from '@/compone
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { useUserProfileStore } from '@/state/user';
 import { deleteOutlineFrameworkById } from '../../app/actions/outlineFrameworks';
+import { useSpatialHoverLift } from '@/hooks/useSpatialHoverLift';
 
 const ENDPOINT = GRAPHQL_ENDPOINT;
+
+interface OutlineFrameworkCardProps {
+  fw: any;
+  onDelete: (fw: any) => void;
+  onEdit: (fw: any) => void;
+}
+
+function OutlineFrameworkCard({ fw, onDelete, onEdit }: OutlineFrameworkCardProps) {
+  const { hoverHandlers, xrStyle } = useSpatialHoverLift(8, 24);
+
+  return (
+    <Card
+      enable-xr
+      {...hoverHandlers}
+      style={xrStyle}
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        maxWidth: 280,
+        position: 'relative',
+      }}
+    >
+      <IconButton
+        size="small"
+        onClick={() => onDelete(fw)}
+        aria-label="Delete framework"
+        sx={{
+          position: 'absolute',
+          top: 6,
+          right: 6,
+          zIndex: 2,
+          bgcolor: 'rgba(0,0,0,0.35)',
+          color: 'common.white',
+          '&:hover': { bgcolor: 'rgba(0,0,0,0.55)' },
+        }}
+      >
+        <DeleteOutlineIcon fontSize="small" />
+      </IconButton>
+      <CardMedia
+        component="img"
+        height="max-content"
+        image={fw.imageUrl || '/logo_symbol.png'}
+        alt={fw.name}
+        sx={{ objectFit: 'cover' }}
+      />
+      <CardContent sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1.5 }}>
+        <Typography variant="subtitle1" fontWeight={600} noWrap sx={{ flex: 1 }}>
+          {fw.name}
+        </Typography>
+        <IconButton
+          size="small"
+          onClick={() => onEdit(fw)}
+          aria-label="Edit framework"
+        >
+          <EditIcon fontSize="small" />
+        </IconButton>
+      </CardContent>
+    </Card>
+  );
+}
 
 interface OutlineFrameworksResponse {
   getOutlineFrameworks?: any[];
@@ -94,52 +156,12 @@ export function OutlinesContent() {
         }}
       >
         {frameworks.map((fw: any) => (
-          <Card
+          <OutlineFrameworkCard
             key={fw.id}
-            sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-              maxWidth: 280,
-              position: 'relative',
-            }}
-          >
-            <IconButton
-              size="small"
-              onClick={() => handleDeleteFramework(fw)}
-              aria-label="Delete framework"
-              sx={{
-                position: 'absolute',
-                top: 6,
-                right: 6,
-                zIndex: 2,
-                bgcolor: 'rgba(0,0,0,0.35)',
-                color: 'common.white',
-                '&:hover': { bgcolor: 'rgba(0,0,0,0.55)' },
-              }}
-            >
-              <DeleteOutlineIcon fontSize="small" />
-            </IconButton>
-            <CardMedia
-              component="img"
-              height="max-content"
-              image={fw.imageUrl || '/logo_symbol.png'}
-              alt={fw.name}
-              sx={{ objectFit: 'cover' }}
-            />
-            <CardContent sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1.5 }}>
-              <Typography variant="subtitle1" fontWeight={600} noWrap sx={{ flex: 1 }}>
-                {fw.name}
-              </Typography>
-              <IconButton
-                size="small"
-                onClick={() => setEditFramework(fw)}
-                aria-label="Edit framework"
-              >
-                <EditIcon fontSize="small" />
-              </IconButton>
-            </CardContent>
-          </Card>
+            fw={fw}
+            onDelete={handleDeleteFramework}
+            onEdit={setEditFramework}
+          />
         ))}
       </Box>
 
