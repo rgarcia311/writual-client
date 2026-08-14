@@ -22,7 +22,11 @@ export function ScreenplayVerticalToolbarShell({
   const theme = useTheme()
 
   return (
+    // Not a PROTECTED region — no width/margin/padding touched here, so pagination/gutter
+    // alignment (screenplay-toolbar-page-alignment.mdc) is unaffected. To revert: remove the
+    // `enable-xr` attribute and the `style` prop below; everything else is unchanged.
     <Box
+      enable-xr
       className="screenplay-toolbar screenplay-toolbar-vertical screenplay-toolbar-vertical-shell"
       sx={{
         alignSelf: 'stretch',
@@ -40,6 +44,12 @@ export function ScreenplayVerticalToolbarShell({
         position: 'relative',
         zIndex: 3,
       }}
+      style={
+        {
+          '--xr-back': '20px',
+          '--xr-background-material': 'translucent',
+        } as React.CSSProperties
+      }
     >
       <Box
         className="screenplay-toolbar-vertical__scroll"

@@ -192,7 +192,16 @@ export function ChatContainer({ projectId }: Props) {
   );
 
   return (
-    <Box sx={{ display: 'flex', width: '100%', height: '100%', p: 1, gap: 1 }}>
+    <Box
+      sx={{
+        display: 'flex',
+        width: '100%',
+        height: '100%',
+        minHeight: 0,
+        // Match the hero band → content gap so both gutters around the thread list are equal.
+        gap: 'var(--project-float-stat-gap, var(--app-body-padding, 8px))',
+      }}
+    >
       {/* Desktop thread list */}
       {threadListContent}
 

@@ -46,9 +46,19 @@ export function ScreenplayHeaderChrome() {
     (collabActive && collabStatus === 'connected' && connectedUsers.length > 1)
 
   return (
+    // Not a PROTECTED region — only `position: 'relative'` (needed for --xr-back) and the two
+    // new props are added; no width/margin/padding changed, so breadcrumb-bar layout is
+    // unaffected. To revert: remove `enable-xr`, `style`, and the `position: 'relative'` line.
     <Box
+      enable-xr
       onClick={(e) => e.stopPropagation()}
-      sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', flexShrink: 0 }}
+      sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', flexShrink: 0, position: 'relative' }}
+      style={
+        {
+          '--xr-back': '12px',
+          '--xr-background-material': 'translucent',
+        } as React.CSSProperties
+      }
     >
       {collabActive && collabStatus === 'connecting' && (
         <Chip label="Syncing..." size="small" color="warning" variant="outlined" sx={{ height: 22, fontSize: '0.65rem' }} />

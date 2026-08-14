@@ -26,6 +26,11 @@ export interface ProjectFloatShellProps {
   floatStatsRailKeys?: ProjectStatTileKey[];
   /** Page content scrolls beneath the floating hero (characters route). */
   floatContentOverlay?: boolean;
+  /**
+   * Hero renders as an in-flow band and the page content fills the remaining
+   * viewport height instead of scrolling under it (chat route).
+   */
+  floatContentFill?: boolean;
 }
 
 export function ProjectFloatShell({
@@ -39,6 +44,7 @@ export function ProjectFloatShell({
   showFloatStatsRail = false,
   floatStatsRailKeys,
   floatContentOverlay = false,
+  floatContentFill = false,
 }: ProjectFloatShellProps) {
   const rightAdornment = breadcrumbRightAdornment ?? accordionAdornment;
   const shellData = useProjectShellData();
@@ -60,18 +66,19 @@ export function ProjectFloatShell({
     ? 'project-details-float-content project-details-float-content--bleed'
     : 'project-details-float-content';
 
+  /** Hero as an in-flow band above the content: stats-rail routes and fill routes. */
+  const heroBand = (showFloatStatsRail || floatContentFill) && !floatContentOverlay;
+  const contentFill = floatContentFill && !floatContentOverlay;
+
   const rootClassName = [
     'project-details-float-root',
     shellClassName ?? '',
     floatContentOverlay ? 'project-details-float-root--content-overlay' : '',
-    showFloatStatsRail && !floatContentOverlay
-      ? 'project-details-float-root--with-stats-rail'
-      : '',
+    heroBand ? 'project-details-float-root--with-stats-rail' : '',
+    contentFill ? 'project-details-float-root--content-fill' : '',
   ]
     .filter(Boolean)
     .join(' ');
-
-  const stickyStatsRail = showFloatStatsRail && !floatContentOverlay;
 
   const hero = projectId ? (
     <FloatingProjectHero
@@ -81,6 +88,7 @@ export function ProjectFloatShell({
       showFloatStatsRail={showFloatStatsRail}
       floatStatsRailKeys={floatStatsRailKeys}
       floatContentOverlay={floatContentOverlay}
+      heroInFlow={heroBand}
       onEditClick={openEdit}
       onDelete={handleDelete}
     />
@@ -110,7 +118,7 @@ export function ProjectFloatShell({
           rightAdornment={rightAdornment}
         />
 
-        {stickyStatsRail ? (
+        {heroBand ? (
           <>
             {shellHero ? (
               <Box className="project-float-sticky-stats-band">
@@ -118,10 +126,14 @@ export function ProjectFloatShell({
                 <Box className="project-float-sticky-stats-gap" aria-hidden="true" />
               </Box>
             ) : null}
-            <Box className="project-details-float-scroll-host">
-              {mainColumn}
-              <Box className="project-characters-scroll-end-spacer" aria-hidden="true" />
-            </Box>
+            {contentFill ? (
+              mainColumn
+            ) : (
+              <Box className="project-details-float-scroll-host">
+                {mainColumn}
+                <Box className="project-characters-scroll-end-spacer" aria-hidden="true" />
+              </Box>
+            )}
           </>
         ) : (
           <>

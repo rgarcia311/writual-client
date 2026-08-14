@@ -15,6 +15,8 @@ export interface FloatingProjectHeroProps {
   showFloatStatsRail?: boolean;
   floatStatsRailKeys?: ProjectStatTileKey[];
   floatContentOverlay?: boolean;
+  /** Hero sits in the flow as a band above the content instead of floating over it. */
+  heroInFlow?: boolean;
   onEditClick: () => void;
   onDelete: () => void;
 }
@@ -26,6 +28,7 @@ export function FloatingProjectHero({
   showFloatStatsRail = false,
   floatStatsRailKeys,
   floatContentOverlay = false,
+  heroInFlow = false,
   onEditClick,
   onDelete,
 }: FloatingProjectHeroProps) {
@@ -39,7 +42,7 @@ export function FloatingProjectHero({
   const heroClassName = [
     'project-float-hero',
     showFloatStatsRail && floatContentOverlay ? 'project-float-hero--with-stats' : '',
-    showFloatStatsRail && !floatContentOverlay ? 'project-float-hero--fluid' : '',
+    heroInFlow ? 'project-float-hero--fluid' : '',
   ]
     .filter(Boolean)
     .join(' ');

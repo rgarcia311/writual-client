@@ -22,7 +22,7 @@ import { ThemeToggleProvider } from '../themes/ThemeToggleContext';
 import { CreateProjectWrapper } from '../components/CreateProjectWrapper';
 import { AppTopBar } from '../components/AppTopBar';
 import { ClientOnlyMuiLayout } from '../components/ClientOnlyMuiLayout';
-import { EnterSpatialModeButton } from '../components/EnterSpatialModeButton';
+import { EnterSpatialModeButton } from '../components/Spatial';
 
 const client = new QueryClient();
 

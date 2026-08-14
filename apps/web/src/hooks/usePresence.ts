@@ -100,7 +100,31 @@ export function usePresence(projectId: string | null): UsePresenceReturn {
       }, 3000);
     });
 
+    /**
+     * Standalone headsets suspend the page whenever the user takes the headset off. Two things
+     * go wrong across that: the 3s typing timers and the 1.5s send throttle are deferred and
+     * fire in a burst on resume (leaving indicators stuck on, or silently swallowing the next
+     * send), and the socket can come back without the presence channel having resubscribed.
+     */
+    const handleWake = () => {
+      if (document.visibilityState !== 'visible') return;
+
+      Object.values(typingTimers.current).forEach(clearTimeout);
+      typingTimers.current = {};
+      if (typingThrottleRef.current) clearTimeout(typingThrottleRef.current);
+      typingThrottleRef.current = null;
+      // Whoever was typing before the suspend is not necessarily still typing.
+      setTypingUsers([]);
+
+      if (pusherClient.connection.state !== 'connected') pusherClient.connect();
+    };
+
+    document.addEventListener('visibilitychange', handleWake);
+    window.addEventListener('online', handleWake);
+
     return () => {
+      document.removeEventListener('visibilitychange', handleWake);
+      window.removeEventListener('online', handleWake);
       Object.values(typingTimers.current).forEach(clearTimeout);
       typingTimers.current = {};
       if (typingThrottleRef.current) clearTimeout(typingThrottleRef.current);

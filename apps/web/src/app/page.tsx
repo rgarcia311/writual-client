@@ -5,10 +5,21 @@ import { LandingSignIn } from '@/components/LandingSignIn/LandingSignIn';
 import '@fontsource/varela-round';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { isAllowedBetaUser } from '@/lib/betaAllowlist';
 
 export default async function LandingPage() {
   const cookieStore = await cookies();
-  if (cookieStore.get('user-id')) {
+  // Must apply the same condition proxy.ts's own "/" → "/projects" redirect applies
+  // (firebase-token present AND allowlisted) — this redirect() is redundant with that one in
+  // the normal case (proxy runs first), but if the two ever disagreed, a browser satisfying
+  // one but not the other could bounce between this page and the protected-route redirect
+  // forever ("too many redirects"). See proxy.ts for the full explanation.
+  //
+  // Concretely: gating this on cookie presence alone would loop a signed-in but non-allowlisted
+  // beta user — the proxy sends them from /projects back to "/", and this page would send them
+  // straight back to /projects.
+  const session = cookieStore.get('firebase-token');
+  if (session && isAllowedBetaUser(session.value)) {
     redirect('/projects');
   }
   return (

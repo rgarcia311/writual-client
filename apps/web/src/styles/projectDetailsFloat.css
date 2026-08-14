@@ -151,6 +151,24 @@
   padding: 0 var(--app-body-padding) 0;
 }
 
+/* Chat route: hero band on top; content fills the remaining height (no page scroll) */
+/* `overflow: visible` throughout so pane elevation shadows bleed into the surrounding
+   gutters instead of being sliced off; the float root still clips the outer bounds. */
+.project-details-float-root--content-fill .project-details-float-main {
+  flex: 1;
+  min-height: 0;
+  overflow: visible;
+}
+
+.project-details-float-root--content-fill .project-details-float-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  padding: 0 var(--app-body-padding) 0;
+}
+
 /* Characters route: floating hero row; card grid scrolls underneath */
 .project-details-float-root--content-overlay {
   --project-content-inset-left: var(--app-body-padding);

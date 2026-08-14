@@ -21,6 +21,8 @@ export interface ProjectSceneOutline {
   _id: string;
   sceneHeading: string;
   number?: number;
+  /** Active version's number, for parity with SceneCard's version label in the 2D app. */
+  version?: number;
   act?: number;
   step?: string;
   thesis?: string;
@@ -39,7 +41,7 @@ export function normalizeSceneHeadingText(text: string): string {
   return text.trim().toUpperCase();
 }
 
-function getActiveVersion(scene: ProjectScene) {
+export function getActiveVersion(scene: ProjectScene) {
   const idx = Math.max(0, (scene.activeVersion ?? 1) - 1);
   return scene.versions?.[idx] ?? scene.versions?.[0];
 }
@@ -56,6 +58,7 @@ export const useScreenplaySceneOutlineStore = create<ScreenplaySceneOutlineState
         _id: scene._id,
         sceneHeading: heading,
         number: index + 1,
+        version: version?.version,
         act: version?.act,
         step: version?.step,
         thesis: version?.thesis,

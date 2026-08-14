@@ -10,18 +10,27 @@ function ensureSecureWsIfNeeded(url: string): string {
 }
 
 /**
- * In the browser with no explicit override, default to the page's own hostname
- * (rather than a hardcoded "localhost") so the app also works when accessed
- * over the LAN from another device — the API/Hocuspocus servers run on the
- * same machine that served the page, just on different ports.
+ * In the browser with no explicit override, route through Next's own origin at
+ * `/api/graphql` (proxied server-side to the real API origin — see next.config.js's
+ * `rewrites()`) rather than hitting `<host>:8080` directly. A direct host:port fetch only
+ * works when the browser can reach that port on that host itself, which holds for
+ * localhost and plain LAN-IP access but breaks for a single-port tunnel (ngrok et al.) —
+ * the tunnel only forwards Next's own port, so `<tunnel-host>:8080` doesn't route anywhere
+ * and REST/GraphQL calls fail with "Failed to fetch". Same-origin + server-side proxy works
+ * for all three cases uniformly.
  */
+function browserOrigin(): string | undefined {
+  return typeof window !== 'undefined' ? window.location.origin : undefined;
+}
+
+/** Used by HOCUSPOCUS_URL below — unrelated to the GraphQL same-origin fix above. */
 function browserHost(): string | undefined {
   return typeof window !== 'undefined' ? window.location.hostname : undefined;
 }
 
 export const GRAPHQL_ENDPOINT =
   process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT ||
-  (browserHost() ? `http://${browserHost()}:8080` : "http://localhost:8080");
+  (browserOrigin() ? `${browserOrigin()}/api/graphql` : "http://localhost:8080");
 
 /** REST API origin (same host as GraphQL by default). Used for PDF AI import. */
 export function getApiOrigin(): string {

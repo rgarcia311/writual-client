@@ -34,6 +34,14 @@ const nextConfig = {
     const origin = apiOriginForRewrites();
     return [
       { source: '/api/screenplay/:path*', destination: `${origin}/api/screenplay/:path*` },
+      // Apollo's GraphQL middleware is mounted at the API server's root ("/"), not a
+      // sub-path — see apps/api/src/index.ts's `app.use(expressMiddleware(server, ...))`.
+      // Same same-origin-proxy reasoning as the rewrite above: the browser must be able to
+      // reach this via whatever origin actually served the page (localhost, LAN IP, or an
+      // ngrok/tunnel hostname that only forwards Next's own port) — direct browser-to-8080
+      // only works when the browser can reach that port directly, which a single-port
+      // tunnel breaks. See src/lib/config.ts's GRAPHQL_ENDPOINT for the client side of this.
+      { source: '/api/graphql', destination: `${origin}/` },
     ]
   },
   }

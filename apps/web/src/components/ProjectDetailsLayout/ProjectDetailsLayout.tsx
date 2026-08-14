@@ -33,6 +33,8 @@ interface ProjectDetailsLayoutProps {
   showFloatStatsRail?: boolean;
   floatStatsRailKeys?: ProjectStatTileKey[];
   floatContentOverlay?: boolean;
+  /** Hero band on top, content fills the remaining height (chat). */
+  floatContentFill?: boolean;
 }
 
 export function ProjectDetailsLayout({
@@ -49,6 +51,7 @@ export function ProjectDetailsLayout({
   showFloatStatsRail = false,
   floatStatsRailKeys,
   floatContentOverlay = false,
+  floatContentFill = false,
 }: ProjectDetailsLayoutProps) {
   const rightAdornment = breadcrumbRightAdornment ?? accordionAdornment;
   const showHeader =
@@ -102,6 +105,7 @@ export function ProjectDetailsLayout({
         showFloatStatsRail={showFloatStatsRail}
         floatStatsRailKeys={floatStatsRailKeys}
         floatContentOverlay={floatContentOverlay}
+        floatContentFill={floatContentFill}
       >
         <Box
           sx={

@@ -60,15 +60,17 @@ export function ProjectOverviewContent({ projectId }: ProjectOverviewContentProp
       showFloatStatsRail
       floatStatsRailKeys={['progress', 'glance']}
       breadcrumbRightAdornment={
-        <Button
-          variant="contained"
-          color="primary"
-          size="small"
-          startIcon={<AddIcon />}
-          onClick={() => setInspirationFormOpen(true)}
-        >
-          Add Inspiration
-        </Button>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+          <Button
+            variant="contained"
+            color="primary"
+            size="small"
+            startIcon={<AddIcon />}
+            onClick={() => setInspirationFormOpen(true)}
+          >
+            Add Inspiration
+          </Button>
+        </Box>
       }
       contentSx={{
         display: 'flex',
