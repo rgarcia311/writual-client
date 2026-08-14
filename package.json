@@ -18,9 +18,12 @@
   },
   "scripts": {
     "dev": "turbo run dev",
+    "dev:https": "turbo run dev --filter='!@writual/web' & turbo run dev:https --filter=@writual/web & wait",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "dev:web": "turbo run dev --filter=@writual/web",
+    "dev:web:https": "turbo run dev:https --filter=@writual/web",
+    "dev:web:tunnel": "turbo run dev:tunnel --filter=@writual/web",
     "dev:api": "turbo run dev --filter=@writual/api",
     "dev:hocuspocus": "turbo run dev --filter=@writual/hocuspocus",
     "dev:ai": "turbo run dev --filter=@writual/writual-ai"
