@@ -14,7 +14,7 @@ import { useUserProfileStore } from '@/state/user';
 import { FloatingStatSurface } from './FloatingStatSurface';
 import { ProjectStat } from '@/components/ProjectCard/ProjectStat';
 
-const DEFAULT_STAT_TILE_KEYS: ProjectStatTileKey[] = ['progress', 'characters', 'scenes', 'glance'];
+const DEFAULT_STAT_TILE_KEYS: ProjectStatTileKey[] = ['progress', 'characters', 'scenes', 'deadlines'];
 
 const endpoint = GRAPHQL_ENDPOINT;
 

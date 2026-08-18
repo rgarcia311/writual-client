@@ -58,7 +58,7 @@ export function ProjectOverviewContent({ projectId }: ProjectOverviewContentProp
   return (
     <ProjectDetailsLayout
       showFloatStatsRail
-      floatStatsRailKeys={['progress', 'glance']}
+      floatStatsRailKeys={['progress', 'deadlines']}
       breadcrumbRightAdornment={
         <Button
           variant="contained"

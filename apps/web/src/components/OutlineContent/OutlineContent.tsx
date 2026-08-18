@@ -42,7 +42,7 @@ import '@/styles/outlinePage.css';
 
 const endpoint = GRAPHQL_ENDPOINT;
 
-const OUTLINE_PAGE_STAT_KEYS = ['scenes', 'glance'] as const;
+const OUTLINE_PAGE_STAT_KEYS = ['scenes', 'deadlines'] as const;
 
 const DEFAULT_NEW_SCENE_VERSION = {
   version: 1,

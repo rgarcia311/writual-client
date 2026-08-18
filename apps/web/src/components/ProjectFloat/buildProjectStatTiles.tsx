@@ -1,15 +1,14 @@
 'use client';
 
 import * as React from 'react';
-import Typography from '@mui/material/Typography';
 import { ProjectStat } from '@/components/ProjectCard/ProjectStat';
-import { ScreenplayProgressStat } from '@/components/ProjectCard/stats/ScreenplayProgressStat';
+import { ProjectProgressStat } from '@/components/ProjectCard/stats/ProjectProgressStat';
 import { CharacterSceneCountStat } from '@/components/ProjectCard/stats/CharacterSceneCountStat';
 import { SceneIntExtAltStat } from '@/components/ProjectCard/stats/SceneIntExtAltStat';
-import { ProjectAtAGlanceStat } from '@/components/ProjectCard/stats/ProjectAtAGlanceStat';
+import { DeadlineTrackingTile } from './DeadlineTrackingTile';
 import type { ProjectStatTileData } from './useProjectShellData';
 
-export type ProjectStatTileKey = 'progress' | 'characters' | 'scenes' | 'glance';
+export type ProjectStatTileKey = 'progress' | 'characters' | 'scenes' | 'deadlines';
 
 export interface ProjectStatTileEntry {
   key: ProjectStatTileKey;
@@ -19,6 +18,9 @@ export interface ProjectStatTileEntry {
 export function buildProjectStatTiles(data: ProjectStatTileData): ProjectStatTileEntry[] {
   const {
     progress,
+    developmentLocks,
+    draftDeadlines,
+    projectRef,
     writingTracker,
     writingTrackerStatus,
     topCharactersByScenes,
@@ -31,17 +33,13 @@ export function buildProjectStatTiles(data: ProjectStatTileData): ProjectStatTil
       key: 'progress',
       node: (
         <ProjectStat compact floatSurface>
-          {writingTracker?.enabled && writingTracker ? (
-            <ScreenplayProgressStat
-              compact
-              tracker={writingTracker}
-              status={writingTrackerStatus}
-            />
-          ) : (
-            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-              Enable writing tracking to view screenplay pacing, drafts, and deadlines.
-            </Typography>
-          )}
+          <ProjectProgressStat
+            compact
+            progress={progress}
+            development={developmentLocks}
+            tracker={writingTracker ?? null}
+            status={writingTrackerStatus}
+          />
         </ProjectStat>
       ),
     },
@@ -72,14 +70,14 @@ export function buildProjectStatTiles(data: ProjectStatTileData): ProjectStatTil
       ),
     },
     {
-      key: 'glance',
+      key: 'deadlines',
       node: (
         <ProjectStat compact floatSurface>
-          <ProjectAtAGlanceStat
+          <DeadlineTrackingTile
             compact
-            progress={progress}
-            trackerEnabled={Boolean(writingTracker?.enabled)}
-            trackerStatus={writingTracker?.enabled ? writingTrackerStatus : null}
+            deadlines={draftDeadlines}
+            tracker={writingTracker ?? null}
+            project={projectRef}
           />
         </ProjectStat>
       ),

@@ -4,6 +4,7 @@ import { setProjectOutline, createOutlineFramework, updateOutlineFramework, dele
 import mongoose from "mongoose";
 import { AppUsers, Projects, Scenes, Characters, Messages, Conversations } from "@writual/db";
 import { requireTier } from "../utils/tierUtils";
+import { resolveScreenplayPageCount } from "../utils/screenplayPageEstimate";
 import { pusher } from "../services/pusher";
 import { inviteCollaborators, updateCollaborator, removeCollaborator, claimInvite, finalizeSignup } from "../resolvers/collaboratorResolvers";
 import { verifyProjectWriteAccess } from "../lib/projectAccess";
@@ -441,6 +442,8 @@ export const ProjectType = `#graphql
         versions: [ScreenplayContent]
         lockedVersion: Int
         layout: JSON
+        """Body page total (title page excluded). Estimated from content when not yet recorded."""
+        pageCount: Int
     }
 
     type  ScreenplayContent  {
@@ -1024,6 +1027,11 @@ export const resolvers = {
       }
       return true;
     },
+  },
+  Screenplay: {
+    // Falls back to an analytic estimate so screenplays saved before `screenplay.pageCount`
+    // existed still report a page total (e.g. to prefill the enable-tracking modal).
+    pageCount: (parent: any) => resolveScreenplayPageCount(parent),
   },
   Project: {
     scenes: (parent: any, _: any, context: { scenesLoader: { load: (id: string) => Promise<any[]> } }) => {

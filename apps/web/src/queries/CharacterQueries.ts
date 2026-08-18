@@ -39,9 +39,12 @@ export const PROJECT_TRACKING_STATS_QUERY = gql`
 query GetProjectTrackingStats($input: ProjectFilters!) {
   getProjectData(input: $input) {
     _id
+    user
     progressTrackingEnabled
     title
     logline
+    genre
+    type
     activeVersion
     lockedVersion
     writingTracker {
@@ -51,6 +54,14 @@ query GetProjectTrackingStats($input: ProjectFilters!) {
       trackingStartDate
       draftDueDates { draftNumber label dueDate tag }
     }
+    stats {
+      totalScenes
+      lockedScenes
+      totalCharacters
+      lockedCharacters
+    }
+    outlineSectionLocked
+    charactersSectionLocked
     scenes {
       lockedVersion
     }

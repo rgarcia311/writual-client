@@ -29,6 +29,7 @@ query GetProjectData($input: ProjectFilters) {
     lockedVersion
     screenplay {
       lockedVersion
+      pageCount
       versions {
         version
       }
@@ -73,6 +74,8 @@ query GetProjectData($input: ProjectFilters) {
             totalCharacters
             lockedCharacters
         }
+        outlineSectionLocked
+        charactersSectionLocked
         activeVersion
         lockedVersion
         screenplay {

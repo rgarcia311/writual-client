@@ -44,6 +44,8 @@ interface WritingTrackerSectionProps {
   value: WritingTrackerFormState;
   onChange: (v: WritingTrackerFormState) => void;
   projectType?: string;
+  /** Overrides the Current Page Count helper text (e.g. when prefilled from an existing screenplay). */
+  currentPageCountHelperText?: string;
   /** When true, hides the divider, toggle switch, and info note. Use when the caller has already opted the user in. */
   hideToggle?: boolean;
 }
@@ -61,6 +63,7 @@ export function WritingTrackerSection({
   value,
   onChange,
   projectType,
+  currentPageCountHelperText,
   hideToggle = false,
 }: WritingTrackerSectionProps) {
   const handleToggle = (_: React.SyntheticEvent, checked: boolean) => {
@@ -172,7 +175,7 @@ export function WritingTrackerSection({
               size="small"
               fullWidth
               disabled={isDisabled}
-              helperText="Auto-filled when you import a PDF"
+              helperText={currentPageCountHelperText ?? 'Auto-filled when you import a PDF'}
             />
           </Box>
         </Box>

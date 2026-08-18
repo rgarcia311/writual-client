@@ -145,7 +145,13 @@ export const createinspiration = async (root, { input }) => {
   return updated;
 };
 
-/** Updates only `writingTracker.currentPageCount` when the project's tracker is enabled. */
+/**
+ * Records the screenplay's page total on `screenplay.pageCount`, plus
+ * `writingTracker.currentPageCount` when the project's tracker is enabled.
+ *
+ * `screenplay.pageCount` is written even with tracking off so the enable-tracking modal can
+ * prefill Current Page Count for a project that already has a screenplay.
+ */
 export const persistWritingTrackerCurrentPageCount = async (
   projectId: string,
   clampedPageCount: number
@@ -156,16 +162,23 @@ export const persistWritingTrackerCurrentPageCount = async (
 
   const updated = await Projects.findOneAndUpdate(
     { ...filter, 'writingTracker.enabled': true },
-    { $set: { 'writingTracker.currentPageCount': clampedPageCount } },
+    {
+      $set: {
+        'writingTracker.currentPageCount': clampedPageCount,
+        'screenplay.pageCount': clampedPageCount,
+      },
+    },
     { new: true }
   ).exec();
 
   if (updated) return updated;
 
-  const fallbackFilter = mongoose.Types.ObjectId.isValid(projectId)
-    ? { _id: new mongoose.Types.ObjectId(projectId) }
-    : { _id: projectId };
-  return Projects.findOne(fallbackFilter).exec();
+  // Tracker off (or no tracker yet): still record the screenplay's page total.
+  return Projects.findOneAndUpdate(
+    filter,
+    { $set: { 'screenplay.pageCount': clampedPageCount } },
+    { new: true }
+  ).exec();
 };
 
 export const saveScreenplay = async (

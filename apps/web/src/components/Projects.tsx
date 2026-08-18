@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import { Box } from '@mui/system';
 import { Tabs, Tab } from '@mui/material';
 import { ProjectCard, ProjectCardSkeleton } from './ProjectCard';
-import { EnableProgressTrackingModal, SerializedTracker } from './ProjectCard/EnableProgressTrackingModal';
+import { ProgressTrackingModal, SerializedTracker } from './ProjectCard/ProgressTrackingModal';
 import { CreateProject } from './CreateProject';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PROJECTS_QUERY } from '../queries';
@@ -171,11 +171,12 @@ export const Projects = () => {
                 />
             )}
             {progressTrackingProject && (
-                <EnableProgressTrackingModal
+                <ProgressTrackingModal
                     open
                     onClose={() => setProgressTrackingProject(null)}
                     projectTitle={progressTrackingProject.title}
                     projectType={progressTrackingProject.type}
+                    screenplayPageCount={progressTrackingProject.screenplay?.pageCount ?? null}
                     isPending={enableProgressTrackingMutation.isPending}
                     onSubmit={(tracker) =>
                         enableProgressTrackingMutation.mutate({

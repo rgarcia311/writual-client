@@ -14,7 +14,7 @@ import { useUserProfileStore } from '@/state/user';
 import { computeProjectProgress, computeWritingTrackerStatus } from '../../utils/progress';
 import { deriveScreenplayPresenceStats } from '../../utils/projectScreenplayStats';
 import { useScreenplayLivePagesStore } from '@/state/screenplayLivePages';
-import type { ProgressItem } from '../../utils/progress';
+import type { DevelopmentLockSummary, DraftDeadline, ProgressItem } from '../../utils/progress';
 import { computeProjectStatTileData } from './computeProjectStatTileData';
 
 const endpoint = GRAPHQL_ENDPOINT;
@@ -59,6 +59,11 @@ function getCurrentPageLabel(pathname: string | null, projectId: string | undefi
 
 export interface ProjectStatTileData {
   progress: ProgressItem[];
+  developmentLocks: DevelopmentLockSummary;
+  /** Draft due dates in date order for the Deadline Tracking tile. */
+  draftDeadlines: DraftDeadline[];
+  /** Project identity for tile-level mutations; fields are blank when a query omits them. */
+  projectRef: { id: string; user: string; title: string; type?: string };
   writingTracker: Project['writingTracker'];
   writingTrackerStatus: ReturnType<typeof computeWritingTrackerStatus>;
   progressTrackingEnabled: boolean;

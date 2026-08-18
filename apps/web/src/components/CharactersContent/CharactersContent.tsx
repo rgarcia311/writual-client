@@ -36,7 +36,7 @@ interface CharactersContentProps {
   projectId: string;
 }
 
-const CHARACTERS_PAGE_STAT_KEYS = ['characters', 'glance'] as const;
+const CHARACTERS_PAGE_STAT_KEYS = ['characters', 'deadlines'] as const;
 
 export function CharactersContent({ projectId }: CharactersContentProps) {
   const queryClient = useQueryClient();

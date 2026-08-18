@@ -16,7 +16,6 @@ import { useTheme } from '@mui/material/styles';
 import { toTitleCase } from 'utils/stringFormatting';
 import { multiLineTruncate } from 'styles';
 import { ProjectStat } from '@/components/ProjectCard/ProjectStat';
-import { ProjectMetadataRows } from '@/components/ProjectCard/ProjectCard';
 import { ShareProjectModal } from '@/components/ShareProjectModal/ShareProjectModal';
 import { FloatingStatSurface } from './FloatingStatSurface';
 
@@ -26,10 +25,52 @@ export interface FloatingProjectInfoTileProps {
   genre: string;
   logline: string;
   projectTypeLabel?: string;
+  /** Comparable titles from the project's "similar projects" field. */
+  similarProjects?: string[];
   projectId?: string;
   isLoading?: boolean;
   onEditClick?: () => void;
   onDelete?: () => void;
+}
+
+/** Prompts shown in place of empty fields, so the tile reads the same shape either way. */
+const FIELD_PLACEHOLDERS = {
+  logline: 'e.g., A washed-up boxer gets one last shot at the title',
+  genre: 'e.g., Drama, Horror, Comedy, Fantasy, SciFi',
+  type: 'e.g., Feature, Television, Short, Play, Musical',
+  similarProjects: 'e.g., Chinatown, Fargo, Michael Clayton',
+} as const;
+
+interface InfoFieldRowProps {
+  label: string;
+  value?: string | null;
+  placeholder: string;
+  /** Clamp the row to this many lines (used for the logline). */
+  clampLines?: number;
+}
+
+/** One "Label: value" row that falls back to an italic placeholder when the field is empty. */
+function InfoFieldRow({ label, value, placeholder, clampLines }: InfoFieldRowProps) {
+  const text = (value ?? '').trim();
+  const hasValue = text.length > 0;
+
+  return (
+    <Typography
+      variant="body2"
+      component="div"
+      sx={{ lineHeight: 1.45, ...(clampLines ? multiLineTruncate(clampLines) : {}) }}
+    >
+      <Box component="span" sx={{ fontWeight: 600 }}>
+        {label}:{' '}
+      </Box>
+      <Box
+        component="span"
+        sx={hasValue ? undefined : { fontStyle: 'italic', color: 'text.disabled' }}
+      >
+        {hasValue ? text : placeholder}
+      </Box>
+    </Typography>
+  );
 }
 
 export function FloatingProjectInfoTile({
@@ -38,6 +79,7 @@ export function FloatingProjectInfoTile({
   genre,
   logline,
   projectTypeLabel,
+  similarProjects,
   projectId,
   isLoading = false,
   onEditClick,
@@ -155,15 +197,33 @@ export function FloatingProjectInfoTile({
             </Typography>
           </Box>
 
-          <Typography variant="caption" component="div" sx={{ ...multiLineTruncate(3), flexShrink: 0 }}>
-            {logline}
-          </Typography>
-
-          <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', '& .MuiTypography-root': { fontSize: '0.75rem' } }}>
-            <ProjectMetadataRows
-              genre={genre}
-              projectTypeLabel={projectTypeLabel}
-              hideBudgetAndSimilarProjects
+          <Box
+            sx={{
+              flex: 1,
+              minHeight: 0,
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 0.6,
+              '& .MuiTypography-root': { fontSize: '0.8rem' },
+            }}
+          >
+            <InfoFieldRow
+              label="Logline"
+              value={logline}
+              placeholder={FIELD_PLACEHOLDERS.logline}
+              clampLines={3}
+            />
+            <InfoFieldRow label="Genre" value={genre} placeholder={FIELD_PLACEHOLDERS.genre} />
+            <InfoFieldRow
+              label="Type"
+              value={projectTypeLabel}
+              placeholder={FIELD_PLACEHOLDERS.type}
+            />
+            <InfoFieldRow
+              label="Similar projects"
+              value={Array.isArray(similarProjects) ? similarProjects.join(', ') : ''}
+              placeholder={FIELD_PLACEHOLDERS.similarProjects}
             />
           </Box>
         </Box>
