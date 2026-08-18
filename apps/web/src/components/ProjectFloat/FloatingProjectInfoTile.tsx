@@ -55,7 +55,8 @@ function InfoFieldRow({ label, value, placeholder, clampLines }: InfoFieldRowPro
   const hasValue = text.length > 0;
 
   return (
-    <Typography
+    <Tooltip title={label === 'Logline' && value}>
+       <Typography
       variant="body2"
       component="div"
       sx={{ lineHeight: 1.45, ...(clampLines ? multiLineTruncate(clampLines) : {}) }}
@@ -70,6 +71,8 @@ function InfoFieldRow({ label, value, placeholder, clampLines }: InfoFieldRowPro
         {hasValue ? text : placeholder}
       </Box>
     </Typography>
+    </Tooltip>
+   
   );
 }
 
@@ -204,16 +207,20 @@ export function FloatingProjectInfoTile({
               overflowY: 'auto',
               display: 'flex',
               flexDirection: 'column',
-              gap: 0.6,
+              justifyContent: "space-evenly",
+              gap: 3,
               '& .MuiTypography-root': { fontSize: '0.8rem' },
             }}
           >
-            <InfoFieldRow
+            
+               <InfoFieldRow
               label="Logline"
               value={logline}
               placeholder={FIELD_PLACEHOLDERS.logline}
               clampLines={3}
             />
+
+           
             <InfoFieldRow label="Genre" value={genre} placeholder={FIELD_PLACEHOLDERS.genre} />
             <InfoFieldRow
               label="Type"

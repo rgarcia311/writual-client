@@ -258,15 +258,15 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
           fullWidth
         />
         <TextField
-          label="Poster (Image URL)"
+          label="Poster (Image URL or base64)"
           value={formValues.poster ?? ''}
           onChange={(e) => updateForm(e, 'poster')}
-          placeholder="https://example.com/poster.jpg"
+          placeholder="https://example.com/poster.jpg or data:image/png;base64,..."
           fullWidth
           error={Boolean(formValues.poster?.trim()) && !isValidImageUrl(formValues.poster ?? '')}
           helperText={
             formValues.poster?.trim() && !isValidImageUrl(formValues.poster ?? '')
-              ? "URL isn't a valid image URL."
+              ? 'Enter an image URL or a data:image/{fileType};base64,{encodedString} string.'
               : undefined
           }
         />

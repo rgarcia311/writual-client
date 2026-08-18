@@ -81,31 +81,32 @@ export function ProjectMetadataRows({
   headerOnly,
   hideBudgetAndSimilarProjects,
 }: ProjectMetadataRowsProps) {
+  console.log({ genre, projectTypeLabel, budget, similarProjects, headerOnly, hideBudgetAndSimilarProjects})
   return (
-    <>
-      <Typography variant="body2">
+    <Box sx={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-evenly"}}>
+      <Typography variant="body1">
         Genre:{' '}
         {genre ? (
           genre
         ) : (
-          <Typography component="span" variant="body2" color="text.disabled" sx={{ fontStyle: 'italic' }}>
+          <Typography component="span" variant="body1" color="text.disabled" sx={{ fontStyle: 'italic' }}>
             e.g., Drama, Horror, Comedy, Fantasy, SciFi
           </Typography>
         )}
       </Typography>
-      <Typography variant="body2">
+      <Typography variant="body1">
         Type:{' '}
         {projectTypeLabel ? (
           projectTypeLabel
         ) : (
-          <Typography component="span" variant="body2" color="text.disabled" sx={{ fontStyle: 'italic' }}>
+          <Typography component="span" variant="body1" color="text.disabled" sx={{ fontStyle: 'italic' }}>
             e.g., Feature, Television, Short, Play, Musical
           </Typography>
         )}
       </Typography>
-      {(headerOnly || !hideBudgetAndSimilarProjects) && (
+      {(headerOnly || hideBudgetAndSimilarProjects) && (
         <>
-          <Typography variant="body2">
+          <Typography variant="body1">
             Budget:{' '}
             {typeof budget === 'number' && budget > 0
               ? new Intl.NumberFormat(undefined, {
@@ -115,15 +116,17 @@ export function ProjectMetadataRows({
                 }).format(budget)
               : '—'}
           </Typography>
-          <Typography variant="body2">
+          <Typography variant="body1">
             {headerOnly ? 'Similar Films/TV Shows:' : 'Similar projects:'}{' '}
-            {Array.isArray(similarProjects) && similarProjects.length > 0
-              ? similarProjects.join(', ')
-              : '—'}
+            {
+              similarProjects && similarProjects.length > 0
+                ? similarProjects.join(', ')
+                : '—'
+            }
           </Typography>
         </>
       )}
-    </>
+    </Box>
   );
 }
 
@@ -164,6 +167,8 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   const [shareModalOpen, setShareModalOpen] = React.useState(false);
   const [actionsAnchorEl, setActionsAnchorEl] = React.useState<HTMLElement | null>(null);
   const [imageError, setImageError] = React.useState(false);
+
+  console.log({ similarProjects })
 
   React.useEffect(() => {
     setImageError(false);
@@ -331,10 +336,10 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
           py: 1.5,
           px: 1.5,
           ...(headerOnly && hasActions ? { pr: { xs: 1.5, sm: 8 } } : {}),
-          justifyContent: 'space-between',
+          justifyContent: 'space-evenly',
         }}
       >
-        <>
+        
           <Box sx={{ flexShrink: 0 }}>
             <Tooltip title={title} enterDelay={300}>
               <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
@@ -354,9 +359,13 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
               gap: 1,
             }}
           >
-            <Typography variant="body2" sx={multiLineTruncate(3)}>
-              {logline}
-            </Typography>
+            <Tooltip title={logline}>
+              <Typography variant="body1" sx={multiLineTruncate(3)}>
+                {logline}
+              </Typography>
+            </Tooltip>
+            
+            
             <ProjectMetadataRows
               genre={genre}
               projectTypeLabel={projectTypeLabel}
@@ -366,7 +375,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
               hideBudgetAndSimilarProjects={hideBudgetAndSimilarProjects}
             />
           </Box>
-        </>
+        
       </Box>
     </Card>
   );

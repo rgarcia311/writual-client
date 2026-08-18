@@ -104,14 +104,17 @@ export const Projects = () => {
     const myProjects = allProjects.filter((p) => p.user === userId);
     const sharedProjects = allProjects.filter((p) => p.user !== userId);
 
-    const renderCard = (project: any, isOwner: boolean) => (
+    const renderCard = (project: any, isOwner: boolean) => {
+                console.log('poster url: ', project.poster)
+ return (
         <ProjectCard
             key={project._id}
+            similarProjects={project.similarProjects}
             title={project.title}
             author={project.displayName ?? project.email ?? project.user ?? 'TBD'}
             genre={project.genre}
             logline={project.logline}
-            coverImage={project.coverImage ?? project.poster}
+            coverImage={project.poster}
             onDelete={isOwner && project._id ? () => deleteProjectMutation.mutate(project._id) : undefined}
             projectId={project._id}
             projectTypeLabel={project.type}
@@ -128,6 +131,7 @@ export const Projects = () => {
             }
         />
     );
+}
 
     return (
         <Box
