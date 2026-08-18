@@ -57,6 +57,7 @@ export function FloatingProjectHero({
         genre={projectData.genre}
         logline={projectData.logline}
         projectTypeLabel={projectData.type}
+        similarProjects={projectData.similarProjects}
         projectId={projectId}
         isLoading={isLoading}
         onEditClick={onEditClick}

@@ -1,5 +1,10 @@
 import type { Project } from '@/interfaces/project';
-import { computeProjectProgress, computeWritingTrackerStatus } from '../../utils/progress';
+import {
+  computeDevelopmentLockSummary,
+  computeDraftDeadlines,
+  computeProjectProgress,
+  computeWritingTrackerStatus,
+} from '../../utils/progress';
 import { deriveScreenplayPresenceStats } from '../../utils/projectScreenplayStats';
 import type { ProjectStatTileData } from './useProjectShellData';
 
@@ -8,6 +13,11 @@ type ProjectForStats = Parameters<typeof computeProjectProgress>[0] & {
   progressTrackingEnabled?: boolean;
   screenplay?: { versions?: Array<{ content?: unknown }> };
   characters?: Array<{ name?: string | null; imageUrl?: string | null }>;
+  charactersSectionLocked?: boolean | null;
+  outlineSectionLocked?: boolean | null;
+  _id?: string | null;
+  user?: string | null;
+  type?: string | null;
 };
 
 export function computeProjectStatTileData(
@@ -23,6 +33,17 @@ export function computeProjectStatTileData(
   });
 
   const progress = computeProjectProgress(project);
+  const developmentLocks = computeDevelopmentLockSummary(project);
+  const draftDeadlines = computeDraftDeadlines(writingTracker);
+
+  // Identity for `updateProject` from the Deadline Tracking tile; blank when a query omits a field,
+  // which leaves that tile read-only rather than sending an incomplete mutation.
+  const projectRef = {
+    id: (project._id ?? '').trim(),
+    user: (project.user ?? '').trim(),
+    title: (project.title ?? '').trim(),
+    type: (project.type ?? '').trim() || undefined,
+  };
 
   const screenplayJson = project.screenplay?.versions?.[0]?.content ?? null;
 
@@ -61,6 +82,9 @@ export function computeProjectStatTileData(
 
   return {
     progress,
+    developmentLocks,
+    draftDeadlines,
+    projectRef,
     writingTracker,
     writingTrackerStatus,
     progressTrackingEnabled,

@@ -16,7 +16,7 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
 import GroupsIcon from '@mui/icons-material/Groups'
 import MovieFilterIcon from '@mui/icons-material/MovieFilter'
-import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined'
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday'
 import { useProjectShellContext } from '@/components/ProjectFloat'
 import { useScreenplayStatsPanesStore, type ScreenplayStatPaneKey } from '@/state/screenplayStatsPanes'
 import { useScreenplayInspirationPanesStore } from '@/state/screenplayInspirationPanes'
@@ -26,14 +26,14 @@ interface ScreenplayContextPanesToolbarProps {
   orientation?: 'horizontal' | 'vertical'
 }
 
-const STAT_PANE_ORDER: ScreenplayStatPaneKey[] = ['overview', 'progress', 'characters', 'scenes', 'glance']
+const STAT_PANE_ORDER: ScreenplayStatPaneKey[] = ['overview', 'progress', 'characters', 'scenes', 'deadlines']
 
 const STAT_PANE_ICONS: Record<ScreenplayStatPaneKey, React.ReactNode> = {
   overview: <InfoOutlinedIcon fontSize="small" />,
   progress: <TrendingUpIcon fontSize="small" />,
   characters: <GroupsIcon fontSize="small" />,
   scenes: <MovieFilterIcon fontSize="small" />,
-  glance: <AssignmentOutlinedIcon fontSize="small" />,
+  deadlines: <CalendarTodayIcon fontSize="small" />,
 }
 
 /** Own section, separated by a divider, for opening project-stat and inspiration reference

@@ -15,15 +15,27 @@
   );
   --project-float-card-left: var(--app-body-padding);
   --project-float-stat-width: 280px;
+  /* Project details card sits beside the poster and reads best wider than a stat tile. */
+  --project-float-info-width: calc(var(--project-float-stat-width) * 1.2);
+  /* Flex basis for the growing stat tiles: they wrap below this rather than squeezing further. */
+  --project-float-stat-basis: 240px;
   --project-float-stat-min-height: 200px;
   --project-float-tracking-stat-min-height: 272px;
   --project-float-stat-gap: var(--app-body-padding);
   --project-float-stat-surface-padding: 4px;
   --project-float-stat-inner-padding: 5px;
   --project-float-poster-aspect-ratio: 2 / 3;
+  /*
+   * Poster size relative to the tile's content box. Scaling both dimensions keeps the 2:3 shape
+   * (widening alone would crop the artwork, since the image is `object-fit: cover`). The hero row is
+   * already as tall as the stat tiles, so there is slack for the extra height.
+   */
+  --project-float-poster-scale: 1.2;
   --project-float-poster-content-height: calc(
-    var(--project-float-stat-min-height) - 2 * var(--project-float-stat-surface-padding) -
-      2 * var(--project-float-stat-inner-padding)
+    (
+        var(--project-float-stat-min-height) - 2 * var(--project-float-stat-surface-padding) - 2 *
+          var(--project-float-stat-inner-padding)
+      ) * var(--project-float-poster-scale)
   );
   --project-float-poster-content-width: calc(
     var(--project-float-poster-content-height) * 2 / 3
@@ -34,7 +46,7 @@
   );
   --project-float-project-tiles-width: calc(
     var(--project-float-poster-card-width) + var(--project-float-stat-gap) +
-      var(--project-float-stat-width)
+      var(--project-float-info-width)
   );
   --project-float-hero-width: var(--project-float-project-tiles-width);
   --z-index-breadcrumbs: 20;
@@ -177,10 +189,10 @@
 }
 
 .project-float-hero--with-stats .project-float-tracking-stat {
-  flex: 0 0 var(--project-float-stat-width);
-  width: var(--project-float-stat-width);
-  min-width: var(--project-float-stat-width);
-  max-width: var(--project-float-stat-width);
+  flex: 1 1 var(--project-float-stat-basis);
+  width: auto;
+  min-width: 0;
+  max-width: none;
 }
 
 .project-float-surface {
@@ -228,16 +240,31 @@
   height: auto;
 }
 
+/*
+ * The fluid hero stretches the poster tile to the row's height (`align-items: stretch`), which left
+ * dead space under a fixed-height image. Filling the tile's content box instead keeps the inset
+ * around the artwork equal on all four sides. Scoped to this variant: the other hero rows size the
+ * tile to its content, where a percentage height has nothing to resolve against.
+ */
 .project-float-hero--fluid .project-float-poster-anchor > .MuiBox-root {
-  height: auto;
+  height: 100%;
   min-height: auto;
-  align-items: flex-start;
-  justify-content: flex-start;
+  align-items: stretch;
+  justify-content: center;
+}
+
+.project-float-hero--fluid .project-float-poster-tile__image {
+  height: 100%;
 }
 
 .project-float-tracking-stat {
-  flex: 1 1 var(--project-float-stat-width);
-  min-width: min(100%, var(--project-float-stat-width));
+  /*
+   * Grow into whatever the poster and details cards leave: equal basis + `flex-grow: 1` splits the
+   * row's leftover width evenly. The basis stays non-zero so a cramped row still wraps — items with
+   * a zero base never wrap, they just squeeze.
+   */
+  flex: 1 1 var(--project-float-stat-basis);
+  min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
   display: flex;
@@ -277,8 +304,8 @@
   top: auto;
   left: auto;
   flex-shrink: 0;
-  width: var(--project-float-stat-width);
-  max-width: var(--project-float-stat-width);
+  width: var(--project-float-info-width);
+  max-width: var(--project-float-info-width);
   min-height: var(--project-float-stat-min-height);
   overflow: visible;
 }
@@ -295,7 +322,8 @@
 
 .project-float-poster-tile__image {
   display: block;
-  width: var(--project-float-poster-content-width);
+  width: 100%;
+  /* Fixed fallback for hero rows that size the tile to its content (see the --fluid override). */
   height: var(--project-float-poster-content-height);
   max-width: 100%;
   object-fit: cover;
@@ -363,8 +391,13 @@
     max-width: 100%;
   }
 
-  .project-float-poster-tile__image {
+  /* Stacked layout: the tile is on its own row and sized by its content, so pin the image height
+     (this also overrides the --fluid fill rule, whose percentage would have nothing to resolve
+     against here). */
+  .project-float-poster-tile__image,
+  .project-float-hero--fluid .project-float-poster-tile__image {
     width: auto;
+    height: var(--project-float-poster-content-height);
     max-width: 100%;
     margin: 0 auto;
   }
