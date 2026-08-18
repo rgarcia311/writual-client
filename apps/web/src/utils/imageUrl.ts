@@ -1,6 +1,14 @@
 const IMAGE_EXTENSIONS = /\.(jpe?g|png|gif|webp|bmp|svg)(\?.*)?$/i;
-/** Google Drive file URL: https://drive.google.com/file/d/{fileId}/preview */
+/** Google Drive file URL: https://drive.google.com/file/d/{fileId}/view — rewritten for storage. */
 const GOOGLE_DRIVE_FILE_URL = /^https:\/\/drive\.google\.com\/file\/d\/[^/]+\/view(?:\?.*)?$/i;
+/**
+ * Google Drive embed URL: https://drive.google.com/file/d/{fileId}/preview
+ *
+ * Kept separate from `GOOGLE_DRIVE_FILE_URL` on purpose: that pattern is what triggers the rewrite
+ * in `getImageUrlForStorage`, so a preview link validates and is stored exactly as pasted.
+ */
+const GOOGLE_DRIVE_PREVIEW_URL =
+  /^https:\/\/drive\.google\.com\/file\/d\/[^/]+\/preview(?:\?.*)?$/i;
 /** Gemini share URL: https://gemini.google.com/share/{id} */
 const GEMINI_SHARE_URL = /^https:\/\/gemini\.google\.com\/share\/[a-zA-Z0-9]+(?:\?.*)?$/i;
 /** Extract file ID from path segment d/FILE_ID/view */
@@ -30,6 +38,7 @@ export function isValidImageUrl(url: string): boolean {
   try {
     const trimmed = url.trim();
     if (GOOGLE_DRIVE_FILE_URL.test(trimmed)) return true;
+    if (GOOGLE_DRIVE_PREVIEW_URL.test(trimmed)) return true;
     if (GEMINI_SHARE_URL.test(trimmed)) return true;
     const u = new URL(trimmed);
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
