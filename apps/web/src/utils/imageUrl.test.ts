@@ -13,6 +13,8 @@ import { getImageUrlForStorage, isValidImageUrl } from './imageUrl'
  */
 
 const DRIVE_SHARE_URL = 'https://drive.google.com/file/d/1cLKMYrB-gYNaA6xv21My4lSehLmuX69h/view'
+const DRIVE_PREVIEW_URL =
+  'https://drive.google.com/file/d/1cLKMYrB-gYNaA6xv21My4lSehLmuX69h/preview'
 const DRIVE_DIRECT_URL =
   'https://drive.usercontent.google.com/download?id=1cLKMYrB-gYNaA6xv21My4lSehLmuX69h&export=view&authuser=0'
 
@@ -30,6 +32,11 @@ describe('isValidImageUrl', () => {
   it('accepts a Google Drive share link', () => {
     assert.equal(isValidImageUrl(DRIVE_SHARE_URL), true)
     assert.equal(isValidImageUrl(`${DRIVE_SHARE_URL}?usp=sharing`), true)
+  })
+
+  it('accepts a Google Drive preview link', () => {
+    assert.equal(isValidImageUrl(DRIVE_PREVIEW_URL), true)
+    assert.equal(isValidImageUrl(`${DRIVE_PREVIEW_URL}?usp=sharing`), true)
   })
 
   it('accepts a Google Drive direct download link, in any query order', () => {
@@ -65,6 +72,11 @@ describe('getImageUrlForStorage', () => {
 
   it('leaves an already-direct Drive link untouched', () => {
     assert.equal(getImageUrlForStorage(DRIVE_DIRECT_URL), DRIVE_DIRECT_URL)
+  })
+
+  it('stores a preview link exactly as pasted — no rewrite to the download form', () => {
+    assert.equal(getImageUrlForStorage(DRIVE_PREVIEW_URL), DRIVE_PREVIEW_URL)
+    assert.equal(isValidImageUrl(getImageUrlForStorage(DRIVE_PREVIEW_URL)), true)
   })
 
   it('round-trips: what it stores is what validation accepts', () => {
