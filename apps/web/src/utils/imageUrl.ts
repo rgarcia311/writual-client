@@ -1,5 +1,5 @@
 const IMAGE_EXTENSIONS = /\.(jpe?g|png|gif|webp|bmp|svg)(\?.*)?$/i;
-/** Google Drive file URL: https://drive.google.com/file/d/{fileId}/view */
+/** Google Drive file URL: https://drive.google.com/file/d/{fileId}/preview */
 const GOOGLE_DRIVE_FILE_URL = /^https:\/\/drive\.google\.com\/file\/d\/[^/]+\/view(?:\?.*)?$/i;
 /** Gemini share URL: https://gemini.google.com/share/{id} */
 const GEMINI_SHARE_URL = /^https:\/\/gemini\.google\.com\/share\/[a-zA-Z0-9]+(?:\?.*)?$/i;
@@ -45,6 +45,7 @@ export function isValidImageUrl(url: string): boolean {
  * returns the direct view URL (drive.usercontent.google.com). Otherwise returns the trimmed URL.
  */
 export function getImageUrlForStorage(url: string): string {
+  if(url.includes('preview')) return url
   const trimmed = url?.trim() ?? '';
   if (!trimmed) return trimmed;
   if (!GOOGLE_DRIVE_FILE_URL.test(trimmed)) return trimmed;
