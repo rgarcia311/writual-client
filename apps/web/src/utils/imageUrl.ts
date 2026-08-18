@@ -6,6 +6,25 @@ const GEMINI_SHARE_URL = /^https:\/\/gemini\.google\.com\/share\/[a-zA-Z0-9]+(?:
 /** Extract file ID from path segment d/FILE_ID/view */
 const GOOGLE_DRIVE_FILE_ID = /\/d\/([^/]+)\/view/;
 
+/** Hosts that serve a Drive file's bytes directly rather than a viewer page. */
+const GOOGLE_DRIVE_DIRECT_HOSTS = new Set([
+  'drive.usercontent.google.com',
+  'drive.google.com',
+]);
+
+/**
+ * Direct Drive links — `drive.usercontent.google.com/download?id=…&export=view` (what
+ * `getImageUrlForStorage` writes) and the older `drive.google.com/uc?export=view&id=…`. Their paths
+ * carry no file extension, so they can't pass the extension check; matched on host + path + `id`
+ * instead of by pattern, since the query parameters arrive in any order.
+ */
+function isGoogleDriveDirectUrl(u: URL): boolean {
+  if (!GOOGLE_DRIVE_DIRECT_HOSTS.has(u.hostname.toLowerCase())) return false;
+  const path = u.pathname.replace(/\/+$/, '').toLowerCase();
+  if (path !== '/download' && path !== '/uc') return false;
+  return Boolean(u.searchParams.get('id')?.trim());
+}
+
 export function isValidImageUrl(url: string): boolean {
   if (!url || !url.trim()) return true;
   try {
@@ -14,6 +33,7 @@ export function isValidImageUrl(url: string): boolean {
     if (GEMINI_SHARE_URL.test(trimmed)) return true;
     const u = new URL(trimmed);
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+    if (isGoogleDriveDirectUrl(u)) return true;
     return IMAGE_EXTENSIONS.test(u.pathname);
   } catch {
     return false;
