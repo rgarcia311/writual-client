@@ -9,6 +9,14 @@ const GOOGLE_DRIVE_FILE_URL = /^https:\/\/drive\.google\.com\/file\/d\/[^/]+\/vi
  */
 const GOOGLE_DRIVE_PREVIEW_URL =
   /^https:\/\/drive\.google\.com\/file\/d\/[^/]+\/preview(?:\?.*)?$/i;
+/**
+ * Inline image data URL: `data:image/{fileType};base64,{encodedString}` — e.g. a poster pasted
+ * straight out of a file reader instead of hosted somewhere. Matched before anything URL-based
+ * because `new URL()` accepts a `data:` URL but the protocol check then rejects it, and because a
+ * base64 payload can incidentally contain substrings (`preview`) that the Drive handling keys on.
+ */
+const BASE64_IMAGE_DATA_URL = /^data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/]+={0,2}$/i;
+
 /** Gemini share URL: https://gemini.google.com/share/{id} */
 const GEMINI_SHARE_URL = /^https:\/\/gemini\.google\.com\/share\/[a-zA-Z0-9]+(?:\?.*)?$/i;
 /** Extract file ID from path segment d/FILE_ID/view */
@@ -33,10 +41,16 @@ function isGoogleDriveDirectUrl(u: URL): boolean {
   return Boolean(u.searchParams.get('id')?.trim());
 }
 
+/** True for a `data:image/{fileType};base64,{encodedString}` value. */
+export function isBase64ImageDataUrl(url: string): boolean {
+  return BASE64_IMAGE_DATA_URL.test(url.trim());
+}
+
 export function isValidImageUrl(url: string): boolean {
   if (!url || !url.trim()) return true;
   try {
     const trimmed = url.trim();
+    if (isBase64ImageDataUrl(trimmed)) return true;
     if (GOOGLE_DRIVE_FILE_URL.test(trimmed)) return true;
     if (GOOGLE_DRIVE_PREVIEW_URL.test(trimmed)) return true;
     if (GEMINI_SHARE_URL.test(trimmed)) return true;
@@ -54,8 +68,9 @@ export function isValidImageUrl(url: string): boolean {
  * returns the direct view URL (drive.usercontent.google.com). Otherwise returns the trimmed URL.
  */
 export function getImageUrlForStorage(url: string): string {
-  if(url.includes('preview')) return url
   const trimmed = url?.trim() ?? '';
+  if (isBase64ImageDataUrl(trimmed)) return trimmed;
+  if (url.includes('preview')) return url;
   if (!trimmed) return trimmed;
   if (!GOOGLE_DRIVE_FILE_URL.test(trimmed)) return trimmed;
   const match = trimmed.match(GOOGLE_DRIVE_FILE_ID);

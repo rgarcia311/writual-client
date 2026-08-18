@@ -17,6 +17,7 @@ const DRIVE_PREVIEW_URL =
   'https://drive.google.com/file/d/1cLKMYrB-gYNaA6xv21My4lSehLmuX69h/preview'
 const DRIVE_DIRECT_URL =
   'https://drive.usercontent.google.com/download?id=1cLKMYrB-gYNaA6xv21My4lSehLmuX69h&export=view&authuser=0'
+const BASE64_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
 describe('isValidImageUrl', () => {
   it('accepts an empty value (the field is optional)', () => {
@@ -54,6 +55,20 @@ describe('isValidImageUrl', () => {
     )
   })
 
+  it('accepts an inline base64 image data URL', () => {
+    assert.equal(isValidImageUrl(BASE64_PNG), true)
+    assert.equal(isValidImageUrl('data:image/jpeg;base64,/9j/4AAQSkZJRg=='), true)
+    assert.equal(isValidImageUrl('data:image/svg+xml;base64,PHN2Zy8+'), true)
+    assert.equal(isValidImageUrl(`  ${BASE64_PNG}  `), true)
+  })
+
+  it('rejects malformed or non-image data URLs', () => {
+    assert.equal(isValidImageUrl('data:image/png;base64,'), false, 'empty payload')
+    assert.equal(isValidImageUrl('data:image/png,notbase64'), false, 'missing ;base64')
+    assert.equal(isValidImageUrl('data:text/html;base64,PGgxPmhpPC9oMT4='), false, 'not an image')
+    assert.equal(isValidImageUrl('data:image/png;base64,abc$def'), false, 'invalid base64 chars')
+  })
+
   it('rejects a Drive URL with no file id', () => {
     assert.equal(isValidImageUrl('https://drive.usercontent.google.com/download?export=view'), false)
   })
@@ -81,6 +96,14 @@ describe('getImageUrlForStorage', () => {
 
   it('round-trips: what it stores is what validation accepts', () => {
     assert.equal(isValidImageUrl(getImageUrlForStorage(DRIVE_SHARE_URL)), true)
+  })
+
+  it('stores a base64 data URL as-is, even when its payload contains "preview"', () => {
+    assert.equal(getImageUrlForStorage(BASE64_PNG), BASE64_PNG)
+    assert.equal(getImageUrlForStorage(`  ${BASE64_PNG}  `), BASE64_PNG)
+    const previewInPayload = 'data:image/png;base64,previewAAAA'
+    assert.equal(getImageUrlForStorage(`  ${previewInPayload}  `), previewInPayload)
+    assert.equal(isValidImageUrl(getImageUrlForStorage(BASE64_PNG)), true)
   })
 
   it('trims and otherwise passes URLs through', () => {

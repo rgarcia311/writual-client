@@ -18,5 +18,6 @@ export function multiLineTruncate(lineClamp: number): SxProps<Theme> {
     display: '-webkit-box',
     WebkitLineClamp: lineClamp,
     WebkitBoxOrient: 'vertical' as const,
+    marginTop: "8px"
   };
 }

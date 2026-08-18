@@ -13,6 +13,7 @@ query GetProjectData($input: ProjectFilters) {
     email
     poster
     sharedWith
+    similarProjects
     stats {
       totalScenes
       lockedScenes
