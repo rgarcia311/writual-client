@@ -255,6 +255,8 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
           value={formValues.logline ?? ''}
           onChange={(e) => updateForm(e, 'logline')}
           placeholder="Logline"
+          multiline
+          minRows={1}
           fullWidth
         />
         <TextField

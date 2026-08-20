@@ -17,6 +17,12 @@ import {
   SCREENPLAY_PAPER_WIDTH_PX,
   SCREENPLAY_PARENTHETICAL_INDENT_PX,
 } from './screenplayPaperLayout'
+import {
+  layoutBottomExceedsPageContentEnd,
+  layoutBottomForPaginationOverflow,
+  layoutScaleFromEditorDom,
+  wholeLinesInSpan,
+} from './screenplayPaginationGeometry'
 import { normalizeCharacterCueName } from './ScreenplayExtension'
 
 /* ── Title-page element types ──────────────────────────────────────────────── */
@@ -89,37 +95,6 @@ const SPLIT_LEFT_PAD_PX: Record<string, number> = {
   parenthetical: SCREENPLAY_PARENTHETICAL_INDENT_PX,
 }
 
-/**
- * Compare against the industry 16px line grid (54 lines × 16px = 864px content band).
- * Sub-pixel bottoms from zoom/font metrics must not push a line that still fits on-page.
- */
-function layoutBottomExceedsPageContentEnd(
-  layoutBottom: number,
-  pageContentEnd: number,
-  pageContentStart: number,
-): boolean {
-  const relativeBottom = layoutBottom - pageContentStart
-  const maxLines = (pageContentEnd - pageContentStart) / SCREENPLAY_LINE_HEIGHT_PX
-  const usedLines = Math.ceil((relativeBottom - 1e-3) / SCREENPLAY_LINE_HEIGHT_PX)
-  return usedLines > maxLines
-}
-
-/**
- * Script blocks use `padding-bottom: var(--sp-line-single)` as the blank line *before* the next
- * element. That spacer does not need to fit on the same page as the last ink line when deciding
- * whether a block "overflows" — same idea as PDF flow. Subtract it for overflow checks only.
- */
-function layoutBottomForPaginationOverflow(
-  elementType: string | undefined,
-  layoutBottom: number,
-): number {
-  const t = elementType ?? 'action'
-  if (t === 'dialogue' || t === 'action' || t === 'slugline' || t === 'transition') {
-    return layoutBottom - SCREENPLAY_LINE_HEIGHT_PX
-  }
-  return layoutBottom
-}
-
 /* ── Plugin key & meta ─────────────────────────────────────────────────────── */
 
 interface PageBreakMeta {
@@ -143,16 +118,6 @@ function collectScriptBlocks(doc: PMNode): BlockEntry[] {
     }
   })
   return out
-}
-
-/** Map post-`transform: scale()` visual pixels to layout CSS px (`getBoundingClientRect` / `offsetHeight`). */
-function layoutScaleFromEditorDom(dom: HTMLElement): number {
-  const h = dom.offsetHeight
-  if (h === 0) return 1
-  const r = dom.getBoundingClientRect().height
-  const s = r / h
-  if (!Number.isFinite(s) || s <= 0) return 1
-  return Math.abs(s - 1) < 0.001 ? 1 : s
 }
 
 function yLayoutInPm(el: HTMLElement, pmRect: DOMRect, scale: number): { top: number; bottom: number } {
@@ -373,7 +338,7 @@ function attemptBlockSplit(
   const contentEl = el.querySelector<HTMLElement>('[data-node-view-content]')
   if (!contentEl) return null
 
-  const linesAvailable = Math.floor((pageContentEnd - blockTop) / SCREENPLAY_LINE_HEIGHT_PX)
+  const linesAvailable = wholeLinesInSpan(pageContentEnd - blockTop)
   const more = elementType !== 'action'
   // Dialogue/parenthetical reserve one line on this page for "(MORE)"; action needs no marker.
   const usableLines = more ? linesAvailable - 1 : linesAvailable
@@ -542,7 +507,11 @@ export const PageBreakExtension = Extension.create({
           // is monotonically increasing) — read back by `measureGapHeightDrift()` after dispatch.
           const expectedGapHeights: number[] = []
           const coverPrefix = docStartsWithCoverTitle(doc)
-          const pmRect = editorView.dom.getBoundingClientRect()
+          // `let`, not `const`: the title-page branch below writes an inline `padding-top` and
+          // forces a reflow mid-pass. That can move ProseMirror's own viewport-space top (the
+          // browser clamps `scrollTop` when the content height changes), which would silently
+          // rebase every measurement taken after it against a stale origin. Re-read it there.
+          let pmRect = editorView.dom.getBoundingClientRect()
           const scale = layoutScaleFromEditorDom(editorView.dom as HTMLElement)
 
           let cursorOffset = 0
@@ -616,6 +585,7 @@ export const PageBreakExtension = Extension.create({
                     const oldPaddingTop = parseFloat(getComputedStyle(firstContactEl).paddingTop) || 0
                     firstContactEl.style.paddingTop = `${oldPaddingTop + delta}px`
                     void editorView.dom.offsetHeight // force reflow before re-measuring below
+                    pmRect = editorView.dom.getBoundingClientRect()
                   }
                 }
               }
@@ -780,9 +750,12 @@ export const PageBreakExtension = Extension.create({
               blockTop > pageContentStart + 1
             ) {
               const slugInkBottom = layoutBottomForPaginationOverflow('slugline', blockBottom)
-              if (slugInkBottom <= pageContentEnd) {
-                const roomAfter = pageContentEnd - slugInkBottom
-                if (Math.floor(roomAfter + 1e-6) < SCREENPLAY_LINE_HEIGHT_PX) {
+              // Both tests are grid-tolerant on purpose. A slugline that exactly fills the page's
+              // last line is the case this widow check exists for, and a raw `<=` would skip it
+              // whenever that bottom measured a few thousandths of a pixel long — which is a
+              // function of the zoom, i.e. of the window size.
+              if (!layoutBottomExceedsPageContentEnd(slugInkBottom, pageContentEnd, pageContentStart)) {
+                if (wholeLinesInSpan(pageContentEnd - slugInkBottom) < 1) {
                   forceBreak = true
                 }
               }

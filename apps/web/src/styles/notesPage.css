@@ -1,8 +1,10 @@
-/* Notes page — mirrors the characters grid: fixed-size cards, columns aligned across rows */
+/* Notes page — fixed-size cards, columns aligned across rows (same grid mechanics as characters) */
 
 .notes-page-cards {
+  /* Note cards are wider than character cards so note bodies get room to wrap. */
+  --note-card-width: 480px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, var(--character-card-width, 305px));
+  grid-template-columns: repeat(auto-fill, var(--note-card-width, 480px));
   justify-content: space-between;
   justify-items: start;
   align-content: start;
@@ -16,9 +18,9 @@
 }
 
 .notes-page-cards .note-card--grid {
-  width: var(--character-card-width, 305px);
+  width: var(--note-card-width, 480px);
   height: var(--character-card-height, 390px);
-  max-width: var(--character-card-width, 305px);
+  max-width: var(--note-card-width, 480px);
   max-height: var(--character-card-height, 390px);
   border-radius: var(--project-float-radius, 12px);
 }
@@ -29,8 +31,31 @@
   padding-bottom: 4px;
 }
 
+/* Header content must be allowed to shrink so the title wraps instead of pushing the actions out. */
+.notes-page-cards .note-card--grid .MuiCardHeader-content {
+  min-width: 0;
+}
+
 .notes-page-cards .note-card--grid .MuiCardContent-root {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+}
+
+/* Long words, URLs, and pasted HTML wrap to the next line rather than being clipped. */
+.notes-page-cards .note-card--grid .MuiCardHeader-title,
+.notes-page-cards .note-card--grid .MuiCardContent-root {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.notes-page-cards .note-card--grid .MuiCardContent-root img,
+.notes-page-cards .note-card--grid .MuiCardContent-root table,
+.notes-page-cards .note-card--grid .MuiCardContent-root pre {
+  max-width: 100%;
+}
+
+.notes-page-cards .note-card--grid .MuiCardContent-root pre {
+  white-space: pre-wrap;
 }
