@@ -132,11 +132,12 @@
   flex-direction: row !important;
   flex: 1 1 auto;
   min-height: 0 !important;
-  /* max-height intentionally NOT set here: WritualEditor.tsx's inline `sx` caps this row at one
-     page's on-screen height (screenplayToolbarPaperRowMaxHeightPx) so the toolbar and a fully-
-     scrolled page line up top-and-bottom, not just top. A `max-height: 100%` here would win this
-     property over that inline sx by loading later in the cascade at equal specificity, silently
-     reverting the cap back to "fill all available space" regardless of what the JS computes. */
+  /* max-height intentionally NOT set here: WritualEditor.tsx's inline `sx` holds this row's cap at
+     the measured content height of the editor column (screenplayToolbarPaperRowMaxHeightPx), so the
+     row fills the column — the vertical toolbar's bottom edge lands on the side nav's, and any
+     space left below a full page shows the top of the next one. A rule here would win this property
+     over that inline sx by loading later in the cascade at equal specificity, silently overriding
+     whatever the JS measures; leave it out and let the measurement own it. */
   overflow: visible !important;
   box-sizing: border-box;
 }

@@ -19,6 +19,7 @@ import { MessageFeed } from './MessageFeed';
 import { MessageInput } from './MessageInput';
 import { NewGroupChatDialog } from './NewGroupChatDialog';
 import type { ChatMessage, ConversationThread, ConversationParticipant } from '@/interfaces/chat';
+import '@/styles/chatPage.css';
 
 interface Props {
   projectId: string;
@@ -192,7 +193,7 @@ export function ChatContainer({ projectId }: Props) {
   );
 
   return (
-    <Box sx={{ display: 'flex', width: '100%', height: '100%', p: 1, gap: 1 }}>
+    <Box sx={{ display: 'flex', flex: 1, width: '100%', minWidth: 0, minHeight: 0, gap: 1 }}>
       {/* Desktop thread list */}
       {threadListContent}
 
@@ -218,7 +219,7 @@ export function ChatContainer({ projectId }: Props) {
       <Paper
         elevation={2}
         enable-xr
-        sx={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, borderRadius: '10px' }}
+        sx={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, minHeight: 0, borderRadius: '10px' }}
         style={
           {
             '--xr-back': '16px',

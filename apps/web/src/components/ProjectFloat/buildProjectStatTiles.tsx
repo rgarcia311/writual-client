@@ -10,6 +10,25 @@ import type { ProjectStatTileData } from './useProjectShellData';
 
 export type ProjectStatTileKey = 'progress' | 'characters' | 'scenes' | 'deadlines';
 
+/** Canonical tile order — also the order tiles render in, regardless of how they were selected. */
+export const ALL_PROJECT_STAT_TILE_KEYS: ProjectStatTileKey[] = [
+  'progress',
+  'characters',
+  'scenes',
+  'deadlines',
+];
+
+/** Menu labels for the per-page tile picker; matches `STAT_PANE_LABELS` on the screenplay panes. */
+export const PROJECT_STAT_TILE_LABELS: Record<ProjectStatTileKey, string> = {
+  progress: 'Project Progress',
+  characters: 'Characters',
+  scenes: 'Scenes',
+  deadlines: 'Deadline Tracking',
+};
+
+/** Project pages that render a stat rail; the key each page's saved tile choice is stored under. */
+export type ProjectStatPageKey = 'overview' | 'characters' | 'notes' | 'outline' | 'chat';
+
 export interface ProjectStatTileEntry {
   key: ProjectStatTileKey;
   node: React.ReactNode;

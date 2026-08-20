@@ -21,6 +21,9 @@ export default function ProjectLayout({
   }) {
     const pathname = usePathname();
     const isScreenplayRoute = pathname?.includes('/screenplay') ?? false;
+    // Chat's panes end flush with the side nav's bottom line, so this box must not clip their
+    // radius and elevation shadow — they bleed into `.project-details-page`'s padding.
+    const isChatRoute = pathname?.includes('/chat') ?? false;
 
     return (
     <Box
@@ -40,7 +43,7 @@ export default function ProjectLayout({
           flex: 1,
           height: '100%',
           minWidth: 0,
-          overflow: isScreenplayRoute ? 'visible' : 'hidden',
+          overflow: isScreenplayRoute || isChatRoute ? 'visible' : 'hidden',
           borderRadius: isScreenplayRoute ? 0 : 'var(--project-float-radius, 12px)',
           bgcolor: isScreenplayRoute ? 'transparent' : 'background.default',
         }}

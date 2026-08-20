@@ -53,6 +53,7 @@ export function ThreadList({ threads, selectedConversationId, onlineUserIds, cur
       sx={{
         width: 350,
         height: '100%',
+        minHeight: 0,
         bgcolor: '#F7F7F7',
         flexShrink: 0,
         display: { xs: 'none', sm: 'flex' },

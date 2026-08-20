@@ -4,6 +4,13 @@ import type { Tier } from '@/types/tier';
 
 export interface UserSettings {
   colorMode: 'dark' | 'light';
+  /**
+   * Visible stat tiles per project page, keyed by page ('overview' | 'characters' | 'notes' |
+   * 'outline'). Absent while the profile is still optimistic; a missing page key means that page
+   * shows its default tiles. Persisted here only to paint the last known choice before the
+   * server round-trip — the DB copy is the source of truth.
+   */
+  statTilePreferences?: Record<string, string[]> | null;
 }
 
 export interface UserProfile {

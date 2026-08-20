@@ -175,7 +175,7 @@ export function MessageFeed({ conversationId, currentUserUid, onRetry, onMarkAsR
   return (
     <Box
       ref={feedRef}
-      sx={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', py: 1 }}
+      sx={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', py: 1 }}
     >
       {/* TODO: virtualize when message count > 300 */}
       {items}

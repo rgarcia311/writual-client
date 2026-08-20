@@ -8,7 +8,9 @@
  * - 12pt Courier at 10 CPI on US Letter with WGA margins ⇒ a 6.0" (60 char) text area and a
  *   54-line content band per page (864px ÷ 16px line height — see `screenplayPaperLayout.ts`).
  * - Per-element column widths mirror `Screenplay.css` (dialogue 344px ≈ 35 chars,
- *   parenthetical 192px ≈ 20 chars).
+ *   parenthetical 192px ≈ 20 chars), unless the document carries an imported-PDF layout config
+ *   (`screenplay.layout`), which the editor applies as inline CSS custom properties on the page and
+ *   which therefore governs how those columns really wrap — see `charsPerLineFor`.
  * - Inter-block blank lines mirror `getScreenplayInterBlockGapInches()` in
  *   `apps/web/src/components/ScreenplayEditor/screenplaySpacing.ts`.
  *
@@ -30,6 +32,52 @@ const CHARS_PER_LINE: Record<string, number> = {
   parenthetical: 20,
 };
 const DEFAULT_CHARS_PER_LINE = 60;
+
+/** 12pt Courier at 10 CPI ⇒ 9.6px @96dpi (mirrors `CHAR_WIDTH_PX` in `screenplayLayout.ts`). */
+const CHAR_WIDTH_PX = 9.6;
+
+/**
+ * Per-document column overrides measured from an imported PDF (`screenplay.layout`), the same shape
+ * `apps/web/src/lib/screenplayLayout.ts` writes and applies to `.screenplay-page` at render time.
+ * Only the fields that change wrapping are read here; indents shift a column without resizing it.
+ */
+export interface ScreenplayLayoutConfigInput {
+  dialogueTextWidthPx?: number | null;
+  parentheticalTextWidthPx?: number | null;
+}
+
+/** Column width clamps — must match `clampLayoutConfig` in `apps/web/src/lib/screenplayLayout.ts`. */
+const WIDTH_CLAMPS: Record<string, { min: number; max: number }> = {
+  dialogue: { min: 240, max: 432 },
+  parenthetical: { min: 96, max: 288 },
+};
+
+/**
+ * Characters that fit on one line of `elementType`, honouring a stored layout config.
+ *
+ * The editor renders an imported document at its measured column widths, so an estimate computed
+ * from the WGA defaults describes a page the user is not looking at: a dialogue column measured 14px
+ * narrow holds 34 characters rather than 35, re-wraps every full-width line, and lands a whole page
+ * away from what the editor paginates. Reading the same config the editor reads keeps the two in step.
+ */
+function charsPerLineFor(
+  elementType: string,
+  layout: ScreenplayLayoutConfigInput | null | undefined
+): number {
+  const fallback = CHARS_PER_LINE[elementType] ?? DEFAULT_CHARS_PER_LINE;
+  const clamp = WIDTH_CLAMPS[elementType];
+  if (!layout || !clamp) return fallback;
+
+  const raw =
+    elementType === "dialogue"
+      ? layout.dialogueTextWidthPx
+      : layout.parentheticalTextWidthPx;
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return fallback;
+
+  const width = Math.min(clamp.max, Math.max(clamp.min, Math.round(raw)));
+  // `floor`: a partially-fitting character does not render, matching how the browser wraps.
+  return Math.max(1, Math.floor(width / CHAR_WIDTH_PX));
+}
 
 /** Cover-sheet element types; the leading run of these is not part of the body page total. */
 const TITLE_PAGE_TYPES = new Set(["title", "author", "contact"]);
@@ -130,7 +178,10 @@ function interBlockBlankLines(prev: string | null, next: string): number {
  * Estimated body page total for screenplay TipTap JSON, or null when the document has no script
  * content (so callers can distinguish "no screenplay yet" from "one page").
  */
-export const estimateScreenplayPageCount = (doc: unknown): number | null => {
+export const estimateScreenplayPageCount = (
+  doc: unknown,
+  layout?: ScreenplayLayoutConfigInput | null
+): number | null => {
   const blocks = dropCoverTitle(scriptBlocks(doc));
   if (blocks.length === 0) return null;
 
@@ -141,10 +192,7 @@ export const estimateScreenplayPageCount = (doc: unknown): number | null => {
   let prev: string | null = null;
   for (const block of blocks) {
     lines += interBlockBlankLines(prev, block.elementType);
-    lines += wrappedLineCount(
-      block.text,
-      CHARS_PER_LINE[block.elementType] ?? DEFAULT_CHARS_PER_LINE
-    );
+    lines += wrappedLineCount(block.text, charsPerLineFor(block.elementType, layout));
     prev = block.elementType;
   }
 
@@ -154,6 +202,7 @@ export const estimateScreenplayPageCount = (doc: unknown): number | null => {
 /** Picks the stored page count, falling back to an estimate from `versions[0].content`. */
 export const resolveScreenplayPageCount = (screenplay: {
   pageCount?: number | null;
+  layout?: ScreenplayLayoutConfigInput | null;
   versions?: Array<{ content?: unknown }> | null;
 } | null | undefined): number | null => {
   if (!screenplay) return null;
@@ -164,5 +213,5 @@ export const resolveScreenplayPageCount = (screenplay: {
   }
 
   const content = screenplay.versions?.[0]?.content ?? null;
-  return estimateScreenplayPageCount(content);
+  return estimateScreenplayPageCount(content, screenplay.layout ?? null);
 };

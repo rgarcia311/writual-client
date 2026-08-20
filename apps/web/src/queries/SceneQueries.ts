@@ -37,6 +37,7 @@ export const PROJECT_SCENES_QUERY = gql`
           content
         }
         layout
+        pageCount
       }
       scenes {
         _id

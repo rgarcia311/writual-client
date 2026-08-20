@@ -70,7 +70,9 @@
     ]
   },
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "apps",
+    "packages"
   ],
   "include": [
     "next-env.d.ts",
@@ -78,5 +80,5 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/dev/types/**/*.ts"
-, "src/app/projects/page.tsx.old", "apps/web/src/components/ScreenplayEditor/screenplayPrintStyles.ts.old"  ]
+  ]
 }

@@ -207,10 +207,14 @@
   color: #000;
 }
 
-/* (MORE) — centred in the dialogue column, at bottom of previous page */
+/* (MORE) — centred in the dialogue column, on the line directly after the last dialogue line.
+   `top: 0` (not a `bottom` offset): the remainder band starts exactly at the split boundary, so
+   its first 16px row *is* the (MORE) line. A bottom-anchored 16px box overhangs the band top
+   whenever the band is only one line tall — which is exactly what a mid-dialogue split produces —
+   and collides with the dialogue above it. */
 .page-break-gap__more {
   position: absolute;
-  bottom: 12px;
+  top: 0;
   left: calc(var(--sp-margin-left, 144px) + var(--sp-dialogue-indent, 96px));
   width: 336px;
   text-align: center;
@@ -220,11 +224,13 @@
   color: #000;
 }
 
-/* (CONT'D) — at the character indent, bottom of the top margin zone */
+/* (CONT'D) — at the character indent, on the last line of the next page's top margin zone
+   (i.e. the line directly above the resumed dialogue). `bottom: 0` keeps the 16px box on the
+   16px line grid; the previous 12px offset left it straddling two rows. */
 .page-break-gap__contd {
   position: absolute;
   left: calc(var(--sp-margin-left, 144px) + var(--sp-character-indent, 211px));
-  bottom: 12px;
+  bottom: 0;
   font-family: 'Courier Prime', 'Courier New', Courier, monospace;
   font-size: 16px;
   line-height: 16px;

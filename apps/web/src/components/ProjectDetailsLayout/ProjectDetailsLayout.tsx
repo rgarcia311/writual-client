@@ -30,8 +30,12 @@ interface ProjectDetailsLayoutProps {
   /** Hide shell poster/info hero (screenplay shows them in the stats side tab). */
   hideFloatHero?: boolean;
   shellClassName?: string;
+  /** Let descendant surfaces' radius/shadow bleed past this box instead of being clipped (chat). */
+  surfaceBleed?: boolean;
   showFloatStatsRail?: boolean;
   floatStatsRailKeys?: ProjectStatTileKey[];
+  /** Hero stays in flow and page content fills the rest of the height (chat). */
+  floatStatsRailInFlow?: boolean;
   floatContentOverlay?: boolean;
 }
 
@@ -46,8 +50,10 @@ export function ProjectDetailsLayout({
   contentBleed = false,
   hideFloatHero = false,
   shellClassName,
+  surfaceBleed = false,
   showFloatStatsRail = false,
   floatStatsRailKeys,
+  floatStatsRailInFlow = false,
   floatContentOverlay = false,
 }: ProjectDetailsLayoutProps) {
   const rightAdornment = breadcrumbRightAdornment ?? accordionAdornment;
@@ -87,7 +93,7 @@ export function ProjectDetailsLayout({
         height: '100%',
         width: '100%',
         minWidth: 0,
-        overflow: 'hidden',
+        overflow: surfaceBleed ? 'visible' : 'hidden',
         pl: 0,
         pr: 0,
         pb: 0,
@@ -101,6 +107,7 @@ export function ProjectDetailsLayout({
         shellClassName={shellClassName}
         showFloatStatsRail={showFloatStatsRail}
         floatStatsRailKeys={floatStatsRailKeys}
+        floatStatsRailInFlow={floatStatsRailInFlow}
         floatContentOverlay={floatContentOverlay}
       >
         <Box

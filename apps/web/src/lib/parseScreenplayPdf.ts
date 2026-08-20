@@ -49,6 +49,9 @@ interface PdfElementGeometry {
   characterLeftPts: number[]
   dialogueRightMaxPt: number | null
   parentheticalRightMaxPt: number | null
+  /** Longest line printed in each centered column, in characters (trailing space trimmed). */
+  dialogueMaxChars: number
+  parentheticalMaxChars: number
 }
 
 const TITLE_PAGE_NOISE_RE =
@@ -223,6 +226,8 @@ function linesToScriptBlocks(
   const characterLeftPts: number[] = []
   let dialogueRightMaxPt: number | null = null
   let parentheticalRightMaxPt: number | null = null
+  let dialogueMaxChars = 0
+  let parentheticalMaxChars = 0
 
   for (const line of allLines) {
     const rawText = line.text.trim()
@@ -271,12 +276,17 @@ function linesToScriptBlocks(
       if (Number.isFinite(line.right)) {
         dialogueRightMaxPt = dialogueRightMaxPt == null ? line.right : Math.max(dialogueRightMaxPt, line.right)
       }
+      // Character count, not just ink extent: the source's glyph advances can be narrower than the
+      // 10 CPI grid it was typeset on, so `line.right` alone under-measures the column that has to
+      // hold this line at Writual's pitch (see `columnWidthFromChars` in `screenplayLayout.ts`).
+      dialogueMaxChars = Math.max(dialogueMaxChars, text.length)
     } else if (elementType === 'parenthetical') {
       parentheticalLeftPts.push(line.x)
       if (Number.isFinite(line.right)) {
         parentheticalRightMaxPt =
           parentheticalRightMaxPt == null ? line.right : Math.max(parentheticalRightMaxPt, line.right)
       }
+      parentheticalMaxChars = Math.max(parentheticalMaxChars, text.length)
     } else if (elementType === 'character') {
       characterLeftPts.push(line.x)
     }
@@ -317,6 +327,8 @@ function linesToScriptBlocks(
       characterLeftPts,
       dialogueRightMaxPt,
       parentheticalRightMaxPt,
+      dialogueMaxChars,
+      parentheticalMaxChars,
     },
   }
 }
@@ -489,6 +501,8 @@ export async function parseScreenplayPdfFromBuffer(
       characterLeftPt: median(geometry.characterLeftPts),
       dialogueRightMaxPt: geometry.dialogueRightMaxPt,
       parentheticalRightMaxPt: geometry.parentheticalRightMaxPt,
+      dialogueMaxChars: geometry.dialogueMaxChars,
+      parentheticalMaxChars: geometry.parentheticalMaxChars,
     }
     layout = inferLayoutFromPdfMeasurements(measurements) ?? undefined
   } catch (err) {

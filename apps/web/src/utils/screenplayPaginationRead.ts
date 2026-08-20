@@ -1,5 +1,12 @@
 /**
- * Reads body page totals matching PageBreak pagination (same as `--total-pages` intent).
+ * Reads the screenplay's page total off the paginated DOM.
+ *
+ * PageBreakPlugin counts *physical sheets* — the cover/title sheet occupies layout slot 1 like any
+ * other page, because `--total-pages` feeds a flat `total * paper-height` min-height formula in
+ * Screenplay.css that has no separate term for the cover. Every consumer of this module wants the
+ * *body* total instead ("a 112 page script" never counts the title page, and the API documents
+ * `screenplay.pageCount` as "body page total, title page excluded"), so the cover sheet is
+ * subtracted here rather than at each call site.
  */
 
 import {
@@ -8,6 +15,9 @@ import {
 } from '../components/ScreenplayEditor/screenplayPaperLayout'
 
 const PAGE_GAP_NUM_SELECTOR = '.page-break-gap__page-number'
+
+/** Mirrors `TITLE_PAGE_TYPES` in PageBreakPlugin — the contiguous cover prefix. */
+const TITLE_PAGE_ELEMENT_TYPES = new Set(['title', 'author', 'contact'])
 
 function parseCssPx(raw: string): number | null {
   const m = /^([\d.]+)px\s*$/i.exec(raw.trim())
@@ -27,7 +37,36 @@ function inferPagesFromStackMinHeight(screenplayPageRoot: HTMLElement): number |
   return Math.max(1, t)
 }
 
-export function readScreenplayPaginationTotalPages(screenplayPageRoot: HTMLElement): number | null {
+/**
+ * Ordered `data-element-type` values of the document's script blocks, read straight from the DOM
+ * (the editor's ProseMirror doc is not reachable from here).
+ */
+function scriptBlockElementTypes(screenplayPageRoot: HTMLElement): string[] {
+  return Array.from(screenplayPageRoot.querySelectorAll<HTMLElement>('.script-block')).map(
+    (el) => el.getAttribute('data-element-type') || 'action',
+  )
+}
+
+/**
+ * True when the document opens with a contiguous run of title/author/contact blocks — the same
+ * `docStartsWithCoverTitle()` test PageBreakPlugin uses to decide whether sheet 1 is a cover.
+ */
+export function screenplayDomHasCoverTitlePage(screenplayPageRoot: HTMLElement): boolean {
+  let sawCover = false
+  for (const type of scriptBlockElementTypes(screenplayPageRoot)) {
+    if (TITLE_PAGE_ELEMENT_TYPES.has(type)) {
+      sawCover = true
+      continue
+    }
+    break
+  }
+  return sawCover
+}
+
+/** Physical sheets in the paginated stack, cover sheet included. */
+export function readScreenplayPaginationSheetTotal(
+  screenplayPageRoot: HTMLElement,
+): number | null {
   const spans = screenplayPageRoot.querySelectorAll(PAGE_GAP_NUM_SELECTOR)
   let maxPrinted = 0
   spans.forEach((el) => {
@@ -54,10 +93,34 @@ export function readScreenplayPaginationTotalPages(screenplayPageRoot: HTMLEleme
   const inferred = inferPagesFromStackMinHeight(screenplayPageRoot)
   if (inferred != null) best = Math.max(best, inferred)
 
-  if (best >= 2) return best
-
-  /** One body page — no `.page-break-gap__page-number` spans (numerals begin at page 2) */
-  if (best === 1) return 1
+  if (best >= 1) return best
   if (maxPrinted === 0 && spans.length === 0) return 1
-  return inferred ?? (best >= 1 ? best : null)
+  return inferred
+}
+
+/**
+ * Body page total — what the toolbar shows and what `writingTracker.currentPageCount` stores.
+ *
+ * Returns `null` while the answer is not yet knowable: before PageBreakPlugin's first pass the
+ * stack is one sheet tall and `--total-pages` is unset, which for a cover-page document would
+ * otherwise read as a confident "0 pages" and flash a wrong number into the toolbar.
+ */
+export function readScreenplayBodyPageCount(screenplayPageRoot: HTMLElement): number | null {
+  const sheets = readScreenplayPaginationSheetTotal(screenplayPageRoot)
+  if (sheets == null) return null
+
+  const types = scriptBlockElementTypes(screenplayPageRoot)
+  if (types.length === 0) return null
+
+  let coverBlocks = 0
+  for (const type of types) {
+    if (!TITLE_PAGE_ELEMENT_TYPES.has(type)) break
+    coverBlocks++
+  }
+  const hasCover = coverBlocks > 0
+  const body = sheets - (hasCover ? 1 : 0)
+
+  if (body >= 1) return body
+  /** No body pages: correct only when the document really is nothing but its cover. */
+  return coverBlocks === types.length ? 0 : null
 }
