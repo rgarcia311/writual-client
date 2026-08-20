@@ -80,14 +80,16 @@ export function NoteCard({
       sx={{
         ...(gridTile
           ? {
-              width: 'max-content',
-              minWidth: 'max-content',
+              width: 'var(--note-card-width, 480px)',
+              minWidth: 0,
+              maxWidth: 'var(--note-card-width, 480px)',
               height: 'var(--character-card-height, 390px)',
               maxHeight: 'var(--character-card-height, 390px)',
               flex: '0 0 auto',
             }
           : {
-              width: 'max-content',
+              width: 'var(--note-card-width, 480px)',
+              maxWidth: '100%',
               height: 'var(--character-card-height, 390px)',
               maxHeight: 'var(--character-card-height, 390px)',
             }),
@@ -99,9 +101,14 @@ export function NoteCard({
       }}
     >
       <CardHeader
-        sx={{ pb: 0.5, flexShrink: 0 }}
+        sx={{ pb: 0.5, flexShrink: 0, '& .MuiCardHeader-content': { minWidth: 0 } }}
         title={note.title?.trim() || 'Untitled note'}
-        titleTypographyProps={{ noWrap: true, fontWeight: 600, variant: 'subtitle1' }}
+        titleTypographyProps={{
+          fontWeight: 600,
+          variant: 'subtitle1',
+          // Long titles wrap onto a second line instead of being clipped.
+          sx: { whiteSpace: 'normal', overflowWrap: 'anywhere' },
+        }}
         subheader={
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5, flexWrap: 'wrap' }}>
             {note.category.trim() && (
@@ -143,6 +150,14 @@ export function NoteCard({
         <Typography
           variant="body2"
           color="text.disabled"
+          // Note bodies are user HTML: wrap long words/URLs and keep media inside the card.
+          sx={{
+            whiteSpace: 'normal',
+            overflowWrap: 'anywhere',
+            wordBreak: 'break-word',
+            '& img, & table, & pre': { maxWidth: '100%' },
+            '& pre': { whiteSpace: 'pre-wrap' },
+          }}
           dangerouslySetInnerHTML={{ __html: note.content }}
         />
       </CardContent>

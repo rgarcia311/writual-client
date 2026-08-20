@@ -16,8 +16,8 @@ export const NoteCardSkeleton: React.FC<NoteCardSkeletonProps> = ({ gridTile = f
     sx={{
       ...(gridTile
         ? {
-            width: 'var(--character-card-width, 305px)',
-            maxWidth: 'var(--character-card-width, 305px)',
+            width: 'var(--note-card-width, 480px)',
+            maxWidth: 'var(--note-card-width, 480px)',
             height: 'var(--character-card-height, 390px)',
             maxHeight: 'var(--character-card-height, 390px)',
             flex: '0 0 auto',
