@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { authRequest } from '@/lib/authRequest'
 import { SYNC_WRITING_TRACKER_CURRENT_PAGES } from '@/mutations/ProjectMutations'
 import { PROJECT_SCENES_QUERY_KEY } from 'hooks'
-import { readScreenplayPaginationTotalPages } from '../utils/screenplayPaginationRead'
+import { readScreenplayBodyPageCount } from '../utils/screenplayPaginationRead'
 import { useScreenplayLivePagesStore } from '@/state/screenplayLivePages'
 
 const REPORT_DEBOUNCE_MS = 450
@@ -15,6 +15,16 @@ export interface UseScreenplayPaginationProgressOpts {
   projectId: string | undefined
   trackerEnabled: boolean
   canEdit: boolean
+  /**
+   * Whether `pageRef` can be expected to be attached yet.
+   *
+   * `WritualEditor` renders `null` until Tiptap resolves (`immediatelyRender: false`), so on the
+   * first render(s) the `.screenplay-page` element does not exist and `pageRef.current` is null
+   * when this effect runs. None of the other deps necessarily change afterwards, so without a dep
+   * that flips when the tree mounts, the effect bails on the null ref, never re-runs, and the
+   * observers are never attached — leaving the toolbar's page count at "—" for the session.
+   */
+  editorReady: boolean
 }
 
 /**
@@ -42,7 +52,7 @@ export function useSyncWritingTrackerPageCount(opts: UseScreenplayPaginationProg
     },
   })
 
-  const { pageRef, projectId, trackerEnabled, canEdit } = opts
+  const { pageRef, projectId, trackerEnabled, canEdit, editorReady } = opts
 
   React.useEffect(() => {
     lastPersistedRef.current = null
@@ -50,7 +60,7 @@ export function useSyncWritingTrackerPageCount(opts: UseScreenplayPaginationProg
 
   React.useEffect(() => {
     const pid = projectId?.trim()
-    const shouldObserve = Boolean(pid)
+    const shouldObserve = Boolean(pid) && editorReady
 
     const el = pageRef.current
     if (!shouldObserve || !el) {
@@ -65,7 +75,7 @@ export function useSyncWritingTrackerPageCount(opts: UseScreenplayPaginationProg
       const current = pageRef.current
       if (!current || !document.contains(current)) return
 
-      const n = readScreenplayPaginationTotalPages(current)
+      const n = readScreenplayBodyPageCount(current)
       if (n == null) return
 
       setLive(pid, n)
@@ -121,6 +131,7 @@ export function useSyncWritingTrackerPageCount(opts: UseScreenplayPaginationProg
     }
   }, [
     pageRef,
+    editorReady,
     projectId,
     trackerEnabled,
     canEdit,

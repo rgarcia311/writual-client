@@ -1,0 +1,77 @@
+/* Shared prose styling for the note editor surface and the read-only card body. */
+
+.rich-text-field__surface .tiptap {
+  outline: none;
+  min-height: 100%;
+}
+
+.rich-text-field__surface .tiptap > *:first-child,
+.rich-text-content > *:first-child {
+  margin-top: 0;
+}
+
+.rich-text-field__surface .tiptap > *:last-child,
+.rich-text-content > *:last-child {
+  margin-bottom: 0;
+}
+
+.rich-text-field__surface .tiptap p,
+.rich-text-content p {
+  margin: 0 0 0.5em;
+}
+
+.rich-text-field__surface .tiptap h1,
+.rich-text-field__surface .tiptap h2,
+.rich-text-field__surface .tiptap h3,
+.rich-text-content h1,
+.rich-text-content h2,
+.rich-text-content h3 {
+  margin: 0.6em 0 0.35em;
+  line-height: 1.25;
+  font-weight: 600;
+}
+
+.rich-text-field__surface .tiptap h1,
+.rich-text-content h1 { font-size: 1.35em; }
+.rich-text-field__surface .tiptap h2,
+.rich-text-content h2 { font-size: 1.2em; }
+.rich-text-field__surface .tiptap h3,
+.rich-text-content h3 { font-size: 1.08em; }
+
+.rich-text-field__surface .tiptap ul,
+.rich-text-field__surface .tiptap ol,
+.rich-text-content ul,
+.rich-text-content ol {
+  margin: 0 0 0.5em;
+  padding-left: 1.4em;
+}
+
+.rich-text-field__surface .tiptap blockquote,
+.rich-text-content blockquote {
+  margin: 0 0 0.5em;
+  padding-left: 0.85em;
+  border-left: 3px solid var(--mui-palette-divider, rgba(0, 0, 0, 0.12));
+  color: var(--mui-palette-text-secondary, rgba(0, 0, 0, 0.6));
+}
+
+.rich-text-field__surface .tiptap code,
+.rich-text-content code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
+  background: var(--mui-palette-action-hover, rgba(0, 0, 0, 0.06));
+}
+
+.rich-text-field__surface .tiptap pre,
+.rich-text-content pre {
+  margin: 0 0 0.5em;
+  padding: 0.6em 0.8em;
+  border-radius: 6px;
+  overflow-x: auto;
+  background: var(--mui-palette-action-hover, rgba(0, 0, 0, 0.06));
+}
+
+.rich-text-content a {
+  color: var(--mui-palette-primary-main, #1976d2);
+}

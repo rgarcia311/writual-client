@@ -7,7 +7,10 @@ import { ProjectBreadcrumbBar } from './ProjectBreadcrumbBar';
 import { FloatingProjectHero } from './FloatingProjectHero';
 import { useProjectShellData } from './useProjectShellData';
 import { ProjectShellDataProvider } from './ProjectShellDataContext';
+import { ALL_PROJECT_STAT_TILE_KEYS } from './buildProjectStatTiles';
 import type { ProjectStatTileKey } from './buildProjectStatTiles';
+import { StatTileVisibilityMenu } from './StatTileVisibilityMenu';
+import { useStatTilePreferences } from '@/hooks/useStatTilePreferences';
 import '@/styles/projectDetailsFloat.css';
 
 export interface ProjectFloatShellProps {
@@ -23,7 +26,14 @@ export interface ProjectFloatShellProps {
   shellClassName?: string;
   /** Show tracking stat tiles alongside poster/info in the hero row. */
   showFloatStatsRail?: boolean;
+  /** Tiles this page shows until the user picks their own set from the breadcrumb-bar menu. */
   floatStatsRailKeys?: ProjectStatTileKey[];
+  /**
+   * Keep the hero (with its stat tiles) in normal flow and let page content fill the rest of the
+   * height, instead of the sticky band + scrolling content host the other rail pages use. For
+   * pages whose content scrolls internally and must reach the viewport bottom (chat).
+   */
+  floatStatsRailInFlow?: boolean;
   /** Page content scrolls beneath the floating hero (characters route). */
   floatContentOverlay?: boolean;
 }
@@ -38,15 +48,17 @@ export function ProjectFloatShell({
   shellClassName,
   showFloatStatsRail = false,
   floatStatsRailKeys,
+  floatStatsRailInFlow = false,
   floatContentOverlay = false,
 }: ProjectFloatShellProps) {
-  const rightAdornment = breadcrumbRightAdornment ?? accordionAdornment;
+  const pageAdornment = breadcrumbRightAdornment ?? accordionAdornment;
   const shellData = useProjectShellData();
   const {
     projectId,
     projectData,
     isLoading,
     currentPageLabel,
+    statPageKey,
     projectTitle,
     projectHref,
     updateDialogOpen,
@@ -56,22 +68,45 @@ export function ProjectFloatShell({
     handleDelete,
   } = shellData;
 
+  const defaultStatKeys = floatStatsRailKeys ?? ALL_PROJECT_STAT_TILE_KEYS;
+  const { selectedKeys, toggleKey, resetToDefault, isDefault, canPersist } = useStatTilePreferences({
+    pageKey: statPageKey,
+    defaultKeys: defaultStatKeys,
+    enabled: showFloatStatsRail,
+  });
+
+  // The picker sits ahead of the page's own action so the action stays in the far corner.
+  const rightAdornment =
+    showFloatStatsRail && canPersist ? (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <StatTileVisibilityMenu
+          selectedKeys={selectedKeys}
+          onToggleKey={toggleKey}
+          onResetToDefault={resetToDefault}
+          isDefault={isDefault}
+        />
+        {pageAdornment}
+      </Box>
+    ) : (
+      pageAdornment
+    );
+
   const contentClassName = contentBleed
     ? 'project-details-float-content project-details-float-content--bleed'
     : 'project-details-float-content';
+
+  // In-flow pages keep the plain shell layout: the `--with-stats-rail` rules hand scrolling to a
+  // host element, which would strand a chat pane's message input past the bottom edge.
+  const stickyStatsRail = showFloatStatsRail && !floatContentOverlay && !floatStatsRailInFlow;
 
   const rootClassName = [
     'project-details-float-root',
     shellClassName ?? '',
     floatContentOverlay ? 'project-details-float-root--content-overlay' : '',
-    showFloatStatsRail && !floatContentOverlay
-      ? 'project-details-float-root--with-stats-rail'
-      : '',
+    stickyStatsRail ? 'project-details-float-root--with-stats-rail' : '',
   ]
     .filter(Boolean)
     .join(' ');
-
-  const stickyStatsRail = showFloatStatsRail && !floatContentOverlay;
 
   const hero = projectId ? (
     <FloatingProjectHero
@@ -79,7 +114,7 @@ export function ProjectFloatShell({
       projectId={projectId}
       isLoading={isLoading}
       showFloatStatsRail={showFloatStatsRail}
-      floatStatsRailKeys={floatStatsRailKeys}
+      floatStatsRailKeys={selectedKeys}
       floatContentOverlay={floatContentOverlay}
       onEditClick={openEdit}
       onDelete={handleDelete}

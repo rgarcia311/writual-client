@@ -1,0 +1,56 @@
+/*
+ * Chat page — the hero (poster + project details cards) sits in normal flow rather than floating,
+ * so the chat panes stack directly beneath it, share its left edge, and end level with the side
+ * nav's bottom edge. Every seam here is the standard `--app-body-padding` gap.
+ */
+
+.project-details-float-root.project-details-float-root--chat {
+  /* Spacing is carried by the hero margin and the content box below, so the chat panes can reach
+     the root's bottom edge — which is where the side nav ends. */
+  --project-content-inset-left: 0;
+  --project-content-inset-top: 0;
+  padding-bottom: 0;
+}
+
+/* In flow instead of absolutely positioned: the chat column below then measures against the hero's
+   real height rather than the reserved-height estimate. */
+.project-details-float-root--chat .project-float-hero {
+  position: relative;
+  top: auto;
+  left: auto;
+  flex-shrink: 0;
+  margin: var(--app-body-padding) 0 0 var(--app-body-padding);
+  max-width: calc(100% - 2 * var(--app-body-padding));
+}
+
+/*
+ * The panes end flush with the side nav's bottom line, so their border radius and elevation shadow
+ * have to bleed into `.project-details-page`'s padding — the same room the side nav's own shadow
+ * uses. Any ancestor that clips at that line shaves them off, so the chat route opts out of
+ * clipping the whole way up. Two-class selector so this beats the emotion `sx` class, which would
+ * otherwise win on source order.
+ */
+.project-details-float-root.project-details-float-root--chat {
+  overflow: visible;
+}
+
+/*
+ * `min-height: 0` all the way down: the panes are their own scroll containers, so every ancestor
+ * has to be allowed to shrink below its content or the message input is pushed past the clipped
+ * bottom edge. `overflow: visible` keeps the panes' elevation shadows from being shaved off where
+ * they sit flush against that edge.
+ */
+.project-details-float-root--chat .project-details-float-main {
+  min-height: 0;
+  overflow: visible;
+}
+
+.project-details-float-root--chat .project-details-float-content {
+  display: flex;
+  min-height: 0;
+  overflow: visible;
+  padding-left: var(--app-body-padding);
+  padding-top: var(--app-body-padding);
+  padding-right: var(--app-body-padding);
+  padding-bottom: 0;
+}

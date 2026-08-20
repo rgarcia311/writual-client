@@ -16,11 +16,13 @@ import { deriveScreenplayPresenceStats } from '../../utils/projectScreenplayStat
 import { useScreenplayLivePagesStore } from '@/state/screenplayLivePages';
 import type { DevelopmentLockSummary, DraftDeadline, ProgressItem } from '../../utils/progress';
 import { computeProjectStatTileData } from './computeProjectStatTileData';
+import type { ProjectStatPageKey } from './buildProjectStatTiles';
 
 const endpoint = GRAPHQL_ENDPOINT;
 
 const SEGMENT_LABELS: Record<string, string> = {
   characters: 'Characters',
+  notes: 'Notes',
   outline: 'Outline',
   screenplay: 'Screenplay',
   chat: 'Chat',
@@ -47,14 +49,32 @@ export const defaultProjectData: Project = {
   writingTracker: null,
 };
 
-function getCurrentPageLabel(pathname: string | null, projectId: string | undefined): string | null {
-  if (!pathname || !projectId) return null;
+/** Route segments whose pages render a stat rail; the project root has no segment ('overview'). */
+const STAT_PAGE_KEYS: Record<string, ProjectStatPageKey> = {
+  characters: 'characters',
+  notes: 'notes',
+  outline: 'outline',
+  chat: 'chat',
+};
+
+function getSectionSegment(pathname: string | null, projectId: string | undefined): string | undefined {
+  if (!pathname || !projectId) return undefined;
   const segments = pathname.split('/').filter(Boolean);
   const projectIndex = segments.indexOf('project');
-  const idIndex = projectIndex + 1;
-  const sectionSegment = segments[idIndex + 1];
+  return segments[projectIndex + 2];
+}
+
+function getCurrentPageLabel(pathname: string | null, projectId: string | undefined): string | null {
+  const sectionSegment = getSectionSegment(pathname, projectId);
   if (!sectionSegment) return null;
   return SEGMENT_LABELS[sectionSegment] ?? sectionSegment;
+}
+
+/** Which page a saved stat-tile choice belongs to. Unknown sections fall back to the overview key. */
+function getStatPageKey(pathname: string | null, projectId: string | undefined): ProjectStatPageKey {
+  const sectionSegment = getSectionSegment(pathname, projectId);
+  if (!sectionSegment) return 'overview';
+  return STAT_PAGE_KEYS[sectionSegment] ?? 'overview';
 }
 
 export interface ProjectStatTileData {
@@ -95,6 +115,7 @@ export function useProjectShellData() {
   const projectData = data?.getProjectData?.[0] ?? defaultProjectData;
   const projectId = id;
   const currentPageLabel = getCurrentPageLabel(pathname, id);
+  const statPageKey = getStatPageKey(pathname, id);
   const projectTitle = projectData.title || 'Project';
   const projectHref = id ? `/project/${id}` : '/projects';
 
@@ -187,6 +208,7 @@ export function useProjectShellData() {
     isLoading,
     isError,
     currentPageLabel,
+    statPageKey,
     projectTitle,
     projectHref,
     statTileData,

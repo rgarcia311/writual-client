@@ -4,6 +4,9 @@ const userSettingsSchema = new mongoose.Schema({
   colorMode: { type: String, enum: ['dark', 'light'], default: 'dark' },
   lastReadByProject: { type: Map, of: Date, default: {} },
   lastReadByConversation: { type: Map, of: Date, default: {} },
+  // Visible stat tiles per project page, keyed by page ('overview' | 'characters' | 'notes' | 'outline').
+  // A missing key means that page falls back to its default tiles; an empty array means the user hid them all.
+  statTilePreferences: { type: Map, of: [String], default: {} },
 }, { _id: false });
 
 export const userSchema = new mongoose.Schema({

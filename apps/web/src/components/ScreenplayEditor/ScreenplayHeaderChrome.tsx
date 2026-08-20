@@ -28,8 +28,9 @@ function screenplayProjectIdFromPath(pathname: string | null): string | null {
 export function ScreenplayHeaderChrome() {
   const pathname = usePathname()
   const projectId = screenplayProjectIdFromPath(pathname)
-  const liveBodyPages = useScreenplayLivePagesStore((s) =>
-    projectId && s.projectId === projectId ? s.liveBodyPages : null,
+  /** Measured pagination when available, else the server's stored total, else unknown. */
+  const bodyPages = useScreenplayLivePagesStore((s) =>
+    projectId && s.projectId === projectId ? s.liveBodyPages ?? s.seedBodyPages : null,
   )
   const zoom = useScreenplayHeaderChromeStore((s) => s.zoom)
   const isAutoZoomed = useScreenplayHeaderChromeStore((s) => s.isAutoZoomed)
@@ -74,14 +75,12 @@ export function ScreenplayHeaderChrome() {
         sx={{ fontFamily: 'monospace', whiteSpace: 'nowrap' }}
         aria-live="polite"
         aria-label={
-          liveBodyPages != null
-            ? `${liveBodyPages} screenplay ${liveBodyPages === 1 ? 'page' : 'pages'}`
+          bodyPages != null
+            ? `${bodyPages} screenplay ${bodyPages === 1 ? 'page' : 'pages'}`
             : 'Screenplay page count loading'
         }
       >
-        {liveBodyPages != null
-          ? `${liveBodyPages} ${liveBodyPages === 1 ? 'page' : 'pages'}`
-          : '—'}
+        {bodyPages != null ? `${bodyPages} ${bodyPages === 1 ? 'page' : 'pages'}` : '—'}
       </Typography>
 
       <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />

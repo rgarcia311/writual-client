@@ -33,14 +33,19 @@ export function ClientOnlyMuiLayout({ children }: { children: React.ReactNode })
 
       verifyAndLogin(idToken).catch(() => {});
 
-      // Set immediately — full beta-access optimistically, no flicker
+      // Set immediately — full beta-access optimistically, no flicker. The persisted settings for
+      // this same account are carried over so preferences (colour mode, stat tiles) paint from the
+      // last known values instead of resetting to defaults until the `me` sync below lands.
+      const cached = useUserProfileStore.getState().userProfile;
+      const cachedSettings =
+        cached?.user === firebaseUser.uid ? cached.settings : undefined;
       setUserProfile({
         user: firebaseUser.uid,
         name: null,
         displayName: firebaseUser.displayName,
         email: firebaseUser.email,
         tier: 'beta-access',
-        settings: { colorMode: 'dark' },
+        settings: cachedSettings ?? { colorMode: 'dark' },
       });
 
       // Sync with DB — updates tier/settings/name with confirmed values

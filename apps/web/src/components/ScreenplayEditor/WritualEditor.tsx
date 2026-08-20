@@ -10,7 +10,6 @@ import { request } from 'graphql-request'
 import {
   Alert,
   Box,
-  CircularProgress,
   IconButton,
   Snackbar,
   Tooltip,
@@ -46,6 +45,7 @@ import {
 } from './ScreenplayDocumentToolbar'
 import { ScreenplayInspirationPanesLayer } from './ScreenplayInspirationPanesLayer'
 import { ScreenplayStatsPanesLayer } from './ScreenplayStatsPanesLayer'
+import { ScreenplayInstantPreview } from './ScreenplayInstantPreview'
 import { PROJECT_CHARACTERS_QUERY } from '@/queries/CharacterQueries'
 import { useScreenplayCharacterLookupStore } from '@/state/screenplayCharacterLookup'
 import { PROJECT_SCENES_QUERY } from '@/queries/SceneQueries'
@@ -53,9 +53,11 @@ import { PROJECT_SCENES_QUERY_KEY } from 'hooks'
 import { useAutosave } from '@hooks/useAutosave'
 import { useCollaboration } from '@hooks/useCollaboration'
 import { useSyncWritingTrackerPageCount } from '@hooks/useSyncWritingTrackerPageCount'
+import { useScreenplaySnapshotPersistence } from '@hooks/useScreenplaySnapshotPersistence'
 import { useUserProfileStore } from '@/state/user'
 import { useScreenplaySaveStatusStore } from '@/state/screenplaySaveStatus'
 import { useScreenplayEditorStore } from '@/state/screenplayEditor'
+import { useScreenplayLivePagesStore } from '@/state/screenplayLivePages'
 import { useScreenplayHeaderChromeStore } from '@/state/screenplayHeaderChrome'
 import { useScreenplaySceneOutlineStore, type ProjectScene } from '@/state/screenplaySceneOutline'
 import { GRAPHQL_ENDPOINT } from '@/lib/config'
@@ -65,7 +67,7 @@ import {
   resetLayoutConfigOnPage,
   type ScreenplayLayoutConfig,
 } from '@/lib/screenplayLayout'
-import { readScreenplayPaginationTotalPages } from '../../utils/screenplayPaginationRead'
+import { readScreenplayBodyPageCount } from '../../utils/screenplayPaginationRead'
 import { courierPrime } from '../../utils/fonts'
 import type { HocuspocusProvider } from '@hocuspocus/provider'
 import type * as Y from 'yjs'
@@ -76,7 +78,6 @@ import {
   SCREENPLAY_FLOATING_SURFACE_SHADOW,
   SCREENPLAY_PAPER_HEIGHT_PX,
   SCREENPLAY_PAPER_WIDTH_PX,
-  SCREENPLAY_SCROLL_GUTTER_LEFT_PX,
   SCREENPLAY_SCROLL_GUTTER_RIGHT_PX,
 } from './screenplayPaperLayout'
 // </PROTECTED>
@@ -364,6 +365,18 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
   const savedScreenplayLayout = (project?.screenplay?.layout ?? null) as ScreenplayLayoutConfig | null
   const writingTracker = project?.writingTracker ?? null
 
+  /**
+   * Show the server's stored body-page total the moment project data lands, so the toolbar reads a
+   * real number while Tiptap mounts and paginates. `useSyncWritingTrackerPageCount` overwrites it
+   * with the measured value as soon as PageBreakPlugin's first pass completes.
+   */
+  const seedBodyPages = useScreenplayLivePagesStore((s) => s.setSeedBodyPagesForProject)
+  const serverPageCount: number | null = project?.screenplay?.pageCount ?? null
+  React.useEffect(() => {
+    if (!projectId || serverPageCount == null) return
+    seedBodyPages(projectId, serverPageCount)
+  }, [projectId, serverPageCount, seedBodyPages])
+
   const canEdit = React.useMemo(() => {
     if (!project || !user) return false
     if (project.user === user) return true
@@ -374,11 +387,7 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
   }, [project, user])
 
   if (scenesLoading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-        <CircularProgress />
-      </Box>
-    )
+    return <ScreenplayInstantPreview projectId={projectId} />
   }
 
   return (
@@ -418,11 +427,7 @@ function CollabGate({
   const { ydoc, provider, failed } = useCollaboration(projectId)
 
   if (projectId && !failed && (!ydoc || !provider)) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-        <CircularProgress size={28} />
-      </Box>
-    )
+    return <ScreenplayInstantPreview projectId={projectId} />
   }
 
   return (
@@ -469,10 +474,30 @@ function ScreenplayEditorCore({
   const [zoom, setZoom] = React.useState(SCREENPLAY_DISPLAY_SCALE)
   const [isAutoZoomed, setIsAutoZoomed] = React.useState(false)
   const [autoZoomSnackbarOpen, setAutoZoomSnackbarOpen] = React.useState(false)
+  /** Measured content-box height of the editor column; sizes the toolbar + paper row (see below). */
+  const [editorColContentHeightPx, setEditorColContentHeightPx] = React.useState<number | null>(null)
   /** Mirrors `isAutoZoomed` for use inside ResizeObserver / event callbacks without stale closure. */
   const isAutoZoomedRef = React.useRef(false)
 
   const workspaceRef = React.useRef<HTMLDivElement | null>(null)
+  /** Auto-fit measures this column, not the workspace: the workspace's own box is derived from
+   *  `zoom`, so measuring it makes the fit self-referential (see `calcAutoFitZoom`). */
+  const editorColRef = React.useRef<HTMLDivElement | null>(null)
+  /**
+   * The same node as `editorColRef`, mirrored into state.
+   *
+   * `useEditor` returns null on the first render(s) and `if (!editor) return null` below keeps the
+   * whole tree — the column included — unmounted until it resolves, so a ref is still null when
+   * effects first run. Every effect here that reads `editorColRef.current` therefore needs this in
+   * its deps to re-run once the column exists; with `[]` they bail on the null ref and never fire
+   * again, which pins `zoom` at its initial `SCREENPLAY_DISPLAY_SCALE` and leaves both
+   * ResizeObservers unattached — no re-fit on window resize at all.
+   */
+  const [editorColEl, setEditorColEl] = React.useState<HTMLDivElement | null>(null)
+  const attachEditorColRef = React.useCallback((node: HTMLDivElement | null) => {
+    editorColRef.current = node
+    setEditorColEl(node)
+  }, [])
   const stageRef = React.useRef<HTMLDivElement | null>(null)
   const pageRef = React.useRef<HTMLDivElement | null>(null)
   const paperLayoutRef = React.useRef({
@@ -482,17 +507,10 @@ function ScreenplayEditorCore({
   const zoomRef = React.useRef(zoom)
   zoomRef.current = zoom
 
-  useSyncWritingTrackerPageCount({
-    pageRef,
-    projectId,
-    trackerEnabled: writingTracker?.enabled === true,
-    canEdit,
-  })
-
   const estimateAutosavePaginationPages = React.useCallback((): number | null => {
     const root = pageRef.current
     if (!root) return null
-    return readScreenplayPaginationTotalPages(root)
+    return readScreenplayBodyPageCount(root)
   }, [])
 
   /**
@@ -522,16 +540,38 @@ function ScreenplayEditorCore({
     applyStageDimensions()
   }, [zoom, applyStageDimensions])
 
-  /** Calculate the zoom factor that fits one canonical page into the workspace, filling edge-to-edge. */
-  const calcAutoFitZoom = React.useCallback((workspaceEl: HTMLElement): number => {
+  /**
+   * Zoom that fits one canonical page into the editor column, filling it edge-to-edge.
+   *
+   * Measures the COLUMN (`.screenplay-editor-col`), never the workspace. The workspace's own box is
+   * a function of `zoom` — its height is capped at `1056 * zoom` (screenplayToolbarPaperRowMaxHeightPx)
+   * and its width is `816 * zoom` plus fixed insets — so fitting against it is self-referential: the
+   * width branch reduces to `(816 * zoom - 10) / 816`, i.e. always just under the current zoom, so
+   * every auto-fit pass ratchets zoom down and it can never grow back to fill the column. Measuring
+   * the column instead is zoom-independent, so this is a true fit with a stable fixed point, and a
+   * height-limited fit lands the page's bottom edge exactly on the column's (== the side nav's).
+   *
+   * No reserved top/bottom bleed (screenplayWorkspace.css no longer pads the scroll inner) — the page
+   * fits the full column height, flush at both scroll extremes.
+   */
+  const calcAutoFitZoomToColumn = React.useCallback((colEl: HTMLElement): number => {
     // <PROTECTED>
-    // No reserved top/bottom bleed anymore (screenplayWorkspace.css no longer pads the scroll
-    // inner) — the page fits the full workspace height, flush at both scroll extremes.
-    const availableHeight = workspaceEl.clientHeight
+    const cs = getComputedStyle(colEl)
+    const padTop = parseFloat(cs.paddingTop) || 0
+    const padBottom = parseFloat(cs.paddingBottom) || 0
+    const padLeft = parseFloat(cs.paddingLeft) || 0
+    const padRight = parseFloat(cs.paddingRight) || 0
+    // clientHeight/clientWidth include padding; the toolbar + paper row lives in the content box.
+    const availableHeight = colEl.clientHeight - padTop - padBottom
+    // Everything the row spends on chrome beside the paper itself — mirrors
+    // `screenplayToolbarPaperRowMinWidthPx`. Left is 0: the vertical toolbar is the left boundary.
     const availableWidth =
-      workspaceEl.clientWidth -
-      SCREENPLAY_SCROLL_GUTTER_LEFT_PX -
-      SCREENPLAY_WORKSPACE_SCROLL_INNER_PAD_RIGHT_PX
+      colEl.clientWidth -
+      padLeft -
+      padRight -
+      SCREENPLAY_VERTICAL_TOOLBAR_W_PX -
+      SCREENPLAY_WORKSPACE_SCROLL_INNER_PAD_RIGHT_PX -
+      SCREENPLAY_STAGE_RIM_HORIZONTAL_OUTSET_PX
     const targetScale = Math.min(
       availableHeight / SCREENPLAY_PAPER_HEIGHT_PX,
       availableWidth / SCREENPLAY_PAPER_WIDTH_PX,
@@ -540,12 +580,30 @@ function ScreenplayEditorCore({
     // </PROTECTED>
   }, [])
 
-  /** Apply auto-fit zoom on first mount (before paint). */
+  /**
+   * The fit above, capped at `SCREENPLAY_DISPLAY_SCALE` — the paper's preferred on-screen size, and
+   * what `screenplayPaperLayout.ts` already documents as "the cap and reset target for the auto-fit
+   * zoom in WritualEditor" (the raw fit clamps to `SCREENPLAY_ZOOM_MAX` instead, so that intent had
+   * drifted out of the code).
+   *
+   * Without the cap, a tall window grows the page until it fills the column exactly, so there is by
+   * definition never room for the next page. Capped, the page stops at its preferred size and the
+   * column's remaining height goes to the top of the following page, while the toolbar + paper row
+   * still stretches the full column (see `screenplayToolbarPaperRowMaxHeightPx`). Short windows are
+   * unaffected — the fit is below the cap there, so the page still shrinks to fit.
+   */
+  const calcAutoFitZoom = React.useCallback(
+    (colEl: HTMLElement): number =>
+      Math.min(SCREENPLAY_DISPLAY_SCALE, calcAutoFitZoomToColumn(colEl)),
+    [calcAutoFitZoomToColumn],
+  )
+
+  /** Apply auto-fit zoom as soon as the column mounts (before paint). */
   React.useLayoutEffect(() => {
     // <PROTECTED>
-    const workspaceEl = workspaceRef.current
-    if (!workspaceEl) return
-    const fitted = calcAutoFitZoom(workspaceEl)
+    const colEl = editorColRef.current
+    if (!colEl) return
+    const fitted = calcAutoFitZoom(colEl)
     setZoom(fitted)
     isAutoZoomedRef.current = true
     setIsAutoZoomed(true)
@@ -554,7 +612,7 @@ function ScreenplayEditorCore({
     }
     // </PROTECTED>
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // intentionally empty — runs once on mount
+  }, [editorColEl]) // runs once per column mount — `editorColEl` only ever goes null → node
 
 
   React.useEffect(() => {
@@ -575,20 +633,42 @@ function ScreenplayEditorCore({
     }
   }, [applyStageDimensions])
 
-  /** Reapply auto-fit whenever the workspace resizes, as long as the user hasn't overridden zoom. */
+  /** Reapply auto-fit whenever the editor column resizes, as long as the user hasn't overridden zoom. */
   React.useEffect(() => {
     // <PROTECTED>
-    const workspaceEl = workspaceRef.current
-    if (!workspaceEl) return
+    const colEl = editorColRef.current
+    if (!colEl) return
     const ro = new ResizeObserver(() => {
       if (!isAutoZoomedRef.current) return
-      setZoom(calcAutoFitZoom(workspaceEl))
+      setZoom(calcAutoFitZoom(colEl))
     })
-    ro.observe(workspaceEl)
+    ro.observe(colEl)
     // </PROTECTED>
     return () => { ro.disconnect() }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [calcAutoFitZoom]) // calcAutoFitZoom is stable (useCallback with no deps)
+  }, [calcAutoFitZoom, editorColEl]) // calcAutoFitZoom is stable; re-observe when the column mounts
+
+  /**
+   * Track the editor column's content-box height so the toolbar + paper row can be sized to the
+   * COLUMN instead of to one page (see `screenplayToolbarPaperRowMaxHeightPx`). This is the same
+   * `availableHeight` `calcAutoFitZoom` derives; it is measured again here rather than shared
+   * because that block is PROTECTED. Layout effect + ResizeObserver so the height lands before
+   * paint, matching how `zoom` is applied.
+   */
+  React.useLayoutEffect(() => {
+    const colEl = editorColRef.current
+    if (!colEl) return
+    const measure = () => {
+      const cs = getComputedStyle(colEl)
+      const padTop = parseFloat(cs.paddingTop) || 0
+      const padBottom = parseFloat(cs.paddingBottom) || 0
+      setEditorColContentHeightPx(colEl.clientHeight - padTop - padBottom)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(colEl)
+    return () => { ro.disconnect() }
+  }, [editorColEl])
 
   React.useEffect(() => {
     // <PROTECTED>
@@ -707,6 +787,32 @@ function ScreenplayEditorCore({
   })
 
   /**
+   * Mirrors pagination into the live-pages store (toolbar count) and the writing tracker.
+   * Placed after `useEditor` so `editorReady` can gate it: `pageRef` is attached inside the tree
+   * this component only renders once `editor` resolves, so the hook must re-run at that point.
+   */
+  useSyncWritingTrackerPageCount({
+    pageRef,
+    projectId,
+    trackerEnabled: writingTracker?.enabled === true,
+    canEdit,
+    editorReady: editor != null,
+  })
+
+  /**
+   * Local paint cache: writes the window of pages around the reader's scroll position so the next
+   * refresh can show them immediately, restores that position once the real pages are paginated,
+   * and reports when the load curtain below can come down.
+   */
+  const { paginationReady } = useScreenplaySnapshotPersistence({
+    projectId,
+    workspaceRef,
+    pageRef,
+    editorReady: editor != null,
+    editor,
+  })
+
+  /**
    * Apply per-document layout overrides (from an imported PDF's measured geometry) as inline CSS
    * custom properties on the `.screenplay-page` element. Page width is never changed (8.5×11 stays
    * exact); only the right margin, element indents, and centered-column right pads shift. Absent
@@ -726,19 +832,6 @@ function ScreenplayEditorCore({
       resetLayoutConfigOnPage(page)
     }
   }, [layoutConfig, editor])
-
-  // ── Debug: log full editor document as JSON ──────────────────────────────
-  React.useEffect(() => {
-    if (!editor) return
-    const logJson = () => {
-      console.log('[ScreenplayEditor] doc JSON:', JSON.stringify(editor.getJSON(), null, 2))
-    }
-    logJson()
-    editor.on('update', logJson)
-    return () => {
-      editor.off('update', logJson)
-    }
-  }, [editor])
 
   // ── Sync editable state ──────────────────────────────────────────────────
   React.useEffect(() => {
@@ -866,11 +959,11 @@ function ScreenplayEditorCore({
               )
             },
             zoomReset: () => {
-              const workspaceEl = workspaceRef.current
-              if (!workspaceEl) return
+              const colEl = editorColRef.current
+              if (!colEl) return
               isAutoZoomedRef.current = true
               setIsAutoZoomed(true)
-              setZoom(calcAutoFitZoom(workspaceEl))
+              setZoom(calcAutoFitZoom(colEl))
             },
             print: () => void printScreenplayHidden(editor),
           }
@@ -894,14 +987,23 @@ function ScreenplayEditorCore({
     SCREENPLAY_STAGE_RIM_HORIZONTAL_OUTSET_PX
 
   /**
-   * Cap the toolbar + workspace row at exactly one page's on-screen height, so a fully-scrolled
-   * page's top/bottom line up with the toolbar's top/bottom instead of the row stretching to fill
-   * the whole viewport (which reveals a sliver of the next page below a full one on tall screens).
-   * On short viewports this cap is moot — `minHeight: 0` on the row still lets it shrink further.
+   * The toolbar + workspace row fills the editor column's full height: the vertical toolbar then
+   * always scales down to the bottom of the column — i.e. flush with the bottom of the side nav —
+   * and whatever space is left below a full page shows as much of the next page as fits.
+   *
+   * Height itself comes from the flex chain (`flex: 1 1 auto` in `screenplayWorkspace.css` plus the
+   * row's own `height: 100%`); this cap is held at the measured column height purely so it can
+   * never clip that. Capping at one page's on-screen height (`1056 * zoom`) instead is what left a
+   * gap under the row whenever the auto-fit was width-limited, zoom was capped or the user had
+   * zoomed out — the page shrank with `zoom` while the column kept growing with the window.
+   *
+   * Before the first measurement, fall back to one page — the auto-fit's own starting assumption.
    */
-  const screenplayToolbarPaperRowMaxHeightPx = Math.ceil(SCREENPLAY_PAPER_HEIGHT_PX * zoom)
+  const screenplayToolbarPaperRowMaxHeightPx =
+    editorColContentHeightPx ?? Math.ceil(SCREENPLAY_PAPER_HEIGHT_PX * zoom)
 
-  if (!editor) return null
+  /** Tiptap not resolved yet — keep the cached pages on screen rather than flashing empty. */
+  if (!editor) return <ScreenplayInstantPreview projectId={projectId} />
 
   return (
     <Box
@@ -933,11 +1035,17 @@ function ScreenplayEditorCore({
           alignItems: 'stretch',
           justifyContent: 'flex-start',
           bgcolor: 'background.default',
+          // Containing block for the load curtain below.
+          position: 'relative',
         }}
       >
+        {/* Cached pages stay on top until PageBreakPlugin has laid the real ones out, so the
+            document never appears mid-repagination. Not editable and never saved. */}
+        {!paginationReady && <ScreenplayInstantPreview projectId={projectId} variant="absolute" />}
 
         {/* Fills remaining row width, centering the editor column */}
         <Box
+          ref={attachEditorColRef}
           className="screenplay-editor-col screenplay-editor-col--centered"
           sx={{
             display: 'flex',

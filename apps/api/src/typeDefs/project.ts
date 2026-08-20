@@ -2,7 +2,7 @@ import { GraphQLJSON } from "graphql-scalars";
 import { getProjectData, getOutlineFrameworks } from "../resolvers";
 import { setProjectOutline, createOutlineFramework, updateOutlineFramework, deleteOutlineFramework, createProject, deleteProject, shareProject, updateProject, updateProjectSharedWith, createinspiration, deleteinspiration, lockAllScenesInOutline, lockAllCharacters, unlockOutlineSection, unlockCharactersSection, saveScreenplay as saveScreenplayFn, persistWritingTrackerCurrentPageCount } from "../mutations";
 import mongoose from "mongoose";
-import { AppUsers, Projects, Scenes, Characters, Messages, Conversations } from "@writual/db";
+import { AppUsers, Projects, Scenes, Characters, Messages, Conversations, Notes } from "@writual/db";
 import { requireTier } from "../utils/tierUtils";
 import { resolveScreenplayPageCount } from "../utils/screenplayPageEstimate";
 import { pusher } from "../services/pusher";
@@ -11,12 +11,15 @@ import { verifyProjectWriteAccess } from "../lib/projectAccess";
 import { GraphQLError } from "graphql";
 import { createScene as createSceneService, updateScene as updateSceneService, deleteScene as deleteSceneService } from "../services/SceneService";
 import { createCharacter as createCharacterService, updateCharacter as updateCharacterService, deleteCharacter as deleteCharacterService } from "../services/CharacterService";
+import { createNote as createNoteService, updateNote as updateNoteService, deleteNote as deleteNoteService } from "../services/NoteService";
 export const ProjectType = `#graphql
 
     scalar JSON
 
     type UserSettings {
         colorMode: String!
+        """Visible stat tiles keyed by project page, e.g. characters: [characters, deadlines]."""
+        statTilePreferences: JSON
     }
 
     type User {
@@ -121,6 +124,8 @@ export const ProjectType = `#graphql
         unlockCharactersSection(projectId: String!): Project
         sendMessage(conversationId: ID!, text: String!, clientGeneratedId: String): Message
         markAsRead(conversationId: ID!): Boolean
+        setStatTilePreference(page: String!, statKeys: [String!]!): JSON
+        clearStatTilePreference(page: String!): JSON
         createGroupConversation(projectId: ID!, participantUids: [String!]!, name: String!): ConversationThread
         leaveConversation(conversationId: ID!): Boolean
         createScene(projectId: String!, input: CreateSceneInput!): Scene
@@ -129,6 +134,9 @@ export const ProjectType = `#graphql
         createCharacter(projectId: String!, input: CreateCharacterInput!): Character
         updateCharacter(characterId: String!, input: UpdateCharacterInput!): Character
         deleteCharacter(characterId: String!): DeleteResult
+        createNote(projectId: String!, input: CreateNoteInput!): Note
+        updateNote(noteId: String!, input: UpdateNoteInput!): Note
+        deleteNote(noteId: String!): DeleteResult
         inviteCollaborators(projectId: ID!, invitations: [InvitationInput!]!): Project
         updateCollaborator(projectId: ID!, collaboratorId: ID!, permissionLevel: String, aspects: [String!]): Project
         removeCollaborator(projectId: ID!, collaboratorId: ID!): Project
@@ -202,6 +210,7 @@ export const ProjectType = `#graphql
         outlineName: String
         scenes: [Scene]
         characters: [Character]
+        notes: [Note]
         outline: Outline
         inspiration: [inspiration]
         screenplay: Screenplay
@@ -425,6 +434,60 @@ export const ProjectType = `#graphql
         want: String
     }
 
+    """A research/idea note attached to a project, optionally linked to a character, scene or inspiration item."""
+    type Note {
+        _id: String
+        projectId: String
+        title: String
+        category: String
+        """Rich text body, stored as HTML."""
+        content: String
+        """True once the note has made it into the story."""
+        incorporated: Boolean
+        """False parks the note in the "Maybe" bucket: kept, but not committed to the story."""
+        shouldIncorporate: Boolean
+        association: NoteAssociation
+        createdAt: String
+        updatedAt: String
+    }
+
+    type NoteAssociation {
+        kind: NoteAssociationKind
+        targetId: String
+        label: String
+    }
+
+    enum NoteAssociationKind {
+        none
+        character
+        scene
+        inspiration
+    }
+
+    input NoteAssociationInput {
+        kind: NoteAssociationKind
+        targetId: String
+        label: String
+    }
+
+    input CreateNoteInput {
+        title: String
+        category: String
+        content: String
+        incorporated: Boolean
+        shouldIncorporate: Boolean
+        association: NoteAssociationInput
+    }
+
+    input UpdateNoteInput {
+        title: String
+        category: String
+        content: String
+        incorporated: Boolean
+        shouldIncorporate: Boolean
+        association: NoteAssociationInput
+    }
+
     type DeleteResult {
         deleted: Boolean!
         projectId: String
@@ -531,7 +594,22 @@ export const ProjectType = `#graphql
    
 `;
 
+/** Project pages that render a stat-tile rail; also the allowed keys of `settings.statTilePreferences`. */
+const STAT_TILE_PAGES = ['overview', 'characters', 'notes', 'outline', 'chat'];
+/** Stat tiles a page may show — mirrors `ProjectStatTileKey` on the web client. */
+const STAT_TILE_KEYS = ['progress', 'characters', 'scenes', 'deadlines'];
+
+/** `settings.statTilePreferences` is a Mongoose Map on documents and a plain object on lean reads. */
+function statTilePreferencesToObject(value: unknown): Record<string, string[]> {
+  if (value instanceof Map) return Object.fromEntries(value) as Record<string, string[]>;
+  return (value as Record<string, string[]>) ?? {};
+}
+
 export const resolvers = {
+  UserSettings: {
+    statTilePreferences: (parent: { statTilePreferences?: unknown }) =>
+      statTilePreferencesToObject(parent?.statTilePreferences),
+  },
   Query: {
     getProjectData,
     getOutlineFrameworks,
@@ -900,6 +978,27 @@ export const resolvers = {
       const result = await deleteCharacterService(args.characterId);
       return { deleted: result.deleted, projectId: result.projectId ?? null };
     },
+    createNote: async (_root: unknown, args: { projectId: string; input: any }, context: { uid: string | null }) => {
+      if (!context.uid) throw new GraphQLError('Unauthorized', { extensions: { code: 'UNAUTHENTICATED' } });
+      await requireTier(context, 'indie');
+      await verifyProjectWriteAccess(args.projectId, context.uid);
+      return createNoteService(args.projectId, args.input);
+    },
+    updateNote: async (_root: unknown, args: { noteId: string; input: any }, context: { uid: string | null }) => {
+      if (!context.uid) throw new GraphQLError('Unauthorized', { extensions: { code: 'UNAUTHENTICATED' } });
+      const note = await Notes.findById(args.noteId).lean().exec();
+      if (!note) throw new GraphQLError('Note not found', { extensions: { code: 'NOT_FOUND' } });
+      await verifyProjectWriteAccess((note as any).projectId.toString(), context.uid);
+      return updateNoteService(args.noteId, args.input);
+    },
+    deleteNote: async (_root: unknown, args: { noteId: string }, context: { uid: string | null }) => {
+      if (!context.uid) throw new GraphQLError('Unauthorized', { extensions: { code: 'UNAUTHENTICATED' } });
+      const note = await Notes.findById(args.noteId).lean().exec();
+      if (!note) throw new GraphQLError('Note not found', { extensions: { code: 'NOT_FOUND' } });
+      await verifyProjectWriteAccess((note as any).projectId.toString(), context.uid);
+      const result = await deleteNoteService(args.noteId);
+      return { deleted: result.deleted, projectId: result.projectId ?? null };
+    },
     inviteCollaborators,
     updateCollaborator,
     removeCollaborator,
@@ -947,6 +1046,44 @@ export const resolvers = {
         { $set: { [`settings.lastReadByConversation.${conversationId}`]: new Date() } }
       );
       return true;
+    },
+    setStatTilePreference: async (
+      _: unknown,
+      { page, statKeys }: { page: string; statKeys: string[] },
+      context: { uid: string | null }
+    ) => {
+      if (!context.uid) throw new Error('Unauthorized');
+      if (!STAT_TILE_PAGES.includes(page)) throw new Error(`Unknown stat tile page: ${page}`);
+      // Whitelisted so an unknown key can never be written into the settings path.
+      const invalid = statKeys.filter((key) => !STAT_TILE_KEYS.includes(key));
+      if (invalid.length > 0) throw new Error(`Unknown stat tile key(s): ${invalid.join(', ')}`);
+      // De-duplicate and store in the canonical tile order so read order never depends on click order.
+      const cleaned = STAT_TILE_KEYS.filter((key) => statKeys.includes(key));
+
+      const updated = await AppUsers.findOneAndUpdate(
+        { uid: context.uid },
+        { $set: { [`settings.statTilePreferences.${page}`]: cleaned } },
+        { new: true, upsert: true }
+      ).lean().exec();
+
+      return statTilePreferencesToObject((updated as any)?.settings?.statTilePreferences);
+    },
+    /** Drops a page's saved choice so it follows the page's built-in tiles again. */
+    clearStatTilePreference: async (
+      _: unknown,
+      { page }: { page: string },
+      context: { uid: string | null }
+    ) => {
+      if (!context.uid) throw new Error('Unauthorized');
+      if (!STAT_TILE_PAGES.includes(page)) throw new Error(`Unknown stat tile page: ${page}`);
+
+      const updated = await AppUsers.findOneAndUpdate(
+        { uid: context.uid },
+        { $unset: { [`settings.statTilePreferences.${page}`]: '' } },
+        { new: true }
+      ).lean().exec();
+
+      return statTilePreferencesToObject((updated as any)?.settings?.statTilePreferences);
     },
     createGroupConversation: async (_: any, { projectId, participantUids, name }: { projectId: string; participantUids: string[]; name: string }, context: any) => {
       if (!context.uid || !context.user) throw new Error('Unauthorized');
@@ -1042,6 +1179,10 @@ export const resolvers = {
       const id = parent?._id?.toString?.() ?? parent?._id;
       return id ? context.charactersLoader.load(id) : [];
     },
+    notes: (parent: any, _: any, context: { notesLoader: { load: (id: string) => Promise<any[]> } }) => {
+      const id = parent?._id?.toString?.() ?? parent?._id;
+      return id ? context.notesLoader.load(id) : [];
+    },
   },
   Collaborator: {
     _id: (parent: any) => String(parent._id),
@@ -1097,6 +1238,22 @@ export const resolvers = {
         name: detail?.name ?? null,
       }));
     },
+  },
+  Note: {
+    _id: (parent: any) => (parent?._id != null ? String(parent._id) : null),
+    projectId: (parent: any) => (parent?.projectId != null ? String(parent.projectId) : null),
+    title: (parent: any) => parent?.title ?? '',
+    category: (parent: any) => parent?.category ?? '',
+    content: (parent: any) => parent?.content ?? '',
+    incorporated: (parent: any) => Boolean(parent?.incorporated),
+    shouldIncorporate: (parent: any) => parent?.shouldIncorporate !== false,
+    association: (parent: any) => ({
+      kind: parent?.association?.kind ?? 'none',
+      targetId: parent?.association?.targetId != null ? String(parent.association.targetId) : null,
+      label: parent?.association?.label ?? null,
+    }),
+    createdAt: (parent: any) => (parent?.createdAt != null ? new Date(parent.createdAt).toISOString() : null),
+    updatedAt: (parent: any) => (parent?.updatedAt != null ? new Date(parent.updatedAt).toISOString() : null),
   },
   OutlineFramework: {
     _id: (doc: any) => (doc?._id != null ? String(doc._id) : String(doc?.id ?? "")),

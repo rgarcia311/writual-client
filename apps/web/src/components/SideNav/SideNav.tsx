@@ -16,11 +16,13 @@ import TheaterComedyIcon from '@mui/icons-material/TheaterComedy';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import ArticleIcon from '@mui/icons-material/Article';
 import ChatBubbleIcon from '@mui/icons-material/ChatBubble';
+import StickyNote2Icon from '@mui/icons-material/StickyNote2';
 import { useCreateProjectModalStore } from '@/state/createProjectModal';
 import { useSideNavCollapsedStore } from '@/state/sideNavCollapsed';
 
 const SIDENAV_LINKS = [
   { segment: 'characters', label: 'Characters', Icon: TheaterComedyIcon },
+  { segment: 'notes', label: 'Notes', Icon: StickyNote2Icon },
   { segment: 'outline', label: 'Outline', Icon: AccountTreeIcon },
   { segment: 'screenplay', label: 'Screenplay', Icon: ArticleIcon },
   { segment: 'chat', label: 'Chat', Icon: ChatBubbleIcon },

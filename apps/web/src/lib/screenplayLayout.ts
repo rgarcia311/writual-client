@@ -142,6 +142,13 @@ const MIN_ACTION_LINES_FOR_INFERENCE = 5
 /** ~½ char headroom for centered columns only; action width matches source edge for pagination parity. */
 const COLUMN_WIDTH_SAFETY_PX = 4.8
 
+/**
+ * Width of one character as Writual renders it: 12pt Courier at 10 CPI ⇒ 9.6px @96dpi. The editor
+ * always renders at this pitch, so a source column is best expressed as "how many of OUR characters
+ * must fit", not as the source's own ink extent (see `columnWidthFromChars`).
+ */
+const CHAR_WIDTH_PX = PX_PER_INCH / 10
+
 export interface ScreenplayPdfMeasurements {
   pageWidthPt: number
   pageHeightPt: number
@@ -159,6 +166,32 @@ export interface ScreenplayPdfMeasurements {
   /** Max right edge (pt) per centered column, or null if not measured. Used to derive column width. */
   dialogueRightMaxPt: number | null
   parentheticalRightMaxPt: number | null
+  /**
+   * Longest line actually printed in each centered column, in CHARACTERS (trailing space trimmed),
+   * or null if not measured. Preferred over the `*RightMaxPt` ink extents when deriving a column
+   * width — see `columnWidthFromChars` for why the ink extent alone is not enough.
+   */
+  dialogueMaxChars?: number | null
+  parentheticalMaxChars?: number | null
+}
+
+/**
+ * Width (px @96dpi) a column needs so `chars` characters fit at Writual's 10 CPI pitch.
+ *
+ * This is the authority for centered-column widths, and the ink-extent measurement is only a floor
+ * beneath it. Screenplay PDFs are laid out on a 7.2pt (10 CPI) character grid, but a text run's
+ * `width` as reported by pdf.js is the sum of the *drawn glyph advances* of the embedded font,
+ * which can run measurably narrower — 6.977pt/char in one real Final Draft export, i.e. ~10px short
+ * over a 35-character line. Deriving the column from that ink extent yields a box that cannot hold
+ * the very line it was measured from: every line at the source's full column width then re-wraps,
+ * adding a line per affected speech and pushing the document a whole page long. Counting characters
+ * and re-multiplying by our own pitch sidesteps the source font's metrics entirely.
+ *
+ * The invariant: an inferred column must always fit the longest line the source actually printed.
+ */
+function columnWidthFromChars(chars: number | null | undefined): number | null {
+  if (typeof chars !== 'number' || !Number.isFinite(chars) || chars <= 0) return null
+  return chars * CHAR_WIDTH_PX + COLUMN_WIDTH_SAFETY_PX
 }
 
 function offsetIndentPx(leftPt: number | null, baseXPt: number): number | undefined {
@@ -196,20 +229,37 @@ export function inferLayoutFromPdfMeasurements(
   const characterIndent = offsetIndentPx(m.characterLeftPt, m.baseXPt)
   if (characterIndent != null) cfg.characterIndentPx = Math.round(characterIndent)
 
-  // Dialogue/parenthetical column width = measured right edge − measured left + ~1-char headroom, so
-  // the source's longest line never wraps in the matched box. Missing measurements ⇒ omit (default).
-  if (m.dialogueRightMaxPt != null && m.dialogueLeftPt != null) {
-    cfg.dialogueTextWidthPx = Math.round(
-      ptToPx(m.dialogueRightMaxPt) - ptToPx(m.dialogueLeftPt) + COLUMN_WIDTH_SAFETY_PX,
-    )
-  }
-  if (m.parentheticalRightMaxPt != null && m.parentheticalLeftPt != null) {
-    cfg.parentheticalTextWidthPx = Math.round(
-      ptToPx(m.parentheticalRightMaxPt) - ptToPx(m.parentheticalLeftPt) + COLUMN_WIDTH_SAFETY_PX,
-    )
-  }
+  // Dialogue/parenthetical column width: the widest of (a) the source's longest printed line
+  // re-measured at Writual's own 10 CPI pitch and (b) the source's measured ink extent, plus ~½ char
+  // of headroom, so the source's longest line never wraps in the matched box. (a) is the reliable
+  // one — see `columnWidthFromChars`; (b) survives as a floor for sources whose glyph advances run
+  // *wider* than 10 CPI. Missing measurements ⇒ omit the field (render at the WGA default).
+  const dialogueWidth = widestColumn(
+    columnWidthFromChars(m.dialogueMaxChars),
+    inkExtentWidth(m.dialogueRightMaxPt, m.dialogueLeftPt),
+  )
+  if (dialogueWidth != null) cfg.dialogueTextWidthPx = Math.round(dialogueWidth)
+
+  const parentheticalWidth = widestColumn(
+    columnWidthFromChars(m.parentheticalMaxChars),
+    inkExtentWidth(m.parentheticalRightMaxPt, m.parentheticalLeftPt),
+  )
+  if (parentheticalWidth != null) cfg.parentheticalTextWidthPx = Math.round(parentheticalWidth)
 
   return clampLayoutConfig(cfg)
+}
+
+/** Column width (px) implied by a measured ink extent, or null when either edge is missing. */
+function inkExtentWidth(rightMaxPt: number | null, leftPt: number | null): number | null {
+  if (rightMaxPt == null || leftPt == null) return null
+  if (!Number.isFinite(rightMaxPt) || !Number.isFinite(leftPt)) return null
+  return ptToPx(rightMaxPt) - ptToPx(leftPt) + COLUMN_WIDTH_SAFETY_PX
+}
+
+/** Widest of the candidate column widths, or null when none were measurable. */
+function widestColumn(...candidates: Array<number | null>): number | null {
+  const usable = candidates.filter((c): c is number => c != null && Number.isFinite(c))
+  return usable.length > 0 ? Math.max(...usable) : null
 }
 
 /** Median of a numeric array, or null when empty. */

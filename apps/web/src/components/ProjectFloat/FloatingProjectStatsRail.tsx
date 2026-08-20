@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { request } from 'graphql-request';
 import { PROJECT_TRACKING_STATS_QUERY } from '@/queries/CharacterQueries';
 import { FloatingProjectStat } from './FloatingProjectStat';
+import { ALL_PROJECT_STAT_TILE_KEYS } from './buildProjectStatTiles';
 import type { ProjectStatTileKey } from './buildProjectStatTiles';
 import { computeProjectStatTileData } from './computeProjectStatTileData';
 import { useScreenplayLivePagesStore } from '@/state/screenplayLivePages';
@@ -13,8 +14,6 @@ import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { useUserProfileStore } from '@/state/user';
 import { FloatingStatSurface } from './FloatingStatSurface';
 import { ProjectStat } from '@/components/ProjectCard/ProjectStat';
-
-const DEFAULT_STAT_TILE_KEYS: ProjectStatTileKey[] = ['progress', 'characters', 'scenes', 'deadlines'];
 
 const endpoint = GRAPHQL_ENDPOINT;
 
@@ -35,8 +34,10 @@ function TrackingStatSkeleton() {
 
 export function FloatingProjectStatsRail({
   projectId,
-  statKeys = DEFAULT_STAT_TILE_KEYS,
+  statKeys = ALL_PROJECT_STAT_TILE_KEYS,
 }: FloatingProjectStatsRailProps) {
+  // The user can hide every tile on a page; skip the fetch rather than render an empty rail.
+  const hasVisibleStats = statKeys.length > 0;
   const liveBodyPages = useScreenplayLivePagesStore((s) =>
     projectId && s.projectId === projectId ? s.liveBodyPages : null,
   );
@@ -54,7 +55,7 @@ export function FloatingProjectStatsRail({
   const { data, isLoading, isError } = useQuery({
     queryKey: ['project-tracking-stats', projectId],
     queryFn: fetchTrackingStats,
-    enabled: Boolean(projectId),
+    enabled: Boolean(projectId) && hasVisibleStats,
   });
 
   const project = data?.getProjectData?.[0];
@@ -66,6 +67,10 @@ export function FloatingProjectStatsRail({
       liveBodyPages,
     );
   }, [project, liveBodyPages]);
+
+  if (!hasVisibleStats) {
+    return null;
+  }
 
   if (isLoading) {
     return (

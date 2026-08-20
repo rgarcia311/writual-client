@@ -7,7 +7,17 @@ export const ME_QUERY = gql`
       name
       displayName
       tier
-      settings { colorMode }
+      settings { colorMode statTilePreferences }
+    }
+  }
+`;
+
+/** Stat-tile visibility only — refetched after a toggle without re-running the login display-name sync. */
+export const STAT_TILE_PREFERENCES_QUERY = gql`
+  query StatTilePreferences {
+    me {
+      uid
+      settings { statTilePreferences }
     }
   }
 `;

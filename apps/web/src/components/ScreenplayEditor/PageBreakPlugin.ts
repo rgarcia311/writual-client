@@ -188,14 +188,18 @@ function findSoleTextNode(root: HTMLElement): Text | null {
  * (multi-node/marked content, empty text, or fewer visual lines than requested) — callers must
  * treat `null` as "fall back to moving the whole block," never as an error to surface.
  *
- * `blockTop` is the block's PM-space top (matching this file's `naturalTop`/`blockTop`
- * convention); `pmRect`/`scale` convert it back to raw viewport px to compare against the raw
- * `getClientRects()` measurements this function takes internally (the inverse of `yLayoutInPm`).
+ * `blockNaturalTop` MUST be the block's *natural* PM-space top (`naturalTop`), never the
+ * page-flow-projected `blockTop`. This function converts it back to raw viewport px via
+ * `pmRect`/`scale` (the inverse of `yLayoutInPm`) to compare against the raw `getClientRects()`
+ * measurements it takes internally — and those rects come from the live DOM with decorations
+ * cleared, i.e. continuous natural flow with no `cursorOffset` applied. Passing the projected
+ * top instead puts the threshold a full `cursorOffset` below every real line, so the search
+ * runs off the end of the text and returns `null` for every split after the first page break.
  */
 function findLineStartOffset(
   contentEl: HTMLElement,
   targetLineIndex: number,
-  blockTop: number,
+  blockNaturalTop: number,
   pmRect: DOMRect,
   scale: number,
 ): number | null {
@@ -218,7 +222,8 @@ function findLineStartOffset(
     return rects.length > 0 ? rects[0].top : contentEl.getBoundingClientRect().top
   }
 
-  const thresholdViewportY = pmRect.top + (blockTop + targetLineIndex * SCREENPLAY_LINE_HEIGHT_PX) * scale
+  const thresholdViewportY =
+    pmRect.top + (blockNaturalTop + targetLineIndex * SCREENPLAY_LINE_HEIGHT_PX) * scale
   const epsilonPx = 0.5 * scale
 
   let lo = 0
@@ -245,6 +250,42 @@ function findLineStartOffset(
   }
 
   return lo
+}
+
+/**
+ * `padding-top` (layout px) that CSS strips from a block once a page break lands directly in front
+ * of it — `.page-break-gap + .node-scriptBlock > .script-block { padding-top: 0 !important }`.
+ *
+ * A slugline (or transition) following action/dialogue carries a one-line `padding-top` as its
+ * leading blank. That blank is correct mid-page but must vanish when the block opens a page, and
+ * the CSS rule above removes it in the rendered DOM. `computeDecorations()`, however, measures with
+ * decorations cleared — continuous natural flow, no gap widgets — so the height it projects for
+ * such a block still contains that blank line. Projecting it unchanged reserves a phantom line at
+ * the top of every page that opens with one, and the page's real last line gets pushed to the next
+ * page. Subtracting it from the break's `cursorOffset` shift keeps the projection equal to what the
+ * browser renders. (Computed style is already layout px, so no `scale` division applies here.)
+ */
+function leadingPadTopPx(el: HTMLElement): number {
+  const scriptBlock = el.querySelector<HTMLElement>('.script-block') ?? el
+  const pad = Number.parseFloat(getComputedStyle(scriptBlock).paddingTop)
+  return Number.isFinite(pad) ? pad : 0
+}
+
+/**
+ * How far a page break shifts everything below it, in PM-space px.
+ *
+ * `remainder` fills the current page out to its content end and `WIDGET_HEIGHT` spans the bottom
+ * margin + inter-page gap + top margin, but the widget replaces whatever blank space the two
+ * blocks already had between them (`naturalGap`) and the page-leading block loses its own leading
+ * blank line (`leadingPadTop`) — both must come back out, or the next page is projected lower than
+ * it renders.
+ */
+function pageBreakShiftPx(
+  remainder: number,
+  naturalGap: number,
+  leadingPadTop: number,
+): number {
+  return remainder + WIDGET_HEIGHT - naturalGap - leadingPadTop
 }
 
 /* ── Widget DOM builder ────────────────────────────────────────────────────── */
@@ -347,7 +388,9 @@ function attemptBlockSplit(
   const tailLines = totalLines - usableLines
   if (tailLines < MIN_LINES_AFTER_SPLIT) return null
 
-  const offset = findLineStartOffset(contentEl, usableLines, blockTop, pmRect, scale)
+  // `naturalTop`, not `blockTop`: `findLineStartOffset` compares its threshold against live-DOM
+  // rects, which are measured with decorations cleared (continuous flow, no `cursorOffset`).
+  const offset = findLineStartOffset(contentEl, usableLines, naturalTop, pmRect, scale)
   if (offset == null) return null
 
   const textNode = findSoleTextNode(contentEl)
@@ -607,7 +650,8 @@ export const PageBreakExtension = Extension.create({
               )
 
               const naturalGap = naturalTop - prevBottomRaw
-              const actualShift = remainder + WIDGET_HEIGHT - naturalGap
+              // Body opens this page, so CSS zeroes its `padding-top` (see `leadingPadTopPx`).
+              const actualShift = pageBreakShiftPx(remainder, naturalGap, leadingPadTopPx(el))
               cursorOffset += actualShift
               pageIndex++
               hasFiredTitleBreak = true
@@ -665,17 +709,61 @@ export const PageBreakExtension = Extension.create({
                 !oversizedGroup &&
                 layoutBottomExceedsPageContentEnd(groupFitBottom, pageContentEnd, pageContentStart)
               ) {
-                // Only force the *whole* cue+dialogue group to the next page when there's no
-                // meaningful room left after the cue itself. Otherwise, leave forceBreak false:
-                // the cue renders normally here, and the following dialogue/parenthetical block
-                // overflows on its own next iteration, where attemptBlockSplit() splits it with
-                // "(MORE)" on this page and "CHARACTER (CONT'D)" + the remainder on the next —
-                // matching source-PDF convention instead of stranding the whole group together.
-                const roomAfterCueLines = Math.floor(
-                  (pageContentEnd - blockBottom) / SCREENPLAY_LINE_HEIGHT_PX,
-                )
-                const usableRoomForDialogue = roomAfterCueLines - 1 // reserve 1 line for "(MORE)"
-                if (usableRoomForDialogue < MIN_LINES_BEFORE_SPLIT) {
+                // Only force the *whole* cue+dialogue group to the next page when the dialogue
+                // can't be split where it stands. Otherwise leave forceBreak false: the cue
+                // renders normally here, and the following dialogue/parenthetical block overflows
+                // on its own next iteration, where attemptBlockSplit() splits it with "(MORE)" on
+                // this page and "CHARACTER (CONT'D)" + the remainder on the next — matching
+                // source-PDF convention instead of stranding the whole group together.
+                //
+                // Dry-run the exact split the next iteration will attempt, rather than
+                // approximating it from a line count off the cue's bottom. `attemptBlockSplit`
+                // only measures (it never touches the document), so running it twice is safe.
+                // If it reports the block can't be split here — too few tail lines, non-flat
+                // text content, unresolvable line boundary — then leaving the cue behind would
+                // strand it alone at the bottom of the page while its dialogue restarts,
+                // uncued, on the next one. Move the whole group across in that case.
+                let splitFeasible = false
+                for (let j = i + 1; j < blocks.length; j++) {
+                  const nextType = blocks[j].node.attrs.elementType as string
+                  if (nextType !== 'parenthetical' && nextType !== 'dialogue') break
+                  const nextEl = editorView.nodeDOM(blocks[j].pos) as HTMLElement | null
+                  if (!nextEl) break
+                  const { top: nextNaturalTop, bottom: nextNaturalBottom } = yLayoutInPm(
+                    nextEl,
+                    pmRect,
+                    scale,
+                  )
+                  // Skip blocks in the chain that still fit; the first one that overflows is
+                  // the one the split will actually be attempted on.
+                  const nextInkBottom = layoutBottomForPaginationOverflow(
+                    nextType,
+                    nextNaturalBottom + cursorOffset,
+                  )
+                  if (
+                    !layoutBottomExceedsPageContentEnd(nextInkBottom, pageContentEnd, pageContentStart)
+                  ) {
+                    continue
+                  }
+                  splitFeasible =
+                    attemptBlockSplit(
+                      editorView,
+                      blocks,
+                      j,
+                      blocks[j].pos,
+                      blocks[j].node,
+                      nextType,
+                      nextEl,
+                      nextNaturalTop,
+                      nextNaturalBottom,
+                      nextNaturalTop + cursorOffset,
+                      pageContentEnd,
+                      pmRect,
+                      scale,
+                    ) != null
+                  break
+                }
+                if (!splitFeasible) {
                   forceBreak = true
                 }
               } else if (oversizedGroup && process.env.NODE_ENV === 'development') {
@@ -836,10 +924,16 @@ export const PageBreakExtension = Extension.create({
 
               // The actual space between the blocks *before* our widget was injected
               const naturalGap = naturalTop - prevBottomRaw
-              
+
+              // This block now opens the next page, so CSS drops its leading blank line. The
+              // natural-flow measurement above still includes it, so it has to come out of the
+              // shift or the whole page is projected one line lower than it renders — pushing the
+              // page's last line off the bottom (see `leadingPadTopPx`).
+              const leadPadTop = leadingPadTopPx(el)
+
               // The precise pixel shift we are introducing into the document
-              const actualShift = remainder + WIDGET_HEIGHT - naturalGap
-              
+              const actualShift = pageBreakShiftPx(remainder, naturalGap, leadPadTop)
+
               cursorOffset += actualShift
               pageIndex++
             }
