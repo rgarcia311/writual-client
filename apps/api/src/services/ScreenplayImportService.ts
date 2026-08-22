@@ -16,6 +16,8 @@ import {
 import {
   deleteEntitiesForDocument,
   deleteSelectedEntities,
+  loadExistingEntityKeys,
+  normalizeEntityKey,
 } from './ScreenplayEntityService';
 
 /**
@@ -100,7 +102,7 @@ export async function importScreenplayPdf(
     };
   }
 
-  const created = await buildEntities(projectId, String(target._id), doc, entityErrors);
+  const created = await buildEntities(projectId, target, doc, entityErrors);
 
   return {
     documentId: String(target._id),
@@ -189,10 +191,11 @@ async function clearEntitiesForReplace(
  */
 async function buildEntities(
   projectId: string,
-  documentId: string,
+  target: ScreenplayDocumentRow,
   doc: Record<string, unknown>,
   entityErrors: string[],
 ): Promise<{ charactersCreated: number; scenesCreated: number }> {
+  const documentId = String(target._id);
   // A locked section refuses every single create. Checking once turns what would be hundreds of
   // identical failures into one message the writer can act on.
   const project = await Projects.findById(new mongoose.Types.ObjectId(projectId))
@@ -218,6 +221,17 @@ async function buildEntities(
   if (charactersLocked && scenesLocked) {
     return { charactersCreated: 0, scenesCreated: 0 };
   }
+
+  /**
+   * Whatever survived the clearing step above. Every strategy runs through here, so this covers the
+   * cards a writer chose to keep *and* locked cards, which no strategy deletes — recreating either
+   * from the incoming script is what produced duplicates.
+   */
+  const existing = await loadExistingEntityKeys(
+    new mongoose.Types.ObjectId(projectId),
+    target._id,
+    { includeUntagged: target.isPrimary },
+  );
 
   const deterministicChars = extractDialogueCueCharacters(doc);
   const outlineScenes = extractOutlineScenesForEnrichment(doc);
@@ -263,6 +277,8 @@ async function buildEntities(
   for (const c of charactersLocked ? [] : finalChars) {
     const name = typeof c?.name === 'string' ? c.name.trim() : '';
     if (!name) continue;
+    // Already on this document — leave the writer's card, with whatever bio they wrote, alone.
+    if (existing.characterNames.has(normalizeEntityKey(name))) continue;
     try {
       await createCharacterService(projectId, {
         activeVersion: 1,
@@ -280,6 +296,16 @@ async function buildEntities(
   for (const meta of scenesLocked ? [] : outlineScenes) {
     const sceneHeading = meta.sceneHeading.trim();
     if (!sceneHeading) continue;
+
+    // Skip only as many repeats of a heading as already exist: a script that returns to the same
+    // location three times is three scenes, and only the ones already on the board are duplicates.
+    const headingKey = normalizeEntityKey(sceneHeading);
+    const remaining = existing.sceneHeadingCounts.get(headingKey) ?? 0;
+    if (remaining > 0) {
+      existing.sceneHeadingCounts.set(headingKey, remaining - 1);
+      continue;
+    }
+
     const synopsis =
       typeof meta.synopsis === 'string' && meta.synopsis.trim() ? meta.synopsis.trim() : undefined;
     const ana = analysisByIndex.get(meta.index);

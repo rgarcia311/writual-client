@@ -284,7 +284,7 @@ export function ScreenplayImportDialog({
                   label={
                     <OptionLabel
                       title="Replace all"
-                      description="Clears this screenplay's cards and rebuilds them from the PDF."
+                      description="Rebuilds this screenplay's cards from the PDF. Locked cards are kept."
                     />
                   }
                 />
@@ -305,8 +305,8 @@ export function ScreenplayImportDialog({
                   disabled={isPending}
                   label={
                     <OptionLabel
-                      title="Keep all existing cards"
-                      description="Adds cards from the PDF alongside what you already have."
+                      title="Keep existing, add what's missing"
+                      description="Leaves every card as it is and only adds ones the PDF has that you don't."
                     />
                   }
                 />
