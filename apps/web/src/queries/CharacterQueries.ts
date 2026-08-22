@@ -16,6 +16,7 @@ query GetProjectCharacters($input: ProjectFilters!) {
     characters {
       _id
       projectId
+      screenplayDocumentId
       name
       imageUrl
       activeVersion

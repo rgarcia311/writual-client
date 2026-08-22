@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { resolveMongoUri } from "@writual/mongo-env";
-import { projectSchema, sceneSchema, characterSchema, outlineFrameworkStandaloneSchema, userSchema, messageSchema, conversationSchema, noteSchema } from "./schemas";
+import { projectSchema, sceneSchema, characterSchema, outlineFrameworkStandaloneSchema, userSchema, messageSchema, conversationSchema, noteSchema, screenplayDocumentSchema } from "./schemas";
 
 const uri = resolveMongoUri();
 
@@ -79,6 +79,9 @@ if (!mongoose.models.Conversations) {
 if (!mongoose.models.Notes) {
   mongoose.model("Notes", noteSchema);
 }
+if (!mongoose.models.Screenplays) {
+  mongoose.model("Screenplays", screenplayDocumentSchema);
+}
 
 const Projects = mongoose.model("Projects");
 const Scenes = mongoose.model("Scenes");
@@ -88,4 +91,5 @@ const AppUsers = mongoose.model("AppUsers");
 const Messages = mongoose.model("Messages");
 const Conversations = mongoose.model("Conversations");
 const Notes = mongoose.model("Notes");
-export { Projects, Scenes, Characters, OutlineFrameworks, AppUsers, Messages, Conversations, Notes };
+const Screenplays = mongoose.model("Screenplays");
+export { Projects, Scenes, Characters, OutlineFrameworks, AppUsers, Messages, Conversations, Notes, Screenplays };

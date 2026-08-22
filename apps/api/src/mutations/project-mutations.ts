@@ -8,6 +8,7 @@ import {
 } from "../helpers";
 import { lockAllScenesForProject, unlockOutlineSection as unlockOutlineSectionService } from "../services/SceneService";
 import { lockAllCharactersForProject, unlockCharactersSection as unlockCharactersSectionService } from "../services/CharacterService";
+import { resolveScreenplayDocument, saveScreenplayDocument } from "../services/ScreenplayDocumentService";
 export const deleteProject = (root,  { id }) => {
     return deleteData(Projects, id)
 }
@@ -146,11 +147,12 @@ export const createinspiration = async (root, { input }) => {
 };
 
 /**
- * Records the screenplay's page total on `screenplay.pageCount`, plus
- * `writingTracker.currentPageCount` when the project's tracker is enabled.
+ * Records `writingTracker.currentPageCount` when the project's tracker is enabled.
  *
- * `screenplay.pageCount` is written even with tracking off so the enable-tracking modal can
- * prefill Current Page Count for a project that already has a screenplay.
+ * The page total itself now lives on the screenplay document row (`Screenplays.pageCount`), written
+ * by `saveScreenplayDocument`, because each document paginates independently. The tracker still
+ * follows the primary document only — it measures progress on the project's main draft, not on
+ * every imported reference script.
  */
 export const persistWritingTrackerCurrentPageCount = async (
   projectId: string,
@@ -160,23 +162,9 @@ export const persistWritingTrackerCurrentPageCount = async (
     ? { _id: new mongoose.Types.ObjectId(projectId) }
     : { _id: projectId };
 
-  const updated = await Projects.findOneAndUpdate(
-    { ...filter, 'writingTracker.enabled': true },
-    {
-      $set: {
-        'writingTracker.currentPageCount': clampedPageCount,
-        'screenplay.pageCount': clampedPageCount,
-      },
-    },
-    { new: true }
-  ).exec();
-
-  if (updated) return updated;
-
-  // Tracker off (or no tracker yet): still record the screenplay's page total.
   return Projects.findOneAndUpdate(
-    filter,
-    { $set: { 'screenplay.pageCount': clampedPageCount } },
+    { ...filter, 'writingTracker.enabled': true },
+    { $set: { 'writingTracker.currentPageCount': clampedPageCount } },
     { new: true }
   ).exec();
 };
@@ -185,47 +173,40 @@ export const saveScreenplay = async (
   root: unknown,
   args: {
     projectId: string;
+    documentId?: string | null;
     content: unknown;
     estimatedPageCount?: number | null;
     layout?: unknown;
+    /** Set by the PDF import paths so stale Yjs state does not overwrite the imported content. */
+    resetCollaboration?: boolean;
   }
 ) => {
-  const { projectId, content, estimatedPageCount, layout } = args;
-  const filter = mongoose.Types.ObjectId.isValid(projectId)
-    ? { _id: new mongoose.Types.ObjectId(projectId) }
-    : { _id: projectId };
+  const { projectId, documentId, content, estimatedPageCount, layout, resetCollaboration } = args;
 
-  // Atomic, field-level update (no read-before-write, no whole-subdoc replace) so concurrent saves
-  // don't race and fields like `lockedVersion` survive. `screenplay.layout` is only written when a
-  // `layout` argument is explicitly present in the request, so layout-less autosaves preserve it.
-  // Pass `layout: null` to clear it.
-  const setDoc: Record<string, unknown> = {
-    'screenplay.projectId': projectId,
-    'screenplay.versions': [{ version: 0, content }],
-  };
-  if ('layout' in args) {
-    const isPlainObject =
-      layout != null && typeof layout === 'object' && !Array.isArray(layout);
-    setDoc['screenplay.layout'] = isPlainObject ? layout : null;
+  // Omitting documentId targets the project's primary document, which is what every pre-existing
+  // caller (the editor's autosave, the create-project import) does.
+  const target = await resolveScreenplayDocument(projectId, documentId ?? null);
+
+  const clamped =
+    estimatedPageCount != null && Number.isFinite(Number(estimatedPageCount))
+      ? Math.min(99999, Math.max(1, Math.round(Number(estimatedPageCount))))
+      : null;
+
+  const saved = await saveScreenplayDocument(projectId, String(target._id), {
+    content,
+    // Only forward `layout` when the caller actually sent it: layout-less autosaves must preserve
+    // the geometry inferred at import time.
+    ...('layout' in args ? { layout } : {}),
+    ...(clamped != null ? { pageCount: clamped } : {}),
+    ...(resetCollaboration ? { resetCollaboration: true } : {}),
+  });
+
+  // The writing tracker measures the project's main draft only.
+  if (clamped != null && target.isPrimary) {
+    await persistWritingTrackerCurrentPageCount(projectId, clamped);
   }
 
-  const updated = await Projects.findOneAndUpdate(
-    filter,
-    { $set: setDoc },
-    { new: true }
-  ).exec();
-
-  if (estimatedPageCount != null) {
-    const n = typeof estimatedPageCount === "number"
-      ? estimatedPageCount
-      : Number(estimatedPageCount);
-    if (Number.isFinite(n)) {
-      const clamped = Math.min(99999, Math.max(1, Math.round(Number(n))));
-      await persistWritingTrackerCurrentPageCount(projectId, clamped);
-    }
-  }
-
-  return updated?.get('screenplay') ?? null;
+  return saved;
 };
 
 export const createFeedback = (root, { input })  =>  {

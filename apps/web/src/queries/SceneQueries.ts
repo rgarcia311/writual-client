@@ -44,6 +44,7 @@ export const PROJECT_SCENES_QUERY = gql`
         activeVersion
         lockedVersion
         projectId
+        screenplayDocumentId
         versions {
           act
           antithesis

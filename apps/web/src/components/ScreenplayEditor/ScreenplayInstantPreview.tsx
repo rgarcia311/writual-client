@@ -108,6 +108,12 @@ function SnapshotPaper({ snapshot }: { snapshot: ScreenplaySnapshot }) {
 export interface ScreenplayInstantPreviewProps {
   projectId: string | undefined
   /**
+   * Screenplay document being previewed. The paint cache is keyed per document — two screenplays in
+   * one project paint different pages — so this must match what `useScreenplaySnapshotPersistence`
+   * writes, or the curtain falls back to a spinner every time.
+   */
+  documentId?: string | null
+  /**
    * `absolute` covers an already-mounted editor while it finishes paginating; `flow` fills the
    * gate's own box while the document is still being fetched and there is nothing underneath.
    */
@@ -123,22 +129,25 @@ export interface ScreenplayInstantPreviewProps {
  */
 export function ScreenplayInstantPreview({
   projectId,
+  documentId,
   variant = 'flow',
 }: ScreenplayInstantPreviewProps) {
+  const snapshotKey = screenplaySnapshotKey(projectId, documentId)
+
   const [snapshot, setSnapshot] = React.useState<ScreenplaySnapshot | null>(() =>
-    projectId ? peekScreenplaySnapshot(projectId) : null,
+    snapshotKey ? peekScreenplaySnapshot(snapshotKey) : null,
   )
 
   React.useEffect(() => {
-    if (!projectId) return
+    if (!snapshotKey) return
     let cancelled = false
-    void readScreenplaySnapshot(projectId).then((snap) => {
+    void readScreenplaySnapshot(snapshotKey).then((snap) => {
       if (!cancelled) setSnapshot(snap)
     })
     return () => {
       cancelled = true
     }
-  }, [projectId])
+  }, [snapshotKey])
 
   /**
    * As an overlay there is a real editor underneath, so with nothing cached the honest thing is to
@@ -173,4 +182,19 @@ export function ScreenplayInstantPreview({
       )}
     </Box>
   )
+}
+
+/**
+ * Cache key for one screenplay document's painted pages.
+ *
+ * Shared by the preview curtain and `useScreenplaySnapshotPersistence` so both sides agree. A
+ * document-less key (the project id alone) is what projects had before multi-document support, and
+ * is still used while the active document is being resolved.
+ */
+export function screenplaySnapshotKey(
+  projectId: string | undefined,
+  documentId?: string | null,
+): string | undefined {
+  if (!projectId) return undefined
+  return documentId ? `${projectId}:${documentId}` : projectId
 }

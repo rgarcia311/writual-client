@@ -2,96 +2,30 @@ import type { Express, Request, Response } from 'express';
 import express from 'express';
 import mongoose from 'mongoose';
 import { GraphQLError } from 'graphql';
-import { Projects } from '@writual/db';
 import { verifyUser } from '../lib/verifyUser';
 import { verifyProjectWriteAccess } from '../lib/projectAccess';
 import { requireTier } from '../utils/tierUtils';
-import { saveScreenplay } from '../mutations/project-mutations';
-import { createCharacter as createCharacterService } from '../services/CharacterService';
-import { createScene as createSceneService } from '../services/SceneService';
+import { getAiConfig } from '../lib/aiEnrichment';
 import {
-  extractDialogueCueCharacters,
-  extractOutlineScenesForEnrichment,
-} from '../lib/entitiesFromScreenplayDoc';
+  importScreenplayPdf,
+  type EntityStrategy,
+  type ImportMode,
+} from '../services/ScreenplayImportService';
 
-const AI_REQUEST_TIMEOUT_MS = 600_000;
+/**
+ * Server-side screenplay import. The client parses the PDF (pdf.js runs in the browser) and posts
+ * the resulting TipTap document here; this route persists it and, for the AI-enabled path, derives
+ * characters and scenes via the writual-ai service.
+ *
+ * Reached from two places: the create-project flow (new project, always `mode: 'replace'` against
+ * the fresh primary document) and the screenplay page's import dialog (`replace` or `add`).
+ */
 
+/** Parsed feature scripts routinely exceed Express's 100kb default. */
 const json50mb = express.json({ limit: '50mb' });
 
-interface EnrichScreenplayImportResponse {
-  characters?: Array<{ name?: string }>;
-  sceneAnalyses?: Array<{
-    index?: number;
-    thesis?: string;
-    antithesis?: string;
-    synthesis?: string;
-  }>;
-  warnings?: string[];
-}
-
-function getAiConfig(): { baseUrl: string; secret: string } | null {
-  const baseUrl = (process.env.AI_SERVICE_URL ?? '').replace(/\/$/, '');
-  const secret = process.env.AI_SERVICE_SECRET ?? '';
-  if (!baseUrl || !secret) return null;
-  return { baseUrl, secret };
-}
-
-async function forwardEnrichmentToAi(
-  body: Record<string, unknown>,
-): Promise<EnrichScreenplayImportResponse> {
-  const cfg = getAiConfig();
-  if (!cfg) {
-    throw new Error('AI service not configured');
-  }
-
-  const url = `${cfg.baseUrl}/v1/enrich-screenplay-import`;
-
-  let upstream: globalThis.Response;
-  try {
-    upstream = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Writual-Internal-Secret': cfg.secret,
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS),
-    });
-  } catch (e) {
-    const cause = (e as { cause?: unknown })?.cause;
-    const causeCode =
-      cause && typeof cause === 'object' && 'code' in cause
-        ? String((cause as { code: unknown }).code)
-        : undefined;
-    const causeMsg =
-      cause instanceof Error ? cause.message : cause ? String(cause) : undefined;
-    const baseMsg = e instanceof Error ? e.message : String(e);
-    const detail = [baseMsg, causeCode, causeMsg].filter(Boolean).join(' / ');
-    throw new Error(
-      `Cannot reach writual-ai at ${url} (${detail}). ` +
-        'Start `@writual/writual-ai` (e.g. `npm run dev:ai`), and set AI_SERVICE_URL in the API env (e.g. http://127.0.0.1:8790). ' +
-        'AI_SERVICE_SECRET must match INTERNAL_SERVICE_SECRET on writual-ai.',
-    );
-  }
-
-  const text = await upstream.text();
-  let parsed: unknown;
-  try {
-    parsed = text ? JSON.parse(text) : {};
-  } catch {
-    throw new Error(`AI service returned non-JSON (${upstream.status})`);
-  }
-
-  if (!upstream.ok) {
-    const err = (parsed as { error?: string })?.error ?? text;
-    throw new Error(typeof err === 'string' ? err : `AI service error ${upstream.status}`);
-  }
-
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('Invalid AI enrichment response');
-  }
-  return parsed as EnrichScreenplayImportResponse;
-}
+const VALID_MODES: readonly ImportMode[] = ['replace', 'add'];
+const VALID_ENTITY_STRATEGIES: readonly EntityStrategy[] = ['all', 'selected', 'none'];
 
 export function registerScreenplayImportPdfAiRoute(app: Express): void {
   app.post(
@@ -107,24 +41,54 @@ export function registerScreenplayImportPdfAiRoute(app: Express): void {
         return;
       }
 
-      try {
-        await requireTier({ uid }, 'greenlit');
-      } catch (e) {
-        res.status(403).json({
-          error: e instanceof Error ? e.message : 'Requires greenlit tier or higher',
-        });
-        return;
-      }
+      const body = (req.body ?? {}) as Record<string, unknown>;
 
-      if (!getAiConfig()) {
-        res.status(503).json({ error: 'AI import is not configured on the server' });
-        return;
-      }
-
-      const projectId = typeof req.body?.projectId === 'string' ? req.body.projectId : '';
+      const projectId = typeof body.projectId === 'string' ? body.projectId : '';
       if (!projectId || !mongoose.Types.ObjectId.isValid(projectId)) {
         res.status(400).json({ error: 'Invalid or missing projectId' });
         return;
+      }
+
+      const doc = body.doc;
+      if (!doc || typeof doc !== 'object' || Array.isArray(doc)) {
+        res.status(400).json({ error: 'Missing or invalid doc' });
+        return;
+      }
+
+      const mode: ImportMode = VALID_MODES.includes(body.mode as ImportMode)
+        ? (body.mode as ImportMode)
+        : 'replace';
+
+      // `withAi` opts into character/scene generation. Defaults true so the existing create-project
+      // caller, which predates the flag, keeps its behaviour.
+      const withAi = body.withAi !== false;
+
+      // Deriving characters and scenes is the greenlit+ feature; writing screenplay content is not.
+      if (withAi) {
+        try {
+          await requireTier({ uid }, 'greenlit');
+        } catch (e) {
+          res.status(403).json({
+            error:
+              e instanceof Error ? e.message : 'Requires greenlit tier or higher',
+          });
+          return;
+        }
+        if (!getAiConfig()) {
+          res
+            .status(503)
+            .json({ error: 'AI import is not configured on the server' });
+          return;
+        }
+      } else {
+        try {
+          await requireTier({ uid }, 'spec');
+        } catch (e) {
+          res
+            .status(403)
+            .json({ error: e instanceof Error ? e.message : 'Forbidden' });
+          return;
+        }
       }
 
       try {
@@ -137,172 +101,65 @@ export function registerScreenplayImportPdfAiRoute(app: Express): void {
         throw e;
       }
 
-      const doc = req.body?.doc;
-      if (!doc || typeof doc !== 'object' || doc === null) {
-        res.status(400).json({ error: 'Missing or invalid doc' });
-        return;
-      }
+      const documentId =
+        typeof body.documentId === 'string' &&
+        mongoose.Types.ObjectId.isValid(body.documentId)
+          ? body.documentId
+          : null;
 
-      const pageCountRaw = req.body?.pageCount;
-      const pageCount =
-        typeof pageCountRaw === 'number' &&
-        Number.isFinite(pageCountRaw) &&
-        pageCountRaw >= 0
-          ? Math.floor(pageCountRaw)
-          : 0;
-
-      const layoutRaw = req.body?.layout;
-      const layout =
-        layoutRaw != null && typeof layoutRaw === 'object' && !Array.isArray(layoutRaw)
-          ? layoutRaw
-          : undefined;
+      const entityStrategy: EntityStrategy = VALID_ENTITY_STRATEGIES.includes(
+        body.entityStrategy as EntityStrategy,
+      )
+        ? (body.entityStrategy as EntityStrategy)
+        : 'all';
 
       try {
-        await saveScreenplay(null, { projectId, content: doc, ...(layout ? { layout } : {}) });
-      } catch (e) {
-        console.error('[import-pdf-ai] saveScreenplay:', e);
-        res.status(500).json({ error: 'Failed to save screenplay' });
-        return;
-      }
-
-      await Projects.findByIdAndUpdate(projectId, {
-        $set: { pageCountEstimate: pageCount },
-      }).exec();
-
-      const deterministicChars = extractDialogueCueCharacters(doc);
-      const outlineScenes = extractOutlineScenesForEnrichment(doc);
-
-      let finalChars = deterministicChars;
-      let sceneAnalyses: NonNullable<EnrichScreenplayImportResponse['sceneAnalyses']> = [];
-      const enrichmentWarnings: string[] = [];
-
-      try {
-        const enriched = await forwardEnrichmentToAi({
+        const result = await importScreenplayPdf({
           projectId,
-          characterNames: deterministicChars.map((c) => c.name),
-          scenes: outlineScenes.map((s) => ({
-            index: s.index,
-            sceneHeading: s.sceneHeading,
-            synopsis: s.synopsis,
-            scenePlainText: s.scenePlainText,
-          })),
+          doc: doc as Record<string, unknown>,
+          pageCount: coercePageCount(body.pageCount),
+          layout: coerceLayout(body.layout),
+          mode,
+          documentId,
+          documentName:
+            typeof body.documentName === 'string' ? body.documentName : null,
+          sourceFileName:
+            typeof body.sourceFileName === 'string' ? body.sourceFileName : null,
+          withAi,
+          entityStrategy,
+          replaceCharacterIds: coerceIdList(body.replaceCharacterIds),
+          replaceSceneIds: coerceIdList(body.replaceSceneIds),
         });
-        const aiChars =
-          Array.isArray(enriched.characters) && enriched.characters.length > 0
-            ? enriched.characters
-                .filter((c) => c && typeof c.name === 'string' && c.name.trim() !== '')
-                .map((c) => ({ name: (c.name as string).trim() }))
-            : [];
-        if (aiChars.length > 0) {
-          finalChars = aiChars;
-        } else {
-          finalChars = deterministicChars;
-        }
-        sceneAnalyses = Array.isArray(enriched.sceneAnalyses) ? enriched.sceneAnalyses : [];
-        if (Array.isArray(enriched.warnings)) {
-          enrichmentWarnings.push(...enriched.warnings);
-        }
+
+        res.json({ ok: true, ...result });
       } catch (e) {
-        const message = e instanceof Error ? e.message : 'AI enrichment unavailable';
-        console.error('[import-pdf-ai] forward to AI:', message);
-        enrichmentWarnings.push(message);
-        finalChars = deterministicChars;
-        sceneAnalyses = [];
+        const message =
+          e instanceof Error ? e.message : 'Failed to import screenplay';
+        console.error('[import-pdf-ai]', message);
+        // A bad documentId is the caller's mistake, not a server fault.
+        const status = /not found/i.test(message) ? 400 : 500;
+        res.status(status).json({ error: message });
       }
-
-      const analysisByIndex = new Map<number, NonNullable<(typeof sceneAnalyses)[number]>>();
-      for (const a of sceneAnalyses) {
-        if (
-          !a ||
-          typeof a.index !== 'number' ||
-          !Number.isFinite(a.index)
-        ) {
-          continue;
-        }
-        analysisByIndex.set(Math.floor(a.index), a);
-      }
-
-      const entityErrors: string[] = [];
-      let charactersCreated = 0;
-      let scenesCreated = 0;
-
-      for (const c of finalChars) {
-        const name = typeof c?.name === 'string' ? c.name.trim() : '';
-        if (!name) continue;
-        try {
-          await createCharacterService(projectId, {
-            activeVersion: 1,
-            details: [{ name, version: 1 }],
-          });
-          charactersCreated++;
-        } catch (err) {
-          entityErrors.push(
-            `character "${name}": ${err instanceof Error ? err.message : 'failed'}`,
-          );
-        }
-      }
-
-      for (const meta of outlineScenes) {
-        const sceneHeading = meta.sceneHeading.trim();
-        if (!sceneHeading) continue;
-        const synopsis =
-          typeof meta.synopsis === 'string' && meta.synopsis.trim()
-            ? meta.synopsis.trim()
-            : undefined;
-        const ana = analysisByIndex.get(meta.index);
-
-        try {
-          await createSceneService(projectId, {
-            activeVersion: 1,
-            versions: [
-              {
-                version: 1,
-                sceneHeading,
-                synopsis,
-                thesis:
-                  ana && typeof ana.thesis === 'string' ? ana.thesis.trim() : undefined,
-                antithesis:
-                  ana && typeof ana.antithesis === 'string'
-                    ? ana.antithesis.trim()
-                    : undefined,
-                synthesis:
-                  ana && typeof ana.synthesis === 'string'
-                    ? ana.synthesis.trim()
-                    : undefined,
-              },
-            ],
-          });
-          scenesCreated++;
-        } catch (err) {
-          const label =
-            sceneHeading.length > 40 ? `${sceneHeading.slice(0, 40)}…` : sceneHeading;
-          entityErrors.push(
-            `scene "${label}": ${err instanceof Error ? err.message : 'failed'}`,
-          );
-        }
-      }
-
-      const contentArr =
-        doc &&
-        typeof doc === 'object' &&
-        doc !== null &&
-        'content' in doc &&
-        Array.isArray((doc as { content?: unknown }).content)
-          ? (doc as { content: unknown[] }).content
-          : [];
-
-      for (const w of enrichmentWarnings.slice(0, 12)) {
-        entityErrors.push(`enrichment: ${w}`);
-      }
-
-      res.json({
-        ok: true,
-        titleHint: null,
-        screenplayBlockCount: contentArr.length,
-        charactersCreated,
-        scenesCreated,
-        entityErrors,
-      });
     },
+  );
+}
+
+function coercePageCount(raw: unknown): number {
+  return typeof raw === 'number' && Number.isFinite(raw) && raw >= 0
+    ? Math.floor(raw)
+    : 0;
+}
+
+function coerceLayout(raw: unknown): Record<string, unknown> | undefined {
+  return raw != null && typeof raw === 'object' && !Array.isArray(raw)
+    ? (raw as Record<string, unknown>)
+    : undefined;
+}
+
+function coerceIdList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (id): id is string =>
+      typeof id === 'string' && mongoose.Types.ObjectId.isValid(id),
   );
 }

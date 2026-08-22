@@ -28,6 +28,9 @@ import { useUserProfileStore } from '@/state/user';
 import { useCreateCharacterModalStore } from '@/state/createCharacterModal';
 import { LOCK_ALL_CHARACTERS, UNLOCK_CHARACTERS_SECTION } from 'mutations/ProjectMutations';
 import { FeatureGate } from '@/components/Auth/FeatureGate';
+import { useScreenplayDocuments } from '@hooks/useScreenplayDocuments';
+import { ScreenplayDocumentTabs } from '@/components/ScreenplayEditor/ScreenplayDocumentTabs';
+import { filterByDocument } from '@/lib/screenplayDocumentEntities';
 import '@/styles/charactersPage.css';
 
 const endpoint = GRAPHQL_ENDPOINT;
@@ -67,7 +70,29 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
   }) as { data?: { getProjectData?: Array<Record<string, unknown>> } };
 
   const project = data?.getProjectData?.[0];
-  const characters = (project?.characters as Array<Record<string, unknown>> | undefined) ?? [];
+
+  /**
+   * Character cards are scoped to the selected screenplay document, so a project that imported a
+   * second script shows that script's cast on its own tab rather than merging both casts.
+   */
+  const {
+    documents: screenplayDocuments,
+    activeDocumentId,
+    setActiveDocumentId,
+  } = useScreenplayDocuments(projectId);
+  const primaryDocumentId =
+    screenplayDocuments.find((d) => d.isPrimary)?._id ?? screenplayDocuments[0]?._id ?? null;
+
+  const allCharacters =
+    (project?.characters as Array<Record<string, unknown>> | undefined) ?? [];
+  const characters = React.useMemo(
+    () =>
+      filterByDocument(
+        allCharacters as Array<{ screenplayDocumentId?: string | null }>,
+        { activeDocumentId, primaryDocumentId },
+      ) as Array<Record<string, unknown>>,
+    [allCharacters, activeDocumentId, primaryDocumentId],
+  );
   const charactersSectionLocked = Boolean(project?.charactersSectionLocked);
   const totalCharacters = characters.length;
 
@@ -95,6 +120,9 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
     mutationFn: async (values: NewCharacterValues) => {
       const payload = {
         imageUrl: values.imageUrl.trim() || undefined,
+        // Tag the new character to the tab being viewed, or it would be filtered out of the grid
+        // the moment it is created.
+        screenplayDocumentId: activeDocumentId,
         details: [
           {
             name: values.name,
@@ -262,6 +290,12 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
       breadcrumbRightAdornment={breadcrumbActions}
       contentSx={{ display: 'flex', flexDirection: 'column', flex: 'none', minHeight: 0, overflow: 'visible', pl: 0, pt: 0 }}
     >
+      <ScreenplayDocumentTabs
+        documents={screenplayDocuments}
+        activeDocumentId={activeDocumentId}
+        onChange={setActiveDocumentId}
+      />
+
       <ScrollableContentArea
         className="characters-page-cards"
         sx={{
