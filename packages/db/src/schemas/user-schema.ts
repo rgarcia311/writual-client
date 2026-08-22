@@ -7,6 +7,9 @@ const userSettingsSchema = new mongoose.Schema({
   // Visible stat tiles per project page, keyed by page ('overview' | 'characters' | 'notes' | 'outline').
   // A missing key means that page falls back to its default tiles; an empty array means the user hid them all.
   statTilePreferences: { type: Map, of: [String], default: {} },
+  // Set once the user finishes the intro walkthrough or ticks "Don't show this again" inside it.
+  // While false (the default for every new account) the walkthrough auto-starts after login.
+  walkthroughDismissed: { type: Boolean, default: false },
 }, { _id: false });
 
 export const userSchema = new mongoose.Schema({

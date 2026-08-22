@@ -17,6 +17,8 @@ import { useScreenplayLivePagesStore } from '@/state/screenplayLivePages';
 import type { DevelopmentLockSummary, DraftDeadline, ProgressItem } from '../../utils/progress';
 import { computeProjectStatTileData } from './computeProjectStatTileData';
 import type { ProjectStatPageKey } from './buildProjectStatTiles';
+import type { LoglineVersion } from '@/interfaces/logline';
+import type { ProjectAccess } from '../../utils/projectPermissions';
 
 const endpoint = GRAPHQL_ENDPOINT;
 
@@ -80,6 +82,12 @@ function getStatPageKey(pathname: string | null, projectId: string | undefined):
 export interface ProjectStatTileData {
   progress: ProgressItem[];
   developmentLocks: DevelopmentLockSummary;
+  /** `project.logline` — the source of truth the Logline History tile mirrors. */
+  currentLogline: string;
+  /** Logline iterations, newest first, with exactly one flagged current. */
+  loglineHistory: LoglineVersion[];
+  /** What the viewer may do with the logline: write versions, or only leave feedback. */
+  loglineAccess: ProjectAccess;
   /** Draft due dates in date order for the Deadline Tracking tile. */
   draftDeadlines: DraftDeadline[];
   /** Project identity for tile-level mutations; fields are blank when a query omits them. */
@@ -123,6 +131,9 @@ export function useProjectShellData() {
     projectId && s.projectId === projectId ? s.liveBodyPages : null,
   );
 
+  // Selector rather than getState(), so tiles re-derive access once the profile hydrates.
+  const viewerUid = useUserProfileStore((s) => s.userProfile?.user ?? null);
+
   const writingTracker = (projectData as { writingTracker?: Project['writingTracker'] }).writingTracker ?? null;
 
   const progress = React.useMemo(
@@ -135,8 +146,9 @@ export function useProjectShellData() {
       computeProjectStatTileData(
         projectData as Parameters<typeof computeProjectStatTileData>[0],
         liveBodyPages,
+        viewerUid,
       ),
-    [projectData, liveBodyPages],
+    [projectData, liveBodyPages, viewerUid],
   );
 
   const updateProjectMutation = useMutation({

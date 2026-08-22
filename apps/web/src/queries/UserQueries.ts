@@ -7,7 +7,7 @@ export const ME_QUERY = gql`
       name
       displayName
       tier
-      settings { colorMode statTilePreferences }
+      settings { colorMode statTilePreferences walkthroughDismissed }
     }
   }
 `;
@@ -18,6 +18,16 @@ export const STAT_TILE_PREFERENCES_QUERY = gql`
     me {
       uid
       settings { statTilePreferences }
+    }
+  }
+`;
+
+/** Walkthrough flag only — read on demand without re-running the login display-name sync. */
+export const WALKTHROUGH_DISMISSED_QUERY = gql`
+  query WalkthroughDismissed {
+    me {
+      uid
+      settings { walkthroughDismissed }
     }
   }
 `;

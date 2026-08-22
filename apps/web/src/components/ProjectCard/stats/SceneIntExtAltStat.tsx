@@ -44,7 +44,10 @@ export function SceneIntExtAltStat({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, gap: stackGap, minHeight: 0, minWidth: 0 }}>
-      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
+      <Box
+        className="stat-tile-heading"
+        sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}
+      >
         <Typography variant="body2" sx={{ fontWeight: 700, fontSize: compact ? '0.8rem' : undefined }}>
           Scene Stats
         </Typography>

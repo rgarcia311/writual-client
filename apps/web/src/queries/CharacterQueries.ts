@@ -43,6 +43,17 @@ query GetProjectTrackingStats($input: ProjectFilters!) {
     progressTrackingEnabled
     title
     logline
+    sharedWith
+    loglineHistory {
+      _id
+      text
+      authorUid
+      authorName
+      current
+      createdAt
+      feedback { _id authorUid authorName text createdAt }
+    }
+    collaborators { _id uid email status permissionLevel aspects }
     genre
     type
     activeVersion

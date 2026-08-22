@@ -11,3 +11,9 @@ export const CLEAR_STAT_TILE_PREFERENCE = gql`
     clearStatTilePreference(page: $page)
   }
 `;
+
+export const SET_WALKTHROUGH_DISMISSED = gql`
+  mutation SetWalkthroughDismissed($dismissed: Boolean!) {
+    setWalkthroughDismissed(dismissed: $dismissed)
+  }
+`;

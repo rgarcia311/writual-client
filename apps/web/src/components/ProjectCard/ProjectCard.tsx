@@ -62,6 +62,8 @@ interface ProjectCardProps {
   progressTrackingEnabled?: boolean;
   /** Called when user clicks "Add Progress Tracking" in the actions menu */
   onEnableProgressTracking?: () => void;
+  /** Marks this card as the one the intro walkthrough points at when it asks for a click. */
+  tourAnchor?: boolean;
 }
 
 interface ProjectMetadataRowsProps {
@@ -153,6 +155,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   writingTracker,
   progressTrackingEnabled = false,
   onEnableProgressTracking,
+  tourAnchor = false,
   progress = [
     { label: 'Title', status: 'complete' },
     { label: 'Logline', status: 'complete' },
@@ -192,6 +195,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
       tabIndex={to && !headerOnly ? 0 : undefined}
       onKeyDown={to && !headerOnly ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(to); } } : undefined}
       onClick={headerOnly ? undefined : handleCardClick}
+      data-tour={tourAnchor ? 'project-card' : undefined}
       {...hoverHandlers}
       style={xrStyle}
       elevation={enableCardShadow ? 1 : 0}

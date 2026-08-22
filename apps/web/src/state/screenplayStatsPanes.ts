@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type ScreenplayStatPaneKey = 'overview' | 'progress' | 'characters' | 'scenes' | 'deadlines';
+export type ScreenplayStatPaneKey = 'overview' | 'logline' | 'progress' | 'characters' | 'scenes' | 'deadlines';
 
 /** Assumed pane footprint for clamping — panes aren't measured before mount, so this is a conservative estimate. */
 const PANE_WIDTH_PX = 300;

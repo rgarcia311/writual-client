@@ -22,6 +22,7 @@ import { ThemeToggleProvider } from '../themes/ThemeToggleContext';
 import { CreateProjectWrapper } from '../components/CreateProjectWrapper';
 import { AppTopBar } from '../components/AppTopBar';
 import { ClientOnlyMuiLayout } from '../components/ClientOnlyMuiLayout';
+import { WalkthroughProvider } from '../components/Walkthrough';
 
 const client = new QueryClient();
 
@@ -65,6 +66,7 @@ export function RootLayoutClient({
                 </Box>
               </Box>
               <CreateProjectWrapper />
+              <WalkthroughProvider />
             </ThemeToggleProvider>
           </ThemeProvider>
         </QueryClientProvider>

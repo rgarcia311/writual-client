@@ -4,6 +4,7 @@ import { outlineFrameworkSchema } from "./outline-schema";
 import { inspirationSchema } from "./inspiration-schema";
 import { screenplaySchema } from "./screenplay-schema";
 import { feedbackSchema } from "./feedback-schema";
+import { loglineVersionSchema } from "./logline-schema";
 
 const collaboratorSchema = new mongoose.Schema({
   email:           { type: String, required: true },
@@ -64,6 +65,8 @@ export const projectSchema = new mongoose.Schema({
     genre: { type: String },
     title: { type: String },
     logline: { type: String },
+    /** Iteration history for the logline; the entry with `current: true` mirrors `logline`. */
+    loglineHistory: { type: [loglineVersionSchema], default: [] },
     budget: { type: Number },
     poster: { type: String },
     timePeriod: { type: String },

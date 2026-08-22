@@ -20,7 +20,8 @@
   /* Flex basis for the growing stat tiles: they wrap below this rather than squeezing further. */
   --project-float-stat-basis: 240px;
   --project-float-stat-min-height: 200px;
-  --project-float-tracking-stat-min-height: 272px;
+  /* Logline History tile: how tall its version list grows before it scrolls internally. */
+  --project-float-logline-list-max-height: 220px;
   --project-float-stat-gap: var(--app-body-padding);
   --project-float-stat-surface-padding: 4px;
   --project-float-stat-inner-padding: 5px;
@@ -44,6 +45,23 @@
     var(--project-float-poster-content-width) + 2 * var(--project-float-stat-surface-padding) +
       2 * var(--project-float-stat-inner-padding)
   );
+  /*
+   * The poster card is the one fixed quantity on the hero row: both axes are pinned to the artwork,
+   * so adding or removing neighbouring cards — and a tall Deadline Tracking card in particular —
+   * never stretches or shrinks it.
+   */
+  --project-float-poster-card-height: calc(
+    var(--project-float-poster-content-height) + 2 * var(--project-float-stat-surface-padding) +
+      2 * var(--project-float-stat-inner-padding)
+  );
+  /*
+   * Every card on the hero row is exactly as tall as the poster — the row's one fixed quantity.
+   * A card whose content does not fit scrolls vertically inside that height instead of making the
+   * row taller, so the row's height never depends on which cards are showing or how full they are.
+   */
+  --project-float-hero-card-height: var(--project-float-poster-card-height);
+  /* Deadline Tracking yields width first: narrower basis, less grow, more shrink than its peers. */
+  --project-float-deadline-stat-basis: 190px;
   --project-float-project-tiles-width: calc(
     var(--project-float-poster-card-width) + var(--project-float-stat-gap) +
       var(--project-float-info-width)
@@ -52,7 +70,7 @@
   --z-index-breadcrumbs: 20;
   --z-index-project-card: 10;
   --z-index-project-stats: 9;
-  --project-float-card-reserved-height: var(--project-float-stat-min-height);
+  --project-float-card-reserved-height: var(--project-float-hero-card-height);
   --project-content-inset-top: calc(
     var(--project-float-card-top) + var(--project-float-card-reserved-height) +
       var(--app-body-padding)
@@ -60,7 +78,7 @@
   --project-content-inset-left: calc(var(--project-float-hero-width) + var(--app-body-padding));
   /* Sticky stats block: top pad + stat row + visual gap before character cards */
   --project-float-sticky-stats-block-height: calc(
-    var(--project-float-stat-min-height) + 2 * var(--app-body-padding)
+    var(--project-float-hero-card-height) + 2 * var(--app-body-padding)
   );
   --project-characters-stats-cards-gap: var(--app-body-padding);
   /* <PROTECTED> — character card dimensions; see .cursor/rules/character-card-dimensions.mdc */
@@ -230,14 +248,11 @@
   align-self: stretch;
 }
 
-/* Characters stats row: match poster/info height — avoid 272px rail stretch + centered poster image */
-.project-float-hero--fluid .project-float-tracking-stat.project-float-stat-anchor {
-  min-height: var(--project-float-stat-min-height);
-}
-
 .project-float-hero--fluid .project-float-poster-anchor {
-  min-height: auto;
-  height: auto;
+  align-self: flex-start;
+  height: var(--project-float-poster-card-height);
+  min-height: var(--project-float-poster-card-height);
+  max-height: var(--project-float-poster-card-height);
 }
 
 /*
@@ -275,9 +290,10 @@
 .project-float-tracking-stat.project-float-stat-anchor {
   width: 100%;
   min-width: 0;
-  min-height: var(--project-float-tracking-stat-min-height);
-  height: auto;
-  overflow: visible;
+  height: var(--project-float-hero-card-height);
+  min-height: var(--project-float-hero-card-height);
+  max-height: var(--project-float-hero-card-height);
+  overflow: hidden;
 }
 
 .project-float-tracking-stat.project-float-stat-anchor > .MuiBox-root {
@@ -292,10 +308,13 @@
   position: relative;
   top: auto;
   left: auto;
-  flex-shrink: 0;
+  flex: 0 0 var(--project-float-poster-card-width);
+  align-self: flex-start;
   width: var(--project-float-poster-card-width);
   max-width: var(--project-float-poster-card-width);
-  min-height: var(--project-float-stat-min-height);
+  height: var(--project-float-poster-card-height);
+  min-height: var(--project-float-poster-card-height);
+  max-height: var(--project-float-poster-card-height);
   overflow: hidden;
 }
 
@@ -304,17 +323,25 @@
   top: auto;
   left: auto;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
   width: var(--project-float-info-width);
   max-width: var(--project-float-info-width);
-  min-height: var(--project-float-stat-min-height);
-  overflow: visible;
+  height: var(--project-float-hero-card-height);
+  min-height: var(--project-float-hero-card-height);
+  max-height: var(--project-float-hero-card-height);
+  overflow: hidden;
+}
+
+.project-float-info-anchor > .MuiBox-root {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
 }
 
 .project-float-poster-anchor > .MuiBox-root {
   height: 100%;
-  min-height: calc(
-    var(--project-float-stat-min-height) - 2 * var(--project-float-stat-surface-padding)
-  );
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -330,11 +357,55 @@
   border-radius: calc(var(--project-float-radius, 12px) - 2px);
 }
 
+/*
+ * Deadline Tracking is the row's flexible slack: it starts narrower, claims less of any leftover
+ * width, and gives width back three times as fast as the other tiles when the row is cramped.
+ */
+.project-float-tracking-stat--deadlines,
+.project-float-hero--with-stats .project-float-tracking-stat--deadlines {
+  flex: 0.6 3 var(--project-float-deadline-stat-basis);
+}
+
+/* Long draft lists ride the card's own scroller rather than nesting a second one inside it. */
+.project-float-tracking-stat--deadlines .deadline-tracking-stat__list {
+  flex-shrink: 0;
+  max-height: none;
+  overflow: visible;
+}
+
 .project-float-stat-anchor {
+  /* A tile that caps a list to scroll it internally gives that cap up inside a card: one scrollbar
+     per card, never a scroller nested in a scroller. (Screenplay stat panes keep their own caps.) */
+  --project-float-logline-list-max-height: none;
   z-index: var(--z-index-project-stats);
   width: var(--project-float-stat-width);
-  min-height: var(--project-float-stat-min-height);
-  overflow: visible;
+  height: var(--project-float-hero-card-height);
+  min-height: var(--project-float-hero-card-height);
+  max-height: var(--project-float-hero-card-height);
+  overflow: hidden;
+}
+
+/* The card body is the scroller; its tile keeps its natural height instead of being squeezed. */
+.project-float-stat-anchor > .MuiBox-root {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.project-float-stat-anchor > .MuiBox-root > * {
+  flex-shrink: 0;
+}
+
+/*
+ * Tile headers stay put while the rest of the card scrolls under them. The offset box-shadow is a
+ * repaint of the header 8px higher: it covers the scroller's own top padding, the one strip inside
+ * the scrollport that a sticky header does not reach.
+ */
+.project-float-stat-anchor .stat-tile-heading {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: var(--project-float-card-bg, transparent);
+  box-shadow: 0 -8px 0 var(--project-float-card-bg, transparent);
 }
 
 .project-details-float-main {
@@ -389,6 +460,10 @@
   .project-float-info-anchor {
     width: 100%;
     max-width: 100%;
+  }
+
+  .project-float-poster-anchor {
+    flex: 0 0 auto;
   }
 
   /* Stacked layout: the tile is on its own row and sized by its content, so pin the image height
