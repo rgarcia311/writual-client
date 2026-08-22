@@ -22,7 +22,11 @@ import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import { NewCharacterForm, type NewCharacterValues } from '@/components/NewCharacterForm';
 import { AppAlert } from '@/components/AppAlert';
-import { createCharacter as createCharacterAction, updateCharacter as updateCharacterAction } from '../../app/actions/characters';
+import {
+  createCharacter as createCharacterAction,
+  updateCharacter as updateCharacterAction,
+  deleteCharacter as deleteCharacterAction,
+} from '../../app/actions/characters';
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { useUserProfileStore } from '@/state/user';
 import { useCreateCharacterModalStore } from '@/state/createCharacterModal';
@@ -54,6 +58,10 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
     characterId: string;
     version: number | undefined;
     initialValues: NewCharacterValues;
+  } | null>(null);
+  const [characterPendingDelete, setCharacterPendingDelete] = React.useState<{
+    characterId: string;
+    name: string;
   } | null>(null);
 
   const getCharacters = async () => {
@@ -197,6 +205,22 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
     },
   });
 
+  const deleteCharacterMutation = useMutation({
+    mutationFn: (characterId: string) => deleteCharacterAction(characterId),
+    onSuccess: async () => {
+      setCharacterPendingDelete(null);
+      // Deleting moves project character counts, so refresh the stat rail alongside the grid.
+      await queryClient.invalidateQueries({ queryKey: ['project-characters', projectId] });
+      await queryClient.refetchQueries({ queryKey: ['project-characters', projectId] });
+      await queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+      await queryClient.invalidateQueries({ queryKey: ['project-tracking-stats', projectId] });
+    },
+    onError: (err: { message?: string }) => {
+      setErrorMessage(err?.message || 'Failed to delete character.');
+      setErrorOpen(true);
+    },
+  });
+
   const handleSubmit = (values: NewCharacterValues) => {
     createCharacterMutation.mutate(values);
   };
@@ -222,6 +246,11 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
 
   const handleEditSubmit = (values: NewCharacterValues) => {
     updateCharacterDetailsMutation.mutate(values);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!characterPendingDelete) return;
+    deleteCharacterMutation.mutate(characterPendingDelete.characterId);
   };
 
   const breadcrumbActions = (
@@ -339,6 +368,17 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
                 })
               }
               onEditClick={(detail) => handleEditClick(character, detail)}
+              onDeleteClick={
+                // The server rejects deletes while the section is locked, so hide the control
+                // entirely rather than offering an action that can only fail.
+                charactersSectionLocked
+                  ? undefined
+                  : () =>
+                      setCharacterPendingDelete({
+                        characterId: character._id as string,
+                        name: (character.name as string) ?? 'This character',
+                      })
+              }
             />
           );
         })}
@@ -357,6 +397,29 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
         submitting={updateCharacterDetailsMutation.isPending}
         initialValues={editingCharacter?.initialValues}
       />
+      <Dialog
+        open={Boolean(characterPendingDelete)}
+        onClose={() => setCharacterPendingDelete(null)}
+      >
+        <DialogTitle>Delete character?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {`"${characterPendingDelete?.name?.trim() || 'This character'}" and all of its versions will be permanently deleted. This can't be undone.`}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCharacterPendingDelete(null)}>Cancel</Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleConfirmDelete}
+            disabled={deleteCharacterMutation.isPending}
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <AppAlert
         open={errorOpen}
         onClose={() => setErrorOpen(false)}

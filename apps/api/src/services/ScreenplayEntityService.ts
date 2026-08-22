@@ -147,3 +147,61 @@ function toObjectIds(ids: string[]): mongoose.Types.ObjectId[] {
   return out;
 }
 
+
+/**
+ * The character names and scene headings a screenplay document already has.
+ *
+ * An import runs after the clearing step, so whatever this returns is what genuinely survived —
+ * cards the writer chose to keep, and locked cards, which no strategy deletes. Recreating any of
+ * them from the incoming script is what produced duplicate cards, so the import skips them.
+ *
+ * Scene headings are counted rather than collected into a set: a script legitimately revisits a
+ * location ("INT. KITCHEN - DAY" three times is three scenes), so the import must only skip as many
+ * repeats as already exist and create the rest.
+ */
+export async function loadExistingEntityKeys(
+  projectId: mongoose.Types.ObjectId,
+  documentId: mongoose.Types.ObjectId,
+  options: { includeUntagged?: boolean } = {}
+): Promise<{ characterNames: Set<string>; sceneHeadingCounts: Map<string, number> }> {
+  const documentMatch = options.includeUntagged
+    ? { $or: [{ screenplayDocumentId: documentId }, { screenplayDocumentId: null }] }
+    : { screenplayDocumentId: documentId };
+  const match = { projectId, ...documentMatch };
+
+  const [characters, scenes] = await Promise.all([
+    Characters.find(match).select("details").lean().exec(),
+    Scenes.find(match).select("versions activeVersion").lean().exec(),
+  ]);
+
+  const characterNames = new Set<string>();
+  for (const c of characters as Array<{ details?: Array<{ name?: string }> }>) {
+    // Every version's name counts. A rename across versions would otherwise read as "missing" and
+    // be recreated; over-matching only ever means "leave it alone", which is the safer mistake.
+    for (const detail of c.details ?? []) {
+      const key = normalizeEntityKey(detail?.name);
+      if (key) characterNames.add(key);
+    }
+  }
+
+  const sceneHeadingCounts = new Map<string, number>();
+  for (const s of scenes as Array<{
+    versions?: Array<{ version?: number; sceneHeading?: string }>;
+    activeVersion?: number;
+  }>) {
+    const versions = s.versions ?? [];
+    const active =
+      versions.find((v) => Number(v?.version) === Number(s.activeVersion ?? 1)) ?? versions[0];
+    const key = normalizeEntityKey(active?.sceneHeading);
+    if (!key) continue;
+    sceneHeadingCounts.set(key, (sceneHeadingCounts.get(key) ?? 0) + 1);
+  }
+
+  return { characterNames, sceneHeadingCounts };
+}
+
+/** Case- and whitespace-insensitive match key; empty string means "no usable value". */
+export function normalizeEntityKey(value: string | null | undefined): string {
+  if (typeof value !== "string") return "";
+  return value.trim().replace(/\s+/g, " ").toUpperCase();
+}

@@ -12,6 +12,7 @@ import { Box, IconButton as MuiIconButton, Tooltip } from '@mui/material';
 import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import EditIcon from '@mui/icons-material/Edit';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { VersionSelectorWithAdd } from '@/components/VersionSelectorWithAdd/VersionSelectorWithAdd';
 import { useSpatialHoverLift } from '@/hooks/useSpatialHoverLift';
 
@@ -60,6 +61,11 @@ interface CharacterCardProps {
   /** Called when user clicks the edit icon; receives the currently displayed version's details. */
   onEditClick?: (detail: Record<string, unknown> | undefined) => void;
   /**
+   * Called when user clicks the delete icon. The icon only renders when this is provided, so
+   * read-only surfaces (screenplay panes, locked sections) simply omit it.
+   */
+  onDeleteClick?: () => void;
+  /**
    * Narrow parents (e.g. screenplay side panel): full width, no grid percentage width.
    */
   fullWidthInParent?: boolean;
@@ -78,6 +84,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   onAddVersion,
   onToggleLock,
   onEditClick,
+  onDeleteClick,
   fullWidthInParent = false,
   gridTile = false,
 }) => {
@@ -159,6 +166,24 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                 <EditIcon fontSize="small" />
               </MuiIconButton>
             </Tooltip>
+            {onDeleteClick && (
+              <Tooltip title={locked ? 'Unlock character to delete' : 'Delete character'}>
+                {/* Span keeps the tooltip working while the button is disabled. */}
+                <span>
+                  <MuiIconButton
+                    size="small"
+                    disabled={locked}
+                    aria-label="Delete character"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteClick();
+                    }}
+                  >
+                    <DeleteOutlineIcon fontSize="small" />
+                  </MuiIconButton>
+                </span>
+              </Tooltip>
+            )}
           </Box>
           <Box sx={{ pointerEvents: 'auto' }}>
             <VersionSelectorWithAdd
