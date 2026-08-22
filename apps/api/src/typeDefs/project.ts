@@ -13,6 +13,7 @@ import { createScene as createSceneService, updateScene as updateSceneService, d
 import { createCharacter as createCharacterService, updateCharacter as updateCharacterService, deleteCharacter as deleteCharacterService } from "../services/CharacterService";
 import { createNote as createNoteService, updateNote as updateNoteService, deleteNote as deleteNoteService } from "../services/NoteService";
 import { seedLoglineHistory, addLoglineVersion, updateLoglineVersion, deleteLoglineVersion, setCurrentLoglineVersion, addLoglineFeedback, deleteLoglineFeedback } from "../services/LoglineService";
+import { createScreenplayDocument as createScreenplayDocumentService, renameScreenplayDocument as renameScreenplayDocumentService, deleteScreenplayDocument as deleteScreenplayDocumentService, getScreenplayDocumentWithContent, pickPrimary, type ScreenplayDocumentRow } from "../services/ScreenplayDocumentService";
 export const ProjectType = `#graphql
 
     scalar JSON
@@ -40,6 +41,12 @@ export const ProjectType = `#graphql
         getProjectMessages(conversationId: ID!, limit: Int, offset: Int): [Message]
         getProjectChats: [ChatThread]
         getProjectConversations(projectId: ID!): [ConversationThread]
+        """
+        One screenplay document including its script body. Project.screenplayDocuments returns
+        metadata only, so the editor reads the document it is displaying through this.
+        Omit documentId to get the project's primary document.
+        """
+        getScreenplayDocument(projectId: ID!, documentId: ID): ScreenplayDocument
     }
 
     type Message {
@@ -119,7 +126,11 @@ export const ProjectType = `#graphql
         updateProjectSharedWith(projectId: String!, sharedWith: [String]): Project
         createinspiration(input: inspirationInput!): Project
         deleteinspiration(projectId: String!, inspirationId: String!): Project
-        saveScreenplay(projectId: ID!, content: JSON!, estimatedPageCount: Int, layout: JSON): Screenplay
+        """Writes content into one screenplay document; omit documentId to target the primary."""
+        saveScreenplay(projectId: ID!, documentId: ID, content: JSON!, estimatedPageCount: Int, layout: JSON): ScreenplayDocument
+        createScreenplayDocument(projectId: ID!, name: String, content: JSON, layout: JSON, pageCount: Int, sourceFileName: String): ScreenplayDocument
+        renameScreenplayDocument(projectId: ID!, documentId: ID!, name: String!): ScreenplayDocument
+        deleteScreenplayDocument(projectId: ID!, documentId: ID!): DeleteScreenplayDocumentResult
         syncWritingTrackerCurrentPages(projectId: ID!, currentPageCount: Int!): Project
         lockAllScenesInOutline(projectId: String!): LockAllScenesResult
         lockAllCharacters(projectId: String!): LockAllCharactersResult
@@ -226,7 +237,10 @@ export const ProjectType = `#graphql
         notes: [Note]
         outline: Outline
         inspiration: [inspiration]
+        """The primary screenplay document, in the legacy shape. Prefer screenplayDocuments."""
         screenplay: Screenplay
+        """Every screenplay document on the project, in tab order."""
+        screenplayDocuments: [ScreenplayDocument]
         feedback: Feedback
         stats: ProjectStats
         pageCountEstimate: Int
@@ -355,6 +369,8 @@ export const ProjectType = `#graphql
     type Scene {
         _id: String!
         projectId: String
+        """Screenplay document this scene came from; null means the project's primary document."""
+        screenplayDocumentId: String
         activeVersion: Int
         lockedVersion: Int
         newVersion: Boolean
@@ -372,6 +388,8 @@ export const ProjectType = `#graphql
     }
 
     input CreateSceneInput {
+        """Screenplay document to attach the scene to; omit for the project's primary document."""
+        screenplayDocumentId: String
         activeVersion: Int
         lockedVersion: Int
         newVersion: Boolean
@@ -389,6 +407,8 @@ export const ProjectType = `#graphql
     type Character {
         _id: String
         projectId: String
+        """Screenplay document this character came from; null means the primary document."""
+        screenplayDocumentId: String
         name: String
         imageUrl: String
         details: [CharacterDetails]
@@ -423,6 +443,8 @@ export const ProjectType = `#graphql
     }
 
     input CreateCharacterInput {
+        """Screenplay document to attach the character to; omit for the primary document."""
+        screenplayDocumentId: String
         imageUrl: String
         activeVersion: Int
         lockedVersion: Int
@@ -550,6 +572,34 @@ export const ProjectType = `#graphql
         content: JSON
     }
 
+    """
+    One screenplay document belonging to a project. A project may hold several — the original draft
+    plus PDFs imported later — each with its own collaboration state, characters and scenes.
+    Project.screenplay resolves to whichever document has isPrimary true.
+    """
+    type ScreenplayDocument {
+        _id: String!
+        projectId: String
+        """Tab label on the screenplay page."""
+        name: String
+        """The document Project.screenplay resolves to. Exactly one per project."""
+        isPrimary: Boolean
+        """Tab order; ties break by creation time."""
+        order: Int
+        """Original file name when this document came from a PDF import."""
+        sourceFileName: String
+        versions: [ScreenplayContent]
+        lockedVersion: Int
+        layout: JSON
+        """Body page total (title page excluded). Estimated from content when not yet recorded."""
+        pageCount: Int
+    }
+
+    type DeleteScreenplayDocumentResult {
+        deleted: Boolean!
+        reason: String
+    }
+
     input ScreenplayInput {
         version: Int
         content: JSON
@@ -668,6 +718,28 @@ export const resolvers = {
   },
   Query: {
     getProjectData,
+    getScreenplayDocument: async (
+      _root: unknown,
+      args: { projectId: string; documentId?: string | null },
+      context: { uid: string | null }
+    ) => {
+      if (!context.uid) {
+        throw new GraphQLError('Unauthorized', { extensions: { code: 'UNAUTHENTICATED' } });
+      }
+      // Read access follows the same membership rule as every other project read.
+      const project = await Projects.findOne({
+        _id: new mongoose.Types.ObjectId(args.projectId),
+        $or: [
+          { user: context.uid },
+          { sharedWith: context.uid },
+          { collaborators: { $elemMatch: { uid: context.uid, status: 'active' } } },
+        ],
+      }).select('_id').lean().exec();
+      if (!project) {
+        throw new GraphQLError('Forbidden', { extensions: { code: 'FORBIDDEN' } });
+      }
+      return getScreenplayDocumentWithContent(args.projectId, args.documentId ?? null);
+    },
     getOutlineFrameworks,
     getProjectMessages: async (_root: unknown, { conversationId, limit = 50, offset = 0 }: { conversationId: string; limit?: number; offset?: number }, context: { uid: string | null; user: any }) => {
       if (!context.uid || !context.user) throw new Error('Unauthorized');
@@ -832,7 +904,23 @@ export const resolvers = {
         {
           $project: {
             _id: 1, title: 1, displayName: 1, genre: 1, type: 1, poster: 1,
-            sharedWith: 1, collaborators: 1, stats: 1, screenplay: 1, user: 1, createdAt: 1,
+            sharedWith: 1, collaborators: 1, stats: 1, user: 1, createdAt: 1,
+          },
+        },
+        {
+          // Screenplay content lives in its own collection; `screenplayStarted` below only needs to
+          // know whether any document has content, so pull back a single lightweight marker rather
+          // than whole TipTap documents.
+          $lookup: {
+            from: 'screenplays',
+            let: { pid: '$_id' },
+            pipeline: [
+              { $match: { $expr: { $eq: ['$projectId', '$$pid'] } } },
+              { $match: { 'versions.0': { $exists: true } } },
+              { $limit: 1 },
+              { $project: { _id: 1 } },
+            ],
+            as: 'screenplayDocs',
           },
         },
         {
@@ -907,7 +995,7 @@ export const resolvers = {
         developmentStatus: {
           outlineStarted: (project.stats?.totalScenes ?? 0) > 0,
           charactersStarted: (project.stats?.totalCharacters ?? 0) > 0,
-          screenplayStarted: (project.screenplay?.versions?.length ?? 0) > 0,
+          screenplayStarted: (project.screenplayDocs?.length ?? 0) > 0,
         },
         lastMessage: project.lastMessage ?? null,
         unreadCount: unreadByProject[String(project._id)] ?? 0,
@@ -956,12 +1044,47 @@ export const resolvers = {
     deleteinspiration,
     saveScreenplay: async (
       root: unknown,
-      args: { projectId: string; content: unknown; estimatedPageCount?: number | null; layout?: unknown },
+      args: { projectId: string; documentId?: string | null; content: unknown; estimatedPageCount?: number | null; layout?: unknown },
       context: { uid: string | null }
     ) => {
       await requireTier(context, 'spec');
       await verifyProjectWriteAccess(args.projectId, context.uid!);
       return saveScreenplayFn(root, args);
+    },
+    createScreenplayDocument: async (
+      _root: unknown,
+      args: {
+        projectId: string;
+        name?: string | null;
+        content?: unknown;
+        layout?: unknown;
+        pageCount?: number | null;
+        sourceFileName?: string | null;
+      },
+      context: { uid: string | null }
+    ) => {
+      await requireTier(context, 'spec');
+      await verifyProjectWriteAccess(args.projectId, context.uid!);
+      const { projectId, ...payload } = args;
+      return createScreenplayDocumentService(projectId, payload);
+    },
+    renameScreenplayDocument: async (
+      _root: unknown,
+      args: { projectId: string; documentId: string; name: string },
+      context: { uid: string | null }
+    ) => {
+      await requireTier(context, 'spec');
+      await verifyProjectWriteAccess(args.projectId, context.uid!);
+      return renameScreenplayDocumentService(args.projectId, args.documentId, args.name);
+    },
+    deleteScreenplayDocument: async (
+      _root: unknown,
+      args: { projectId: string; documentId: string },
+      context: { uid: string | null }
+    ) => {
+      await requireTier(context, 'spec');
+      await verifyProjectWriteAccess(args.projectId, context.uid!);
+      return deleteScreenplayDocumentService(args.projectId, args.documentId);
     },
     syncWritingTrackerCurrentPages: async (
       _root: unknown,
@@ -1278,11 +1401,56 @@ export const resolvers = {
     },
   },
   Screenplay: {
-    // Falls back to an analytic estimate so screenplays saved before `screenplay.pageCount`
-    // existed still report a page total (e.g. to prefill the enable-tracking modal).
+    // Falls back to an analytic estimate so screenplays saved before `pageCount` existed still
+    // report a page total (e.g. to prefill the enable-tracking modal).
+    pageCount: (parent: any) => resolveScreenplayPageCount(parent),
+  },
+  ScreenplayContent: {
+    /**
+     * Fetched on demand. The screenplay batch loader returns metadata without script bodies, so a
+     * dashboard listing many projects does not pull a feature script for each one; queries that
+     * actually select `content` pay for it here, batched by document.
+     */
+    content: async (
+      parent: any,
+      _: any,
+      context: { screenplayContentLoader: { load: (id: string) => Promise<Map<number, unknown>> } }
+    ) => {
+      if (parent?.content !== undefined) return parent.content ?? null;
+      if (parent?.documentId == null) return null;
+      const versions = await context.screenplayContentLoader.load(String(parent.documentId));
+      return versions.get(Number(parent.version ?? 0)) ?? null;
+    },
+  },
+  ScreenplayDocument: {
+    _id: (parent: any) => String(parent._id),
+    projectId: (parent: any) => (parent?.projectId != null ? String(parent.projectId) : null),
     pageCount: (parent: any) => resolveScreenplayPageCount(parent),
   },
   Project: {
+    // Screenplay content lives in its own collection now, so both fields load through one
+    // per-request batch rather than being read off the project document.
+    screenplayDocuments: (
+      parent: any,
+      _: any,
+      context: { screenplayDocumentsLoader: { load: (id: string) => Promise<ScreenplayDocumentRow[]> } }
+    ) => {
+      const id = parent?._id?.toString?.() ?? parent?._id;
+      return id ? context.screenplayDocumentsLoader.load(id) : [];
+    },
+    /**
+     * Back-compat: resolves to the primary document so callers written against the single-screenplay
+     * shape (dashboard cards, chat's developmentStatus, the enable-tracking modal) keep working.
+     */
+    screenplay: async (
+      parent: any,
+      _: any,
+      context: { screenplayDocumentsLoader: { load: (id: string) => Promise<ScreenplayDocumentRow[]> } }
+    ) => {
+      const id = parent?._id?.toString?.() ?? parent?._id;
+      if (!id) return null;
+      return pickPrimary(await context.screenplayDocumentsLoader.load(id));
+    },
     scenes: (parent: any, _: any, context: { scenesLoader: { load: (id: string) => Promise<any[]> } }) => {
       const id = parent?._id?.toString?.() ?? parent?._id;
       return id ? context.scenesLoader.load(id) : [];
@@ -1330,10 +1498,17 @@ export const resolvers = {
   },
   Scene: {
     _id: (parent: any) => (parent?._id != null ? String(parent._id) : ""),
+    // Null means the scene belongs to the project's primary screenplay document — the shape every
+    // scene created before multi-document support has.
+    screenplayDocumentId: (parent: any) =>
+      parent?.screenplayDocumentId != null ? String(parent.screenplayDocumentId) : null,
   },
   Character: {
     _id: (parent: any) => (parent?._id != null ? String(parent._id) : null),
     projectId: (parent: any) => (parent?.projectId != null ? String(parent.projectId) : null),
+    // Null means the character belongs to the project's primary screenplay document.
+    screenplayDocumentId: (parent: any) =>
+      parent?.screenplayDocumentId != null ? String(parent.screenplayDocumentId) : null,
     name: (parent: any) => parent?.details?.[0]?.name ?? parent?.name ?? null,
     imageUrl: (parent: any) => parent?.imageUrl ?? null,
     activeVersion: (parent: any) => parent?.activeVersion ?? 1,

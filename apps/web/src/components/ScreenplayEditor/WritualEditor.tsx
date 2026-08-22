@@ -7,6 +7,7 @@ import Collaboration from '@tiptap/extension-collaboration'
 import { CollaborationCursor } from './CollaborationCursorExtension'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { request } from 'graphql-request'
+import { authRequest } from '@/lib/authRequest'
 import {
   Alert,
   Box,
@@ -45,13 +46,23 @@ import {
 } from './ScreenplayDocumentToolbar'
 import { ScreenplayInspirationPanesLayer } from './ScreenplayInspirationPanesLayer'
 import { ScreenplayStatsPanesLayer } from './ScreenplayStatsPanesLayer'
-import { ScreenplayInstantPreview } from './ScreenplayInstantPreview'
+import {
+  ScreenplayInstantPreview,
+  screenplaySnapshotKey,
+} from './ScreenplayInstantPreview'
 import { PROJECT_CHARACTERS_QUERY } from '@/queries/CharacterQueries'
 import { useScreenplayCharacterLookupStore } from '@/state/screenplayCharacterLookup'
 import { PROJECT_SCENES_QUERY } from '@/queries/SceneQueries'
 import { PROJECT_SCENES_QUERY_KEY } from 'hooks'
 import { useAutosave } from '@hooks/useAutosave'
 import { useCollaboration } from '@hooks/useCollaboration'
+import {
+  useScreenplayDocuments,
+  SCREENPLAY_DOCUMENT_QUERY_KEY,
+  SCREENPLAY_DOCUMENTS_QUERY_KEY,
+} from '@hooks/useScreenplayDocuments'
+import { useScreenplayDocumentsStore } from '@/state/screenplayDocuments'
+import { SCREENPLAY_DOCUMENT_QUERY } from '@/queries/ScreenplayQueries'
 import { useSyncWritingTrackerPageCount } from '@hooks/useSyncWritingTrackerPageCount'
 import { useScreenplaySnapshotPersistence } from '@hooks/useScreenplaySnapshotPersistence'
 import { useUserProfileStore } from '@/state/user'
@@ -345,6 +356,29 @@ interface WritualEditorProps {
 export function WritualEditor({ projectId }: WritualEditorProps) {
   const user = useUserProfileStore((s) => s.userProfile?.user)
 
+  /**
+   * Which of the project's screenplay documents to edit. The tab bar writes this selection; the
+   * characters and outline pages read the same store so all three stay on the same script.
+   */
+  const { activeDocumentId, isLoading: documentsLoading } = useScreenplayDocuments(projectId)
+
+  /**
+   * Script body for the selected document only. `getProjectData` deliberately returns screenplay
+   * metadata without `versions.content`, so a project holding several feature scripts doesn't ship
+   * all of them on every page load.
+   */
+  const { data: documentData, isLoading: documentLoading } = useQuery({
+    queryKey: [SCREENPLAY_DOCUMENT_QUERY_KEY, projectId, activeDocumentId],
+    // `getScreenplayDocument` enforces project membership server-side, so this read must carry the
+    // Firebase token rather than going out anonymously like the older project queries.
+    queryFn: async () =>
+      authRequest(SCREENPLAY_DOCUMENT_QUERY, {
+        projectId,
+        documentId: activeDocumentId,
+      }),
+    enabled: Boolean(projectId && user && activeDocumentId),
+  }) as { data: any; isLoading: boolean }
+
   const { data: scenesData, isLoading: scenesLoading } = useQuery({
     queryKey: [PROJECT_SCENES_QUERY_KEY, projectId],
     queryFn: async () =>
@@ -361,8 +395,9 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
   React.useEffect(() => {
     setScreenplaySceneOutlines(projectScenes)
   }, [projectScenes, setScreenplaySceneOutlines])
-  const savedScreenplayContent = project?.screenplay?.versions?.[0]?.content ?? null
-  const savedScreenplayLayout = (project?.screenplay?.layout ?? null) as ScreenplayLayoutConfig | null
+  const screenplayDocument = (documentData as any)?.getScreenplayDocument ?? null
+  const savedScreenplayContent = screenplayDocument?.versions?.[0]?.content ?? null
+  const savedScreenplayLayout = (screenplayDocument?.layout ?? null) as ScreenplayLayoutConfig | null
   const writingTracker = project?.writingTracker ?? null
 
   /**
@@ -371,7 +406,7 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
    * with the measured value as soon as PageBreakPlugin's first pass completes.
    */
   const seedBodyPages = useScreenplayLivePagesStore((s) => s.setSeedBodyPagesForProject)
-  const serverPageCount: number | null = project?.screenplay?.pageCount ?? null
+  const serverPageCount: number | null = screenplayDocument?.pageCount ?? null
   React.useEffect(() => {
     if (!projectId || serverPageCount == null) return
     seedBodyPages(projectId, serverPageCount)
@@ -386,13 +421,17 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
     ) ?? false
   }, [project, user])
 
-  if (scenesLoading) {
-    return <ScreenplayInstantPreview projectId={projectId} />
+  // The document body is a separate round trip; showing the editor before it lands would flash an
+  // empty script and then replace it.
+  if (scenesLoading || documentsLoading || documentLoading) {
+    return <ScreenplayInstantPreview projectId={projectId} documentId={activeDocumentId} />
   }
 
   return (
     <CollabGate
+      key={activeDocumentId ?? 'primary'}
       projectId={projectId}
+      documentId={activeDocumentId}
       canEdit={canEdit}
       projectTitle={projectTitle}
       projectScenes={projectScenes}
@@ -407,6 +446,7 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
 
 interface CollabGateProps {
   projectId?: string
+  documentId: string | null
   canEdit: boolean
   projectTitle: string | null
   projectScenes: ProjectScene[]
@@ -417,6 +457,7 @@ interface CollabGateProps {
 
 function CollabGate({
   projectId,
+  documentId,
   canEdit,
   projectTitle,
   projectScenes,
@@ -424,16 +465,19 @@ function CollabGate({
   savedScreenplayLayout,
   writingTracker,
 }: CollabGateProps) {
-  const { ydoc, provider, failed } = useCollaboration(projectId)
+  // Each screenplay document has its own Y.Doc; without scoping the name, two documents in one
+  // project would share collaboration state and overwrite each other.
+  const { ydoc, provider, failed } = useCollaboration(projectId, documentId)
 
   if (projectId && !failed && (!ydoc || !provider)) {
-    return <ScreenplayInstantPreview projectId={projectId} />
+    return <ScreenplayInstantPreview projectId={projectId} documentId={documentId} />
   }
 
   return (
     <ScreenplayEditorCore
-      key={`${projectId}-${failed ? 'solo' : 'collab'}`}
+      key={`${projectId}-${documentId ?? 'primary'}-${failed ? 'solo' : 'collab'}`}
       projectId={projectId}
+      documentId={documentId}
       canEdit={canEdit}
       projectTitle={projectTitle}
       projectScenes={projectScenes}
@@ -450,6 +494,7 @@ function CollabGate({
 
 interface ScreenplayEditorCoreProps {
   projectId?: string
+  documentId: string | null
   canEdit: boolean
   projectTitle: string | null
   projectScenes: ProjectScene[]
@@ -462,6 +507,7 @@ interface ScreenplayEditorCoreProps {
 
 function ScreenplayEditorCore({
   projectId,
+  documentId,
   canEdit,
   projectTitle,
   projectScenes,
@@ -805,7 +851,9 @@ function ScreenplayEditorCore({
    * and reports when the load curtain below can come down.
    */
   const { paginationReady } = useScreenplaySnapshotPersistence({
-    projectId,
+    // Keyed per screenplay document: two documents in one project paint different pages, so a
+    // shared key would restore one document's scroll position into the other.
+    projectId: screenplaySnapshotKey(projectId, documentId),
     workspaceRef,
     pageRef,
     editorReady: editor != null,
@@ -850,6 +898,31 @@ function ScreenplayEditorCore({
     setElementTypeFnRef((type) => editor.chain().focus().setElementType(type).run())
     return () => setElementTypeFnRef(null)
   }, [editor, setElementTypeFnRef])
+
+  /**
+   * Apply a just-imported script to the editor that is already on screen.
+   *
+   * Seeding below runs once per mount, and replacing a document's content changes neither the
+   * selected document nor the editor's key — so without this the writer keeps looking at the script
+   * the editor loaded when they arrived. Going through `setContent` (rather than remounting) also
+   * means that under collaboration the import propagates as a normal edit: connected clients get it,
+   * and it is what gets persisted, instead of the stale in-memory Y.Doc overwriting the import.
+   */
+  const pendingImport = useScreenplayDocumentsStore((s) =>
+    projectId ? s.pendingImportByProject[projectId] : undefined,
+  )
+  const consumeImportedContent = useScreenplayDocumentsStore((s) => s.consumeImportedContent)
+  const appliedImportTokenRef = React.useRef(0)
+
+  React.useEffect(() => {
+    if (!editor || !projectId || !pendingImport) return
+    if (pendingImport.documentId !== documentId) return
+    if (appliedImportTokenRef.current === pendingImport.token) return
+
+    appliedImportTokenRef.current = pendingImport.token
+    editor.commands.setContent(pendingImport.doc as never)
+    consumeImportedContent(projectId, pendingImport.documentId)
+  }, [editor, projectId, documentId, pendingImport, consumeImportedContent])
 
   // ── Seed legacy content into empty Yjs doc on first sync ─────────────────
   React.useEffect(() => {
@@ -901,6 +974,7 @@ function ScreenplayEditorCore({
   // ── Autosave (disabled when collab is active) ────────────────────────────
   useAutosave(editor, projectId, {
     enabled: canEdit && !collabActive,
+    documentId,
     onPending: () => setPending(true),
     onSaveStart: startSaving,
     onSaveEnd: (success) => {
@@ -908,6 +982,9 @@ function ScreenplayEditorCore({
       if (success && projectId) {
         void queryClient.invalidateQueries({ queryKey: ['project', projectId] })
         void queryClient.invalidateQueries({ queryKey: [PROJECT_SCENES_QUERY_KEY, projectId] })
+        void queryClient.invalidateQueries({
+          queryKey: [SCREENPLAY_DOCUMENTS_QUERY_KEY, projectId],
+        })
       }
     },
     estimatePageCount: estimateAutosavePaginationPages,
@@ -1003,7 +1080,7 @@ function ScreenplayEditorCore({
     editorColContentHeightPx ?? Math.ceil(SCREENPLAY_PAPER_HEIGHT_PX * zoom)
 
   /** Tiptap not resolved yet — keep the cached pages on screen rather than flashing empty. */
-  if (!editor) return <ScreenplayInstantPreview projectId={projectId} />
+  if (!editor) return <ScreenplayInstantPreview projectId={projectId} documentId={documentId} />
 
   return (
     <Box
@@ -1041,7 +1118,13 @@ function ScreenplayEditorCore({
       >
         {/* Cached pages stay on top until PageBreakPlugin has laid the real ones out, so the
             document never appears mid-repagination. Not editable and never saved. */}
-        {!paginationReady && <ScreenplayInstantPreview projectId={projectId} variant="absolute" />}
+        {!paginationReady && (
+          <ScreenplayInstantPreview
+            projectId={projectId}
+            documentId={documentId}
+            variant="absolute"
+          />
+        )}
 
         {/* Fills remaining row width, centering the editor column */}
         <Box

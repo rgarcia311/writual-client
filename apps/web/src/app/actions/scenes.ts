@@ -44,6 +44,8 @@ export async function createScene(
     lockedVersion?: number;
     newVersion?: boolean;
     newScene?: boolean;
+    /** Tab the card belongs to; omit for the project's primary screenplay document. */
+    screenplayDocumentId?: string | null;
   }
 ) {
   const result = await serverAuthRequest<{ createScene: any }>(
@@ -56,6 +58,7 @@ export async function createScene(
         lockedVersion: payload.lockedVersion,
         newVersion: payload.newVersion,
         newScene: payload.newScene,
+        screenplayDocumentId: payload.screenplayDocumentId ?? undefined,
       },
     }
   );

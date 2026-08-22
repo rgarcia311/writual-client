@@ -47,9 +47,12 @@ export function useProjectSceneMutations() {
       projectId: string;
       versions: any[];
       step?: string;
+      /** Tab the new scene belongs to; omit for the project's primary screenplay document. */
+      screenplayDocumentId?: string | null;
     }) =>
       createScene(variables.projectId, {
         versions: variables.versions ?? [],
+        screenplayDocumentId: variables.screenplayDocumentId ?? null,
       }),
     onSuccess: async (_, variables) => {
       if (variables.projectId) {

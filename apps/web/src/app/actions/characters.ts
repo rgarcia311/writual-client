@@ -47,6 +47,8 @@ export async function createCharacter(
     details?: any[];
     activeVersion?: number;
     lockedVersion?: number;
+    /** Tab the card belongs to; omit for the project's primary screenplay document. */
+    screenplayDocumentId?: string | null;
   }
 ) {
   const result = await serverAuthRequest<{ createCharacter: any }>(
@@ -58,6 +60,7 @@ export async function createCharacter(
         details: payload.details,
         activeVersion: payload.activeVersion,
         lockedVersion: payload.lockedVersion,
+        screenplayDocumentId: payload.screenplayDocumentId ?? undefined,
       },
     }
   );

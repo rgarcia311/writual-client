@@ -96,6 +96,11 @@ export function CreateProjectWrapper() {
               doc,
               pageCount,
               ...(layout != null ? { layout } : {}),
+              // A brand new project has exactly one, empty screenplay document; the import fills it
+              // in rather than adding a second one.
+              mode: 'replace',
+              sourceFileName: pdfFile.name,
+              withAi: true,
             }),
             signal: AbortSignal.timeout(600_000),
           });

@@ -2,6 +2,15 @@ import mongoose from "mongoose";
 import { Projects, Characters } from "@writual/db";
 import { toObjectId, nowIso, isTransactionNotSupportedError } from "../utils/mongoUtils";
 
+/** Coerces a caller-supplied screenplay document id, treating anything unusable as "primary". */
+function normalizeDocumentId(
+  id: string | mongoose.Types.ObjectId | null | undefined
+): mongoose.Types.ObjectId | null {
+  if (id == null) return null;
+  if (id instanceof mongoose.Types.ObjectId) return id;
+  return mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null;
+}
+
 /** Single character detail (version) entry. */
 export interface CharacterDetailPayload {
   version?: number;
@@ -19,6 +28,8 @@ export interface CreateCharacterPayload {
   details?: CharacterDetailPayload[];
   activeVersion?: number;
   lockedVersion?: number;
+  /** Screenplay document this character came from; omit for the project's primary document. */
+  screenplayDocumentId?: string | mongoose.Types.ObjectId | null;
 }
 
 /** Payload for updating an existing character (in-place or add new version). */
@@ -106,6 +117,7 @@ export async function createCharacter(
   const firstDetail = details[0];
   const doc = {
     projectId: pid,
+    screenplayDocumentId: normalizeDocumentId(payload.screenplayDocumentId),
     imageUrl: payload.imageUrl ?? undefined,
     activeVersion: payload.activeVersion ?? 1,
     lockedVersion: payload.lockedVersion ?? undefined,

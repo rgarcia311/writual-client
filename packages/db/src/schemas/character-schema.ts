@@ -18,6 +18,17 @@ export const characterSchema = new mongoose.Schema({
     index: true,
   },
   imageUrl: { type: String },
+  /**
+   * The screenplay document this character was derived from, when it came from a PDF import.
+   * Null/absent means the character belongs to the project's primary screenplay document, which is
+   * how every character created before multi-document support reads.
+   */
+  screenplayDocumentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Screenplays",
+    default: null,
+    index: true,
+  },
   details: [characterContentSchema],
   activeVersion: { type: Number, default: 1 },
   lockedVersion: { type: Number },

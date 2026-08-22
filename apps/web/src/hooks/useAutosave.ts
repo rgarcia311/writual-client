@@ -9,6 +9,8 @@ const DEBOUNCE_MS = 1500;
 
 interface UseAutosaveOptions {
   enabled?: boolean;
+  /** Screenplay document being edited. Omit to save into the project's primary document. */
+  documentId?: string | null;
   onPending?: () => void;
   onSaveStart?: () => void;
   onSaveEnd?: (success: boolean) => void;
@@ -19,7 +21,7 @@ interface UseAutosaveOptions {
 export function useAutosave(
   editor: Editor | null,
   projectId: string | undefined,
-  { enabled = true, onPending, onSaveStart, onSaveEnd, estimatePageCount }: UseAutosaveOptions = {},
+  { enabled = true, documentId, onPending, onSaveStart, onSaveEnd, estimatePageCount }: UseAutosaveOptions = {},
 ) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Keep callbacks in a ref so the effect doesn't re-register on every render
@@ -49,6 +51,7 @@ export function useAutosave(
         try {
           await authRequest(SAVE_SCREENPLAY, {
             projectId,
+            ...(documentId ? { documentId } : {}),
             content,
             ...(rounded != null ? { estimatedPageCount: rounded } : {}),
           });
@@ -65,5 +68,5 @@ export function useAutosave(
       editor.off('update', handleUpdate);
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [editor, projectId, enabled]);
+  }, [editor, projectId, documentId, enabled]);
 }

@@ -313,9 +313,15 @@ async function main(): Promise<void> {
         throw new Error('Requires greenlit tier or higher');
       }
 
+      // Document names are "<projectId>:<screenplayDocumentId>" so a project's several screenplay
+      // documents each get their own Y.Doc. Bare project ids are still accepted: they are what
+      // clients sent before multi-document support, and their stored state is keyed that way.
+      // Access is a project-level decision either way, so only the first segment is checked.
+      const [projectIdSegment] = documentName.split(':');
+
       let projectObjectId: ObjectId;
       try {
-        projectObjectId = new ObjectId(documentName);
+        projectObjectId = new ObjectId(projectIdSegment);
       } catch {
         throw new Error('Invalid document name: must be a project ID');
       }

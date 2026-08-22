@@ -30,8 +30,17 @@ export interface CollabResources {
   failed: boolean
 }
 
+/**
+ * Yjs resources for one screenplay document.
+ *
+ * The Hocuspocus document name is `"<projectId>:<documentId>"`, so each of a project's screenplay
+ * documents gets its own Y.Doc. Passing no `documentId` falls back to the bare project id, which is
+ * the naming every client used before multi-document support and is how existing stored state is
+ * keyed — so a project that has never opened a second document keeps its history.
+ */
 export function useCollaboration(
   projectId: string | undefined,
+  documentId?: string | null,
 ): CollabResources {
   const userProfile = useUserProfileStore((s) => s.userProfile)
   const setCollabStatus = useScreenplayEditorStore((s) => s.setCollabStatus)
@@ -45,8 +54,14 @@ export function useCollaboration(
 
   const closeFailuresRef = useRef(0)
 
+  const documentName = projectId
+    ? documentId
+      ? `${projectId}:${documentId}`
+      : projectId
+    : null
+
   useEffect(() => {
-    if (!projectId || !userProfile) {
+    if (!documentName || !userProfile) {
       setCollabStatus('idle')
       return
     }
@@ -75,7 +90,7 @@ export function useCollaboration(
     const ydoc = new Y.Doc()
     const provider = new HocuspocusProvider({
       url: HOCUSPOCUS_URL,
-      name: projectId,
+      name: documentName,
       document: ydoc,
       token: async () => {
         const { getAuth } = await import('firebase/auth')
@@ -137,7 +152,7 @@ export function useCollaboration(
         setConnectedUsers([])
       }
     }
-  }, [projectId, userProfile?.user, setCollabStatus, setConnectedUsers])
+  }, [documentName, userProfile?.user, setCollabStatus, setConnectedUsers])
 
   return resources
 }

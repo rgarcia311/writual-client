@@ -38,6 +38,9 @@ import type { OutlineFrameworkItem } from '@/state/outlineFrameworks';
 import { LOCK_ALL_SCENES_IN_OUTLINE, UNLOCK_OUTLINE_SECTION } from 'mutations/ProjectMutations';
 import { accordionFlat, singleLineTruncate } from 'styles';
 import { FeatureGate } from '@/components/Auth/FeatureGate';
+import { useScreenplayDocuments } from '@hooks/useScreenplayDocuments';
+import { ScreenplayDocumentTabs } from '@/components/ScreenplayEditor/ScreenplayDocumentTabs';
+import { filterByDocument } from '@/lib/screenplayDocumentEntities';
 import '@/styles/outlinePage.css';
 
 const endpoint = GRAPHQL_ENDPOINT;
@@ -161,7 +164,24 @@ export function OutlineContent({ projectId }: OutlineContentProps) {
   });
 
   const project = data?.getProjectData?.[0];
-  const scenes = project?.scenes ?? [];
+
+  /**
+   * Scene cards are scoped to the selected screenplay document, so a project that imported a second
+   * script shows that script's outline on its own tab instead of interleaving both.
+   */
+  const {
+    documents: screenplayDocuments,
+    activeDocumentId,
+    setActiveDocumentId,
+  } = useScreenplayDocuments(id);
+  const primaryDocumentId =
+    screenplayDocuments.find((d) => d.isPrimary)?._id ?? screenplayDocuments[0]?._id ?? null;
+
+  const allScenes = project?.scenes ?? [];
+  const scenes = React.useMemo(
+    () => filterByDocument(allScenes, { activeDocumentId, primaryDocumentId }),
+    [allScenes, activeDocumentId, primaryDocumentId],
+  );
   const outlineName = project?.outlineName?.trim() || null;
   const user = project?.user;
   const outlineSectionLocked = project?.outlineSectionLocked ?? false;
@@ -237,6 +257,9 @@ export function OutlineContent({ projectId }: OutlineContentProps) {
       {
         projectId: id,
         versions: [initialVersion],
+        // Tag the new scene to the tab being viewed, or it would be filtered out of the grid the
+        // moment it is created.
+        screenplayDocumentId: activeDocumentId,
       },
       {
         onSuccess: async () => {
@@ -407,6 +430,12 @@ export function OutlineContent({ projectId }: OutlineContentProps) {
         pt: 0,
       }}
     >
+      <ScreenplayDocumentTabs
+        documents={screenplayDocuments}
+        activeDocumentId={activeDocumentId}
+        onChange={setActiveDocumentId}
+      />
+
       {useFrameworkView ? (
         <Box className="outline-page-framework">
           {actSteps.map(({ act, actNum, steps }) => (

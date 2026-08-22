@@ -2,8 +2,19 @@ import mongoose from "mongoose";
 import { Projects, Scenes } from "@writual/db";
 import { toObjectId, nowIso, isTransactionNotSupportedError } from "../utils/mongoUtils";
 
+/** Coerces a caller-supplied screenplay document id, treating anything unusable as "primary". */
+function normalizeDocumentId(
+  id: string | mongoose.Types.ObjectId | null | undefined
+): mongoose.Types.ObjectId | null {
+  if (id == null) return null;
+  if (id instanceof mongoose.Types.ObjectId) return id;
+  return mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null;
+}
+
 /** Payload for creating a new scene (no number; order comes from project.sceneOrder). */
 export interface CreateScenePayload {
+  /** Screenplay document this scene came from; omit for the project's primary document. */
+  screenplayDocumentId?: string | mongoose.Types.ObjectId | null;
   activeVersion?: number;
   lockedVersion?: number;
   newVersion?: boolean;
@@ -115,6 +126,7 @@ export async function createScene(
 
   const doc = {
     projectId: pid,
+    screenplayDocumentId: normalizeDocumentId(payload.screenplayDocumentId),
     activeVersion: payload.activeVersion ?? 1,
     lockedVersion: payload.lockedVersion ?? undefined,
     newVersion: payload.newVersion ?? undefined,

@@ -12,6 +12,7 @@ import { schema } from './schemas/schema';
 import { getScenesByProjectIdsBatch } from './services/SceneService';
 import { getCharactersByProjectIdsBatch } from './services/CharacterService';
 import { getNotesByProjectIdsBatch } from './services/NoteService';
+import { getScreenplayDocumentsByProjectIdsBatch, getScreenplayContentByDocumentIdsBatch } from './services/ScreenplayDocumentService';
 import { Projects, AppUsers, Conversations } from '@writual/db';
 import { verifyUser } from './lib/verifyUser';
 import { pusher } from './services/pusher';
@@ -108,6 +109,8 @@ const startServer = async () => {
                 scenesLoader: new DataLoader(getScenesByProjectIdsBatch),
                 charactersLoader: new DataLoader(getCharactersByProjectIdsBatch),
                 notesLoader: new DataLoader(getNotesByProjectIdsBatch),
+                screenplayDocumentsLoader: new DataLoader(getScreenplayDocumentsByProjectIdsBatch),
+                screenplayContentLoader: new DataLoader(getScreenplayContentByDocumentIdsBatch),
               };
             },
         }),
