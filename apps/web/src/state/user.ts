@@ -11,6 +11,12 @@ export interface UserSettings {
    * server round-trip — the DB copy is the source of truth.
    */
   statTilePreferences?: Record<string, string[]> | null;
+  /**
+   * True once the intro walkthrough was completed or dismissed. Absent while the profile is still
+   * optimistic — the walkthrough waits for the server copy rather than greeting a returning user
+   * who already turned it off.
+   */
+  walkthroughDismissed?: boolean;
 }
 
 export interface UserProfile {

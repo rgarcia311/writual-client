@@ -7,7 +7,11 @@ import { ProjectBreadcrumbBar } from './ProjectBreadcrumbBar';
 import { FloatingProjectHero } from './FloatingProjectHero';
 import { useProjectShellData } from './useProjectShellData';
 import { ProjectShellDataProvider } from './ProjectShellDataContext';
-import { ALL_PROJECT_STAT_TILE_KEYS } from './buildProjectStatTiles';
+import {
+  ALL_PROJECT_STAT_TILE_KEYS,
+  PROJECT_HERO_CARD_KEYS,
+  PROJECT_RAIL_STAT_KEYS,
+} from './buildProjectStatTiles';
 import type { ProjectStatTileKey } from './buildProjectStatTiles';
 import { StatTileVisibilityMenu } from './StatTileVisibilityMenu';
 import { useStatTilePreferences } from '@/hooks/useStatTilePreferences';
@@ -68,7 +72,11 @@ export function ProjectFloatShell({
     handleDelete,
   } = shellData;
 
-  const defaultStatKeys = floatStatsRailKeys ?? ALL_PROJECT_STAT_TILE_KEYS;
+  // Pages name the stat tiles they want; the poster and details cards are on by default everywhere
+  // and are removed only when the user unchecks them in the card picker.
+  const defaultStatKeys = floatStatsRailKeys
+    ? [...PROJECT_HERO_CARD_KEYS, ...floatStatsRailKeys]
+    : ALL_PROJECT_STAT_TILE_KEYS;
   const { selectedKeys, toggleKey, resetToDefault, isDefault, canPersist } = useStatTilePreferences({
     pageKey: statPageKey,
     defaultKeys: defaultStatKeys,
@@ -91,6 +99,13 @@ export function ProjectFloatShell({
       pageAdornment
     );
 
+  // Without the picker (no rail on this page) the hero cards always show — nothing can hide them.
+  const showPoster = !showFloatStatsRail || selectedKeys.includes('poster');
+  const showDetails = !showFloatStatsRail || selectedKeys.includes('details');
+  const hasRailTiles =
+    showFloatStatsRail && PROJECT_RAIL_STAT_KEYS.some((key) => selectedKeys.includes(key));
+  const heroHasCards = showPoster || showDetails || hasRailTiles;
+
   const contentClassName = contentBleed
     ? 'project-details-float-content project-details-float-content--bleed'
     : 'project-details-float-content';
@@ -108,7 +123,7 @@ export function ProjectFloatShell({
     .filter(Boolean)
     .join(' ');
 
-  const hero = projectId ? (
+  const hero = projectId && heroHasCards ? (
     <FloatingProjectHero
       projectData={projectData}
       projectId={projectId}
@@ -116,6 +131,8 @@ export function ProjectFloatShell({
       showFloatStatsRail={showFloatStatsRail}
       floatStatsRailKeys={selectedKeys}
       floatContentOverlay={floatContentOverlay}
+      showPoster={showPoster}
+      showDetails={showDetails}
       onEditClick={openEdit}
       onDelete={handleDelete}
     />

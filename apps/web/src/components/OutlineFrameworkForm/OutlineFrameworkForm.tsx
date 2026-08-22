@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddIcon from '@mui/icons-material/Add';
+import { ImageUploadField } from '../shared/ImageUploadField';
 
 export interface OutlineStepInput {
   step_id?: string;
@@ -142,12 +143,11 @@ export function OutlineFrameworkForm({
           InputLabelProps={{ shrink: true }}
           sx={{ mt: 1 }}
         />
-        <TextField
-          label="Image URL"
+        <ImageUploadField
+          label="Image"
           value={imageUrl}
-          onChange={(e) => setImageUrl(e.target.value)}
-          fullWidth
-          placeholder="https://..."
+          onChange={setImageUrl}
+          helperText="Paste an image URL, or upload one from your computer."
         />
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1 }}>
           <Typography variant="subtitle2">Steps</Typography>

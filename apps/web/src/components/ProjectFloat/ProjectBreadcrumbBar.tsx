@@ -23,6 +23,7 @@ export function ProjectBreadcrumbBar({
   return (
     <Box
       component="header"
+      data-tour="project-breadcrumb"
       sx={{
         flexShrink: 0,
         display: 'flex',

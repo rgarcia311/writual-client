@@ -7,6 +7,7 @@ import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import LogoutIcon from '@mui/icons-material/Logout';
 import ManageSearchIcon from '@mui/icons-material/ManageSearch';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
@@ -14,6 +15,7 @@ import { getFirebaseAuth } from '@/lib/firebase';
 import { logout } from '@/app/actions/auth';
 import { useUserProfileStore } from '@/state/user';
 import { useThemeToggleOptional } from '@/themes/ThemeToggleContext';
+import { useWalkthroughStore } from '@/state/walkthrough';
 
 export interface SettingsPopoverProps {
   /** When true, render only the icon (e.g. on projects page without SideNav). */
@@ -37,6 +39,16 @@ export function SettingsPopover({ standalone = false }: SettingsPopoverProps) {
 
   const router = useRouter();
   const setUserProfile = useUserProfileStore((s) => s.setUserProfile);
+  const startWalkthrough = useWalkthroughStore((s) => s.start);
+
+  // The tour opens on whatever page the user is on, so it starts from the projects list — the
+  // same place a login lands — rather than mid-project where its first steps have nothing to
+  // point at.
+  const handleReplayWalkthrough = () => {
+    handleClose();
+    router.push('/projects');
+    startWalkthrough({ manual: true });
+  };
 
   const handleSignOut = async () => {
     handleClose();
@@ -53,6 +65,7 @@ export function SettingsPopover({ standalone = false }: SettingsPopoverProps) {
         color="inherit"
         aria-label="Settings"
         size="small"
+        data-tour="settings-button"
         sx={standalone ? { ml: 'auto' } : undefined}
       >
         <SettingsIcon />
@@ -89,6 +102,12 @@ export function SettingsPopover({ standalone = false }: SettingsPopoverProps) {
               size="small"
               color="primary"
             />
+          </MenuItem>
+          <MenuItem onClick={handleReplayWalkthrough}>
+            <ListItemIcon>
+              <HelpOutlineIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText primary="Replay intro walkthrough" />
           </MenuItem>
           <MenuItem component={Link} href="/outlines" onClick={handleClose} sx={{ textDecoration: 'none', color: 'inherit' }}>
             <ListItemIcon>

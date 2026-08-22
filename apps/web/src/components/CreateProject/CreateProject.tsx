@@ -27,6 +27,7 @@ import { CreateProjectProps, WritingTracker } from '@/interfaces/project';
 import { titleFromFilename } from '@/lib/parseScreenplayPdf';
 import type { ScreenplayLayoutConfig } from '@/lib/screenplayLayout';
 import { isValidImageUrl, getImageUrlForStorage } from '../../utils/imageUrl';
+import { ImageUploadField } from '../shared/ImageUploadField';
 import { ScreenplayDropZone } from './ScreenplayDropZone';
 import { WritingTrackerSection, WritingTrackerFormState } from './WritingTrackerSection';
 
@@ -149,6 +150,9 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
       open
       onClose={() => setAddProject(false)}
       PaperProps={{
+        // The walkthrough spotlights the create form and waits for it to close; the edit form
+        // reuses this component, so only the create variant carries the tour anchor.
+        'data-tour': isUpdate ? 'edit-project-dialog' : 'create-project-dialog',
         'enable-xr': true,
         style: {
           backgroundColor: theme.palette.background.default,
@@ -259,18 +263,12 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
           minRows={1}
           fullWidth
         />
-        <TextField
-          label="Poster (Image URL or base64)"
+        <ImageUploadField
+          label="Poster"
           value={formValues.poster ?? ''}
-          onChange={(e) => updateForm(e, 'poster')}
-          placeholder="https://example.com/poster.jpg or data:image/png;base64,..."
-          fullWidth
-          error={Boolean(formValues.poster?.trim()) && !isValidImageUrl(formValues.poster ?? '')}
-          helperText={
-            formValues.poster?.trim() && !isValidImageUrl(formValues.poster ?? '')
-              ? 'Enter an image URL or a data:image/{fileType};base64,{encodedString} string.'
-              : undefined
-          }
+          onChange={(poster) => setFormValues((prev) => ({ ...prev, poster }))}
+          placeholder="https://example.com/poster.jpg"
+          helperText="Paste an image URL, or upload one from your computer."
         />
         <Box>
           <TextField

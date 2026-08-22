@@ -12,7 +12,8 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import TuneIcon from '@mui/icons-material/Tune';
 import {
-  ALL_PROJECT_STAT_TILE_KEYS,
+  PROJECT_HERO_CARD_KEYS,
+  PROJECT_RAIL_STAT_KEYS,
   PROJECT_STAT_TILE_LABELS,
   type ProjectStatTileKey,
 } from './buildProjectStatTiles';
@@ -26,7 +27,13 @@ export interface StatTileVisibilityMenuProps {
   isDefault: boolean;
 }
 
-/** Breadcrumb-bar picker for which stat cards this page shows; the choice is saved per user. */
+/** The picker's two groups: the hero cards, then the stat tiles that follow them on the row. */
+const MENU_GROUPS: Array<{ caption: string; keys: ProjectStatTileKey[] }> = [
+  { caption: 'Project cards on this page', keys: PROJECT_HERO_CARD_KEYS },
+  { caption: 'Stat cards on this page', keys: PROJECT_RAIL_STAT_KEYS },
+];
+
+/** Breadcrumb-bar picker for which cards this page shows; the choice is saved per user. */
 export function StatTileVisibilityMenu({
   selectedKeys,
   onToggleKey,
@@ -38,12 +45,13 @@ export function StatTileVisibilityMenu({
 
   return (
     <>
-      <Tooltip title="Choose stat cards">
+      <Tooltip title="Choose cards">
         <IconButton
           size="small"
-          aria-label="Choose stat cards"
+          aria-label="Choose cards"
           aria-haspopup="true"
           aria-expanded={open ? 'true' : undefined}
+          data-tour="stat-tile-menu"
           onClick={(event) => setAnchorEl(event.currentTarget)}
         >
           <TuneIcon fontSize="small" />
@@ -57,21 +65,23 @@ export function StatTileVisibilityMenu({
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         slotProps={{ paper: { sx: { minWidth: 232 } } }}
       >
-        <Typography
-          variant="caption"
-          sx={{ display: 'block', px: 2, pt: 0.5, pb: 1, color: 'text.secondary' }}
-        >
-          Stat cards on this page
-        </Typography>
-        {ALL_PROJECT_STAT_TILE_KEYS.map((key) => {
-          const checked = selectedKeys.includes(key);
-          return (
+        {/* Flattened: MenuList walks its children directly to manage roving focus. */}
+        {MENU_GROUPS.flatMap((group, groupIndex) => [
+          groupIndex > 0 ? <Divider key={`${group.caption}-divider`} /> : null,
+          <Typography
+            key={group.caption}
+            variant="caption"
+            sx={{ display: 'block', px: 2, pt: 0.5, pb: 1, color: 'text.secondary' }}
+          >
+            {group.caption}
+          </Typography>,
+          ...group.keys.map((key) => (
             <MenuItem key={key} onClick={() => onToggleKey(key)} dense>
               <ListItemIcon sx={{ minWidth: 0, mr: 1 }}>
                 <Checkbox
                   edge="start"
                   size="small"
-                  checked={checked}
+                  checked={selectedKeys.includes(key)}
                   tabIndex={-1}
                   disableRipple
                   sx={{ p: 0 }}
@@ -80,8 +90,8 @@ export function StatTileVisibilityMenu({
               </ListItemIcon>
               <ListItemText primary={PROJECT_STAT_TILE_LABELS[key]} />
             </MenuItem>
-          );
-        })}
+          )),
+        ])}
         <Divider />
         <MenuItem
           dense

@@ -6,6 +6,9 @@ import {
   computeWritingTrackerStatus,
 } from '../../utils/progress';
 import { deriveScreenplayPresenceStats } from '../../utils/projectScreenplayStats';
+import { deriveProjectAccess } from '../../utils/projectPermissions';
+import { normalizeLoglineHistory } from '@/interfaces/logline';
+import type { Collaborator } from '@/interfaces/collaborator';
 import type { ProjectStatTileData } from './useProjectShellData';
 
 type ProjectForStats = Parameters<typeof computeProjectProgress>[0] & {
@@ -18,11 +21,17 @@ type ProjectForStats = Parameters<typeof computeProjectProgress>[0] & {
   _id?: string | null;
   user?: string | null;
   type?: string | null;
+  logline?: string | null;
+  loglineHistory?: unknown;
+  sharedWith?: Array<string | null> | null;
+  collaborators?: Array<Partial<Collaborator>> | null;
 };
 
 export function computeProjectStatTileData(
   project: ProjectForStats,
   liveBodyPages: number | null | undefined,
+  /** Signed-in viewer, so tiles can hide actions the API would reject (e.g. Logline History). */
+  viewerUid: string | null = null,
 ): ProjectStatTileData {
   const writingTracker = project.writingTracker ?? null;
   const progressTrackingEnabled =
@@ -83,6 +92,9 @@ export function computeProjectStatTileData(
   return {
     progress,
     developmentLocks,
+    currentLogline: (project.logline ?? '').trim(),
+    loglineHistory: normalizeLoglineHistory(project.loglineHistory),
+    loglineAccess: deriveProjectAccess(project, viewerUid),
     draftDeadlines,
     projectRef,
     writingTracker,

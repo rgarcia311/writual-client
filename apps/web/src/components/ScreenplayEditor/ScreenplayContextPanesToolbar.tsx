@@ -13,6 +13,7 @@ import InsightsIcon from '@mui/icons-material/Insights'
 import LightbulbOutlinedIcon from '@mui/icons-material/LightbulbOutlined'
 import ClearAllIcon from '@mui/icons-material/ClearAll'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
+import HistoryEduIcon from '@mui/icons-material/HistoryEdu'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
 import GroupsIcon from '@mui/icons-material/Groups'
 import MovieFilterIcon from '@mui/icons-material/MovieFilter'
@@ -26,10 +27,11 @@ interface ScreenplayContextPanesToolbarProps {
   orientation?: 'horizontal' | 'vertical'
 }
 
-const STAT_PANE_ORDER: ScreenplayStatPaneKey[] = ['overview', 'progress', 'characters', 'scenes', 'deadlines']
+const STAT_PANE_ORDER: ScreenplayStatPaneKey[] = ['overview', 'logline', 'progress', 'characters', 'scenes', 'deadlines']
 
 const STAT_PANE_ICONS: Record<ScreenplayStatPaneKey, React.ReactNode> = {
   overview: <InfoOutlinedIcon fontSize="small" />,
+  logline: <HistoryEduIcon fontSize="small" />,
   progress: <TrendingUpIcon fontSize="small" />,
   characters: <GroupsIcon fontSize="small" />,
   scenes: <MovieFilterIcon fontSize="small" />,

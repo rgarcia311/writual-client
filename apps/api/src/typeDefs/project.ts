@@ -7,11 +7,12 @@ import { requireTier } from "../utils/tierUtils";
 import { resolveScreenplayPageCount } from "../utils/screenplayPageEstimate";
 import { pusher } from "../services/pusher";
 import { inviteCollaborators, updateCollaborator, removeCollaborator, claimInvite, finalizeSignup } from "../resolvers/collaboratorResolvers";
-import { verifyProjectWriteAccess } from "../lib/projectAccess";
+import { verifyProjectWriteAccess, verifyProjectCommentAccess } from "../lib/projectAccess";
 import { GraphQLError } from "graphql";
 import { createScene as createSceneService, updateScene as updateSceneService, deleteScene as deleteSceneService } from "../services/SceneService";
 import { createCharacter as createCharacterService, updateCharacter as updateCharacterService, deleteCharacter as deleteCharacterService } from "../services/CharacterService";
 import { createNote as createNoteService, updateNote as updateNoteService, deleteNote as deleteNoteService } from "../services/NoteService";
+import { seedLoglineHistory, addLoglineVersion, updateLoglineVersion, deleteLoglineVersion, setCurrentLoglineVersion, addLoglineFeedback, deleteLoglineFeedback } from "../services/LoglineService";
 export const ProjectType = `#graphql
 
     scalar JSON
@@ -20,6 +21,8 @@ export const ProjectType = `#graphql
         colorMode: String!
         """Visible stat tiles keyed by project page, e.g. characters: [characters, deadlines]."""
         statTilePreferences: JSON
+        """True once the intro walkthrough was completed or dismissed; suppresses it on login."""
+        walkthroughDismissed: Boolean!
     }
 
     type User {
@@ -126,6 +129,7 @@ export const ProjectType = `#graphql
         markAsRead(conversationId: ID!): Boolean
         setStatTilePreference(page: String!, statKeys: [String!]!): JSON
         clearStatTilePreference(page: String!): JSON
+        setWalkthroughDismissed(dismissed: Boolean!): Boolean!
         createGroupConversation(projectId: ID!, participantUids: [String!]!, name: String!): ConversationThread
         leaveConversation(conversationId: ID!): Boolean
         createScene(projectId: String!, input: CreateSceneInput!): Scene
@@ -137,6 +141,13 @@ export const ProjectType = `#graphql
         createNote(projectId: String!, input: CreateNoteInput!): Note
         updateNote(noteId: String!, input: UpdateNoteInput!): Note
         deleteNote(noteId: String!): DeleteResult
+        seedLoglineHistory(projectId: ID!): [LoglineVersion!]!
+        addLoglineVersion(projectId: ID!, text: String!): [LoglineVersion!]!
+        updateLoglineVersion(projectId: ID!, versionId: ID!, text: String!): [LoglineVersion!]!
+        deleteLoglineVersion(projectId: ID!, versionId: ID!): [LoglineVersion!]!
+        setCurrentLoglineVersion(projectId: ID!, versionId: ID!): [LoglineVersion!]!
+        addLoglineFeedback(projectId: ID!, versionId: ID!, text: String!): [LoglineVersion!]!
+        deleteLoglineFeedback(projectId: ID!, versionId: ID!, feedbackId: ID!): [LoglineVersion!]!
         inviteCollaborators(projectId: ID!, invitations: [InvitationInput!]!): Project
         updateCollaborator(projectId: ID!, collaboratorId: ID!, permissionLevel: String, aspects: [String!]): Project
         removeCollaborator(projectId: ID!, collaboratorId: ID!): Project
@@ -204,6 +215,8 @@ export const ProjectType = `#graphql
         genre: String
         title: String!
         logline: String
+        """Logline iteration history, newest first; the current entry mirrors the logline field."""
+        loglineHistory: [LoglineVersion!]!
         budget: Int
         poster: String
         similarProjects: [String]
@@ -488,6 +501,29 @@ export const ProjectType = `#graphql
         association: NoteAssociationInput
     }
 
+    """Feedback left on one logline version by the project owner or a shared collaborator."""
+    type LoglineFeedback {
+        _id: String!
+        authorUid: String!
+        """Display name captured when the feedback was written."""
+        authorName: String
+        text: String!
+        createdAt: String
+        updatedAt: String
+    }
+
+    """One iteration of the project logline. The entry flagged current mirrors Project.logline."""
+    type LoglineVersion {
+        _id: String!
+        text: String!
+        authorUid: String
+        authorName: String
+        current: Boolean!
+        feedback: [LoglineFeedback!]!
+        createdAt: String
+        updatedAt: String
+    }
+
     type DeleteResult {
         deleted: Boolean!
         projectId: String
@@ -596,8 +632,19 @@ export const ProjectType = `#graphql
 
 /** Project pages that render a stat-tile rail; also the allowed keys of `settings.statTilePreferences`. */
 const STAT_TILE_PAGES = ['overview', 'characters', 'notes', 'outline', 'chat'];
-/** Stat tiles a page may show — mirrors `ProjectStatTileKey` on the web client. */
-const STAT_TILE_KEYS = ['progress', 'characters', 'scenes', 'deadlines'];
+/**
+ * Cards a page may show — mirrors `ALL_PROJECT_STAT_TILE_KEYS` on the web client, in the same
+ * canonical order: the two hero cards first, then the stat tiles.
+ */
+const STAT_TILE_KEYS = [
+  'poster',
+  'details',
+  'logline',
+  'progress',
+  'characters',
+  'scenes',
+  'deadlines',
+];
 
 /** `settings.statTilePreferences` is a Mongoose Map on documents and a plain object on lean reads. */
 function statTilePreferencesToObject(value: unknown): Record<string, string[]> {
@@ -605,10 +652,19 @@ function statTilePreferencesToObject(value: unknown): Record<string, string[]> {
   return (value as Record<string, string[]>) ?? {};
 }
 
+/** Name to attribute a logline entry or its feedback to, from the resolver context. */
+function actorDisplayName(context: { user?: { displayName?: string | null; name?: string | null } | null }): string {
+  return context?.user?.displayName ?? context?.user?.name ?? '';
+}
+
 export const resolvers = {
   UserSettings: {
     statTilePreferences: (parent: { statTilePreferences?: unknown }) =>
       statTilePreferencesToObject(parent?.statTilePreferences),
+    // Accounts created before the walkthrough shipped have no such field, and those users have
+    // never seen it — so `undefined` reads as "not dismissed" rather than breaking the non-null.
+    walkthroughDismissed: (parent: { walkthroughDismissed?: boolean | null }) =>
+      parent?.walkthroughDismissed ?? false,
   },
   Query: {
     getProjectData,
@@ -999,6 +1055,42 @@ export const resolvers = {
       const result = await deleteNoteService(args.noteId);
       return { deleted: result.deleted, projectId: result.projectId ?? null };
     },
+    seedLoglineHistory: async (_root: unknown, args: { projectId: string }, context: { uid: string | null }) => {
+      if (!context.uid) throw new GraphQLError('Unauthorized', { extensions: { code: 'UNAUTHENTICATED' } });
+      await verifyProjectWriteAccess(args.projectId, context.uid);
+      return seedLoglineHistory(args.projectId);
+    },
+    addLoglineVersion: async (_root: unknown, args: { projectId: string; text: string }, context: { uid: string | null; user: any }) => {
+      if (!context.uid) throw new GraphQLError('Unauthorized', { extensions: { code: 'UNAUTHENTICATED' } });
+      await verifyProjectWriteAccess(args.projectId, context.uid);
+      return addLoglineVersion(args.projectId, args.text, { uid: context.uid, displayName: actorDisplayName(context) });
+    },
+    updateLoglineVersion: async (_root: unknown, args: { projectId: string; versionId: string; text: string }, context: { uid: string | null }) => {
+      if (!context.uid) throw new GraphQLError('Unauthorized', { extensions: { code: 'UNAUTHENTICATED' } });
+      await verifyProjectWriteAccess(args.projectId, context.uid);
+      return updateLoglineVersion(args.projectId, args.versionId, args.text);
+    },
+    deleteLoglineVersion: async (_root: unknown, args: { projectId: string; versionId: string }, context: { uid: string | null }) => {
+      if (!context.uid) throw new GraphQLError('Unauthorized', { extensions: { code: 'UNAUTHENTICATED' } });
+      await verifyProjectWriteAccess(args.projectId, context.uid);
+      return deleteLoglineVersion(args.projectId, args.versionId);
+    },
+    setCurrentLoglineVersion: async (_root: unknown, args: { projectId: string; versionId: string }, context: { uid: string | null }) => {
+      if (!context.uid) throw new GraphQLError('Unauthorized', { extensions: { code: 'UNAUTHENTICATED' } });
+      await verifyProjectWriteAccess(args.projectId, context.uid);
+      return setCurrentLoglineVersion(args.projectId, args.versionId);
+    },
+    // Feedback is open to comment-level collaborators, not just editors.
+    addLoglineFeedback: async (_root: unknown, args: { projectId: string; versionId: string; text: string }, context: { uid: string | null; user: any }) => {
+      if (!context.uid) throw new GraphQLError('Unauthorized', { extensions: { code: 'UNAUTHENTICATED' } });
+      await verifyProjectCommentAccess(args.projectId, context.uid);
+      return addLoglineFeedback(args.projectId, args.versionId, args.text, { uid: context.uid, displayName: actorDisplayName(context) });
+    },
+    deleteLoglineFeedback: async (_root: unknown, args: { projectId: string; versionId: string; feedbackId: string }, context: { uid: string | null }) => {
+      if (!context.uid) throw new GraphQLError('Unauthorized', { extensions: { code: 'UNAUTHENTICATED' } });
+      const { isOwner } = await verifyProjectCommentAccess(args.projectId, context.uid);
+      return deleteLoglineFeedback(args.projectId, args.versionId, args.feedbackId, context.uid, isOwner);
+    },
     inviteCollaborators,
     updateCollaborator,
     removeCollaborator,
@@ -1084,6 +1176,26 @@ export const resolvers = {
       ).lean().exec();
 
       return statTilePreferencesToObject((updated as any)?.settings?.statTilePreferences);
+    },
+    /**
+     * Records whether the intro walkthrough should still greet this user on login. Written when
+     * they tick "Don't show this again", when they reach the last step, and (with `false`) when
+     * they replay the tour from Settings.
+     */
+    setWalkthroughDismissed: async (
+      _: unknown,
+      { dismissed }: { dismissed: boolean },
+      context: { uid: string | null }
+    ) => {
+      if (!context.uid) throw new Error('Unauthorized');
+
+      await AppUsers.updateOne(
+        { uid: context.uid },
+        { $set: { 'settings.walkthroughDismissed': dismissed } },
+        { upsert: true }
+      ).exec();
+
+      return dismissed;
     },
     createGroupConversation: async (_: any, { projectId, participantUids, name }: { projectId: string; participantUids: string[]; name: string }, context: any) => {
       if (!context.uid || !context.user) throw new Error('Unauthorized');
@@ -1183,6 +1295,7 @@ export const resolvers = {
       const id = parent?._id?.toString?.() ?? parent?._id;
       return id ? context.notesLoader.load(id) : [];
     },
+    loglineHistory: (parent: any) => (Array.isArray(parent?.loglineHistory) ? parent.loglineHistory : []),
   },
   Collaborator: {
     _id: (parent: any) => String(parent._id),
@@ -1238,6 +1351,24 @@ export const resolvers = {
         name: detail?.name ?? null,
       }));
     },
+  },
+  LoglineVersion: {
+    _id: (parent: any) => (parent?._id != null ? String(parent._id) : ''),
+    text: (parent: any) => parent?.text ?? '',
+    authorUid: (parent: any) => parent?.authorUid ?? null,
+    authorName: (parent: any) => parent?.authorName ?? null,
+    current: (parent: any) => Boolean(parent?.current),
+    feedback: (parent: any) => (Array.isArray(parent?.feedback) ? parent.feedback : []),
+    createdAt: (parent: any) => (parent?.createdAt != null ? new Date(parent.createdAt).toISOString() : null),
+    updatedAt: (parent: any) => (parent?.updatedAt != null ? new Date(parent.updatedAt).toISOString() : null),
+  },
+  LoglineFeedback: {
+    _id: (parent: any) => (parent?._id != null ? String(parent._id) : ''),
+    authorUid: (parent: any) => parent?.authorUid ?? '',
+    authorName: (parent: any) => parent?.authorName ?? null,
+    text: (parent: any) => parent?.text ?? '',
+    createdAt: (parent: any) => (parent?.createdAt != null ? new Date(parent.createdAt).toISOString() : null),
+    updatedAt: (parent: any) => (parent?.updatedAt != null ? new Date(parent.updatedAt).toISOString() : null),
   },
   Note: {
     _id: (parent: any) => (parent?._id != null ? String(parent._id) : null),

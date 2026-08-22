@@ -60,6 +60,16 @@ query GetProjectData($input: ProjectFilters) {
         genre
         type
         logline
+        loglineHistory {
+            _id
+            text
+            authorUid
+            authorName
+            current
+            createdAt
+            feedback { _id authorUid authorName text createdAt }
+        }
+        collaborators { _id uid email status permissionLevel aspects }
         user
         displayName
         email

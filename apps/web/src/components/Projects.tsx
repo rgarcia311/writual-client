@@ -104,7 +104,7 @@ export const Projects = () => {
     const myProjects = allProjects.filter((p) => p.user === userId);
     const sharedProjects = allProjects.filter((p) => p.user !== userId);
 
-    const renderCard = (project: any, isOwner: boolean) => {
+    const renderCard = (project: any, isOwner: boolean, index = 0) => {
                 console.log('poster url: ', project.poster)
  return (
         <ProjectCard
@@ -129,6 +129,7 @@ export const Projects = () => {
                 ? () => setProgressTrackingProject(project)
                 : undefined
             }
+            tourAnchor={index === 0}
         />
     );
 }
@@ -148,7 +149,7 @@ export const Projects = () => {
                 flexDirection: 'column',
             }}
         >
-            <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} sx={{ mb: 2 }}>
+            <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} sx={{ mb: 2 }} data-tour="projects-tabs">
                 <Tab label="My Projects" />
                 <Tab label={sharedProjects.length > 0 ? `Shared With Me (${sharedProjects.length})` : 'Shared With Me'} />
             </Tabs>
@@ -156,13 +157,13 @@ export const Projects = () => {
             <Box hidden={activeTab !== 0} sx={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                     {pendingNewProject && <ProjectCardSkeleton />}
-                    {myProjects.map((project) => renderCard(project, true))}
+                    {myProjects.map((project, index) => renderCard(project, true, index))}
                 </Box>
             </Box>
 
             <Box hidden={activeTab !== 1} sx={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                    {sharedProjects.map((project) => renderCard(project, false))}
+                    {sharedProjects.map((project, index) => renderCard(project, false, index))}
                 </Box>
             </Box>
 

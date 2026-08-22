@@ -37,7 +37,10 @@ export function CharacterSceneCountStat({
     <Box
       sx={{ display: 'flex', flexDirection: 'column', flex: 1, gap: rowGap, minWidth: 0, minHeight: 0 }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
+      <Box
+        className="stat-tile-heading"
+        sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}
+      >
         <Typography variant="body2" sx={{ fontWeight: 700, fontSize: compact ? '0.8rem' : undefined }}>
           Character Scene Count
         </Typography>

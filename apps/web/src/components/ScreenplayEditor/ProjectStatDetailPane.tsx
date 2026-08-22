@@ -22,6 +22,7 @@ const XR_BACK_STEP_PX = 24
 
 export const STAT_PANE_LABELS: Record<ScreenplayStatPaneKey, string> = {
   overview: 'Overview',
+  logline: 'Logline History',
   progress: 'Project Progress',
   characters: 'Characters',
   scenes: 'Scenes',

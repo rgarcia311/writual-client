@@ -74,6 +74,7 @@ export function AppTopBar() {
         color="primary"
         startIcon={<AddIcon />}
         onClick={openCreateProjectModal}
+        data-tour="create-project-button"
       >
         Create Project
       </Button>

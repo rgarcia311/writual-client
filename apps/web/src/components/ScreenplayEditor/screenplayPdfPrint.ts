@@ -9,6 +9,22 @@ import {
   getScreenplayInterBlockGapInches,
   SCREENPLAY_LINE_HEIGHT_INCHES,
 } from './screenplaySpacing'
+import {
+  BASELINE_OFFSET_IN,
+  buildPdfLayout,
+  CONTACT_BLOCK_TOP_IN,
+  FIRST_BASELINE_IN,
+  LINES_PER_PAGE,
+  MIN_LINES_AFTER_SPLIT,
+  MIN_LINES_BEFORE_SPLIT,
+  PAGE_NUM_BASELINE_IN,
+  readLayoutConfigFromPage,
+  SPLIT_WITH_MORE_TYPES,
+  TEXT_RIGHT_IN,
+  TITLE_BLOCK_TOP_IN,
+  TITLE_PAGE_TYPES_PDF,
+} from './screenplayPdfLayout'
+import type { ScreenplayLayoutConfig } from '@/lib/screenplayLayout'
 
 /** Same face as on-screen `next/font` Courier Prime — TTF in /public/fonts (OFL). */
 const COURIER_PRIME_PUBLIC_TTF = '/fonts/CourierPrime-Regular.ttf'
@@ -49,29 +65,6 @@ async function setupScreenplayPdfFont(doc: jsPDF): Promise<'CourierPrime' | 'cou
   }
 }
 
-/** @see screenplaySpacing.ts — 12pt line = 1/6" */
-const TOP_CONTENT_IN = 1.0
-/** 11" page, 1" bottom margin → last line must end by 10" */
-const BOTTOM_CONTENT_IN = 10.0
-
-const TITLE_PAGE_TYPES_PDF = new Set<ScreenplayElementType>(['title', 'author', 'contact'])
-
-/** WGA layout: x and max width in inches (8.5" letter). Transition: right edge 7.5" (5.5" + 2.0" wide). */
-const LAYOUT: Record<
-  ScreenplayElementType,
-  { x: number; w: number; rightEdge?: number; oneLine?: boolean; upper?: boolean }
-> = {
-  title: { x: 1.5, w: 6.0 },
-  author: { x: 1.5, w: 6.0 },
-  contact: { x: 1.5, w: 6.0 },
-  action: { x: 1.5, w: 6.0 },
-  slugline: { x: 1.5, w: 6.0, upper: true },
-  character: { x: 3.7, w: 4.0, oneLine: true },
-  parenthetical: { x: 3.1, w: 2.0 },
-  dialogue: { x: 2.5, w: 3.5 },
-  transition: { x: 5.5, w: 2.0, rightEdge: 7.5 },
-}
-
 function normalizeType(raw: unknown): ScreenplayElementType {
   const s = typeof raw === 'string' ? raw.toLowerCase() : ''
   if (
@@ -94,12 +87,23 @@ function normalizeType(raw: unknown): ScreenplayElementType {
  * Build a Letter-size PDF with WGA inch-based layout and line-level pagination.
  * Title-page blocks (title / author / contact) at the start of the document are
  * rendered on a dedicated unnumbered page; the screenplay body begins on page 1.
+ *
+ * `layoutConfig` is this document's inferred per-element geometry. Omit it and the live
+ * `.screenplay-page` element is read instead, so the PDF matches what is on screen; pass `null`
+ * to force the WGA defaults.
  */
-export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
+export async function generateScreenplayPDF(
+  editor: Editor,
+  layoutConfig?: ScreenplayLayoutConfig | null,
+): Promise<Blob> {
   const doc = new jsPDF({ unit: 'in', format: 'letter', orientation: 'portrait' })
   const bodyFont = await setupScreenplayPdfFont(doc)
   doc.setFont(bodyFont, 'normal')
   doc.setFontSize(12)
+
+  const layout = buildPdfLayout(
+    layoutConfig === undefined ? readLayoutConfigFromPage() : layoutConfig,
+  )
 
   // ── Partition blocks into title-page and body ────────────────────────────
   const titleBlocks: { type: ScreenplayElementType; text: string }[] = []
@@ -135,7 +139,7 @@ export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
     // Title + author group: centered, starting ~1/3 down the page.
     // Each block is separated by one blank line (SCREENPLAY_LINE_HEIGHT_INCHES) to mirror the
     // CSS padding-bottom:12pt applied to title/author blocks in the editor.
-    let tay = 3.5
+    let tay = TITLE_BLOCK_TOP_IN + BASELINE_OFFSET_IN
     let isFirstTitleBlock = true
     for (const { text } of titleAuthorLines) {
       if (!isFirstTitleBlock) {
@@ -151,8 +155,8 @@ export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
 
     // Contact info: bottom-left. Use the full LAYOUT width so that a single-line
     // address (one contact block = one PDF line) is never word-wrapped.
-    const contactSpec = LAYOUT['contact']
-    let cy = 9.0
+    const contactSpec = layout['contact']
+    let cy = CONTACT_BLOCK_TOP_IN + BASELINE_OFFSET_IN
     for (const { text } of contactLines) {
       const lines = doc.splitTextToSize(text || ' ', contactSpec.w)
       for (const line of lines) {
@@ -171,26 +175,68 @@ export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
   // ── Render screenplay body ────────────────────────────────────────────────
   const blocksToRender = bodyBlocks
 
-  let y = TOP_CONTENT_IN
+  /** 0-based index of the next line to draw on the current page (0 … LINES_PER_PAGE). */
+  let line = 0
   let pageNum = 1
 
-  if (titleBlocks.length > 0 && blocksToRender.length > 0) {
-    doc.text(`${pageNum}.`, 7.5, 0.5, { align: 'right' })
-  }
+  /** Baseline of line `n`. Negative / >= LINES_PER_PAGE intentionally address the margins, where
+   *  the "(MORE)" and "NAME (CONT'D)" continuation markers live. */
+  const baselineOf = (n: number) => FIRST_BASELINE_IN + n * SCREENPLAY_LINE_HEIGHT_INCHES
+  const linesLeft = () => LINES_PER_PAGE - line
+
+  // Page 1 of the screenplay body is intentionally left unnumbered (standard
+  // screenplay convention); numbering starts on the second body page.
 
   const newPage = () => {
     doc.addPage()
     pageNum += 1
     doc.setFont(bodyFont, 'normal')
     doc.setFontSize(12)
-    doc.text(`${pageNum}.`, 7.5, 0.5, { align: 'right' })
-    y = TOP_CONTENT_IN
+    doc.text(`${pageNum}.`, TEXT_RIGHT_IN, PAGE_NUM_BASELINE_IN, { align: 'right' })
+    line = 0
   }
 
-  const ensureLineFits = () => {
-    if (y + SCREENPLAY_LINE_HEIGHT_INCHES > BOTTOM_CONTENT_IN) {
-      newPage()
+  const drawLine = (text: string, x: number) => {
+    if (linesLeft() === 0) newPage()
+    doc.text(text, x, baselineOf(line))
+    line += 1
+  }
+
+  /** Wrapped line count of a block as this layout will render it. */
+  const blockLineCount = (b: { type: ScreenplayElementType; text: string }): number => {
+    const spec = layout[b.type] ?? layout['action']
+    if (spec.oneLine) return 1
+    return doc.splitTextToSize(b.text.trimEnd() || ' ', spec.w).length
+  }
+
+  /**
+   * Lines that must stay together starting at block `idx`: the block itself, the blank line before
+   * whatever follows, and the opening `MIN_LINES_AFTER_SPLIT` lines of it.
+   *
+   * A character cue chains through its parentheticals to the first dialogue block (those gaps are
+   * zero), so it is never stranded above its own speech; a scene heading only needs the top of the
+   * next block, so it is never the last line on a page. Mirrors the cue+dialogue group check in
+   * `PageBreakPlugin.ts`, which the export previously had no equivalent of at all.
+   */
+  const linesToKeepTogether = (idx: number): number => {
+    const self = blocksToRender[idx]
+    if (!self) return 1
+    let total = blockLineCount(self)
+    let prev: ScreenplayElementType = self.type
+    for (let j = idx + 1; j < blocksToRender.length; j++) {
+      const next = blocksToRender[j]
+      if (!next) break
+      if (self.type === 'character' && next.type !== 'parenthetical' && next.type !== 'dialogue') break
+      total += Math.round(
+        getScreenplayInterBlockGapInches(prev, next.type) / SCREENPLAY_LINE_HEIGHT_INCHES,
+      )
+      const lines = blockLineCount(next)
+      total += Math.min(MIN_LINES_AFTER_SPLIT, lines)
+      // Only a cue keeps walking (through parentheticals); everything else stops at the first block.
+      if (self.type !== 'character' || next.type === 'dialogue' || lines >= MIN_LINES_AFTER_SPLIT) break
+      prev = next.type
     }
+    return total
   }
 
   let prevType: ScreenplayElementType | null = null
@@ -199,15 +245,19 @@ export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
   let lastSpeaker: string | null = null
 
   for (let i = 0; i < blocksToRender.length; i++) {
-    const { type, text } = blocksToRender[i]
+    const block = blocksToRender[i]
+    if (!block) continue
+    const { type, text } = block
+
+    // ── Inter-block gap, in whole blank lines. A blank line never leads a page: when the gap
+    //    would run past the last line, break instead and start the next block flush at the top.
     if (i > 0 && prevType != null) {
-      const gap = getScreenplayInterBlockGapInches(prevType, type)
-      if (gap > 0) {
-        if (y + gap > BOTTOM_CONTENT_IN) {
-          newPage()
-        } else {
-          y += gap
-        }
+      const gapLines = Math.round(
+        getScreenplayInterBlockGapInches(prevType, type) / SCREENPLAY_LINE_HEIGHT_INCHES,
+      )
+      if (gapLines > 0) {
+        if (line + gapLines >= LINES_PER_PAGE) newPage()
+        else line += gapLines
       }
     }
     prevType = type
@@ -224,16 +274,24 @@ export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
     }
 
     // Stipulation: safe fallback for any unexpected element types in body
-    const spec = LAYOUT[type] ?? LAYOUT['action']
+    const spec = layout[type] ?? layout['action']
     const trimmed = text.replace(/\r\n/g, '\n').trimEnd()
 
+    // ── Widow / orphan guards ───────────────────────────────────────────────
+    // A cue must keep at least the opening lines of its speech, and a scene heading must never be
+    // the last line on a page (`break-after: avoid` on screen). Without these the naive per-line
+    // fit check stranded cues alone at the page bottom.
+    if ((type === 'character' || type === 'slugline') && linesLeft() < linesToKeepTogether(i)) {
+      newPage()
+    }
+
     if (type === 'transition') {
-      const rightEdge = spec.rightEdge ?? 7.5
+      const rightEdge = spec.rightEdge ?? TEXT_RIGHT_IN
       const lines = doc.splitTextToSize(trimmed || ' ', spec.w)
-      for (const line of lines) {
-        ensureLineFits()
-        doc.text(line, rightEdge, y, { align: 'right', maxWidth: spec.w })
-        y += SCREENPLAY_LINE_HEIGHT_INCHES
+      for (const l of lines) {
+        if (linesLeft() === 0) newPage()
+        doc.text(l, rightEdge, baselineOf(line), { align: 'right', maxWidth: spec.w })
+        line += 1
       }
       continue
     }
@@ -242,10 +300,7 @@ export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
       const base = (trimmed || ' ').toUpperCase()
       const t = charContd ? `${base} (CONT'D)` : base
       const parts = doc.splitTextToSize(t, spec.w)
-      const first = parts[0] ?? t
-      ensureLineFits()
-      doc.text(first, spec.x, y)
-      y += SCREENPLAY_LINE_HEIGHT_INCHES
+      drawLine(parts[0] ?? t, spec.x)
       continue
     }
 
@@ -255,12 +310,32 @@ export async function generateScreenplayPDF(editor: Editor): Promise<Blob> {
           ? `${trimmed.toUpperCase()} (CONT'D)`
           : trimmed.toUpperCase()
         : trimmed
-    const lines = doc.splitTextToSize(body || ' ', spec.w)
-    for (const line of lines) {
-      ensureLineFits()
-      doc.text(line, spec.x, y)
-      y += SCREENPLAY_LINE_HEIGHT_INCHES
+    let pending: string[] = doc.splitTextToSize(body || ' ', spec.w)
+
+    // ── Speech crossing a page boundary: "(MORE)" + "NAME (CONT'D)" ─────────
+    // Both markers sit in the margins, outside the 54-line band, matching how reference exports
+    // typeset them — so a split costs no body line and the page still holds a full 54.
+    let movedToFreshPage = false
+    while (SPLIT_WITH_MORE_TYPES.has(type) && pending.length > linesLeft()) {
+      const head = linesLeft()
+      if (head < MIN_LINES_BEFORE_SPLIT || pending.length - head < MIN_LINES_AFTER_SPLIT) {
+        // Can't split here without stranding an orphan/widow — move the whole block instead.
+        // `movedToFreshPage` stops a block taller than one page from looping forever.
+        if (movedToFreshPage) break
+        newPage()
+        movedToFreshPage = true
+        continue
+      }
+      for (const l of pending.slice(0, head)) drawLine(l, spec.x)
+      doc.text('(MORE)', layout['character'].x, baselineOf(LINES_PER_PAGE))
+      newPage()
+      if (lastSpeaker) {
+        doc.text(`${lastSpeaker} (CONT'D)`, layout['character'].x, baselineOf(-1))
+      }
+      pending = pending.slice(head)
     }
+
+    for (const l of pending) drawLine(l, spec.x)
   }
 
   return doc.output('blob')
@@ -277,10 +352,13 @@ function cleanupBlobUrl(url: string) {
 /**
  * Print PDF via off-screen iframe; sync `about:blank` + fallback; download on total failure.
  */
-export async function printScreenplayHidden(editor: Editor): Promise<void> {
+export async function printScreenplayHidden(
+  editor: Editor,
+  layoutConfig?: ScreenplayLayoutConfig | null,
+): Promise<void> {
   let blob: Blob
   try {
-    blob = await generateScreenplayPDF(editor)
+    blob = await generateScreenplayPDF(editor, layoutConfig)
   } catch (e) {
     console.warn('Screenplay PDF generation failed:', e)
     return

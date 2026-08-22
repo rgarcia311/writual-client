@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 
 import { isValidImageUrl, getImageUrlForStorage } from '../../utils/imageUrl';
+import { ImageUploadField } from '../shared/ImageUploadField';
 
 export interface NewCharacterValues {
   name: string;
@@ -99,17 +100,12 @@ export function NewCharacterForm({ open, onCancel, onSubmit, submitting = false,
           <TextField label="Gender" value={values.gender} onChange={update('gender')} fullWidth InputLabelProps={{ shrink: true }} />
           <TextField label="Age" type="number" value={values.age} onChange={update('age')} fullWidth InputLabelProps={{ shrink: true }} />
         </Container>
-        <TextField
-          label="Image URL"
+        <ImageUploadField
+          label="Image"
           value={values.imageUrl}
-          onChange={update('imageUrl')}
-          fullWidth
-          placeholder="https://example.com/image.jpg"
-          error={imageUrlTouched && !imageUrlValid}
-          helperText={
-            imageUrlTouched && !imageUrlValid ? "URL isn't a valid image URL." : undefined
-          }
-          InputLabelProps={{ shrink: true }}
+          onChange={(imageUrl) => setValues((prev) => ({ ...prev, imageUrl }))}
+          shrinkLabel
+          helperText="Paste an image URL, or upload one from your computer."
         />
         <TextField label="Bio" value={values.bio} onChange={update('bio')} fullWidth multiline minRows={3} InputLabelProps={{ shrink: true }} />
         <TextField label="Want" value={values.want} onChange={update('want')} fullWidth InputLabelProps={{ shrink: true }} />

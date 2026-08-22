@@ -301,7 +301,6 @@
   padding-bottom: var(--sp-line-single);
   margin-top: 0;
   margin-bottom: 0;
-  margin-right: -36px;
   break-after: avoid;
   page-break-after: avoid;
 }
@@ -331,6 +330,13 @@
 }
 
 /* ── ACTION ──────────────────────────────────────────────────────────────── */
+/*
+ * No right-side bleed: `margin-right: -36px` widened the *line box* from the 576px text area to
+ * 612px, so action and scene headings wrapped at 63 characters instead of 60 — two characters wider
+ * than the 6.0" WGA measure the PDF export uses, which re-wrapped paragraphs and drifted pagination
+ * away from both the export and the source. Nothing needed the bleed: the gutter affordance
+ * (`.script-block-alts-indicator`) is absolutely positioned at `left: -30px`, into the LEFT margin.
+ */
 .script-block[data-element-type='action'] {
   padding-left: 0;
   padding-right: 0;
@@ -338,7 +344,6 @@
   padding-bottom: var(--sp-line-single);
   margin-bottom: 0;
   margin-top: 0;
-  margin-right: -36px;
 }
 
 /* ── CHARACTER CUE ───────────────────────────────────────────────────────── */
@@ -412,11 +417,17 @@
 
 /* Automatic (CONT'D): a character speaking again after an interruption gets the `is-contd` node
    decoration from the screenplayContd plugin. Display-only — never part of the stored cue text.
-   Constrain the content box to its natural width so the suffix sits right after the name. */
-.script-block[data-element-type='character'].is-contd > [data-node-view-content] {
+   Constrain the content box to its natural width so the suffix sits right after the name.
+
+   The class is matched on `.node-scriptBlock`, NOT on `.script-block`: ProseMirror applies a
+   `Decoration.node` class to the node view's OUTER element, which `ReactNodeViewRenderer` names
+   `node-<type>` — `NodeViewWrapper`'s `.script-block` is nested inside it. Selecting
+   `.script-block.is-contd` therefore never matched and the suffix never rendered. Same
+   wrapper-div gotcha the `contact + contact` rules above document. */
+.node-scriptBlock.is-contd .script-block[data-element-type='character'] [data-node-view-content] {
   flex: 0 1 auto;
 }
-.script-block[data-element-type='character'].is-contd::after {
+.node-scriptBlock.is-contd .script-block[data-element-type='character']::after {
   content: ' (CONT\'D)';
   order: 2;
   flex: 0 0 auto;

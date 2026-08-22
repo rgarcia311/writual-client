@@ -8,8 +8,8 @@ import type { ProgressItem } from '../../../utils/progress';
 
 /**
  * Shared pieces and type scale for the project stat tiles. Compact tiles are legible rather than
- * miniature: they grow past their CSS min-height when needed (`.project-float-tracking-stat` sets
- * `height: auto`), so text stays readable.
+ * miniature: the type stays readable and the card scrolls when the content outgrows it (hero cards
+ * are pinned to the poster's height — see `--project-float-hero-card-height`).
  */
 export const TILE_HEADING_SIZE = '0.95rem';
 export const TILE_VALUE_SIZE = '0.78rem';
@@ -17,9 +17,12 @@ export const TILE_LABEL_SIZE = '0.68rem';
 export const TILE_META_SIZE = '0.66rem';
 
 /** Slim bar — tall enough for the 0.78rem label, short enough not to dominate the tile. */
-export const PAGES_BAR_HEIGHT_PX = 25;
+export const PAGES_BAR_HEIGHT_PX = 18;
 
-/** Header row: tile title plus an optional trailing icon. */
+/**
+ * Header row: tile title plus an optional trailing icon. The class is the hook floating stat cards
+ * use to pin the header while the card body scrolls (see `projectDetailsFloat.css`).
+ */
 export function TileHeading({
   title,
   icon,
@@ -31,6 +34,7 @@ export function TileHeading({
 }) {
   return (
     <Box
+      className="stat-tile-heading"
       sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}
     >
       <Typography
@@ -254,6 +258,8 @@ export function PagesProgressBar({
     justifyContent: 'center',
     fontWeight: 700,
     fontSize: compact ? TILE_VALUE_SIZE : undefined,
+    // The track clips its overflow, so the label rides a line box no taller than the bar.
+    lineHeight: 1,
     whiteSpace: 'nowrap' as const,
     boxSizing: 'border-box' as const,
   };

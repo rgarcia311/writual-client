@@ -3,11 +3,11 @@
 import * as React from 'react';
 import { buildProjectStatTiles } from './buildProjectStatTiles';
 import type { ProjectStatTileData } from './useProjectShellData';
-import type { ProjectStatTileKey } from './buildProjectStatTiles';
+import type { ProjectRailStatKey } from './buildProjectStatTiles';
 import { FloatingStatSurface } from './FloatingStatSurface';
 
 export interface FloatingProjectStatProps {
-  statKey: ProjectStatTileKey;
+  statKey: ProjectRailStatKey;
   statTileData: ProjectStatTileData;
   className?: string;
 }

@@ -86,6 +86,7 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
     <StyledSideNav
       elevation={2}
       collapsed={collapsed}
+      data-tour="side-nav"
       enable-xr
       style={
         {
@@ -159,6 +160,7 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
                   href={href}
                   color="primary"
                   size="small"
+                  data-tour={`side-nav-${segment}`}
                   sx={{
                     minWidth: 32,
                     width: 32,
@@ -180,6 +182,7 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
               variant="text"
               color="primary"
               startIcon={<Icon />}
+              data-tour={`side-nav-${segment}`}
               sx={{
                 justifyContent: 'flex-start',
                 minWidth: '200px',
