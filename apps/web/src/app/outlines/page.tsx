@@ -3,7 +3,7 @@ import { OutlinesContent } from '@/components/OutlinesContent/OutlinesContent';
 
 export default function OutlinesPage() {
   return (
-    <Container maxWidth={false} disableGutters sx={{ display: 'flex', flexDirection: 'column', minHeight: '100%', p: 2 }}>
+    <Container maxWidth={false} disableGutters sx={{ display: 'flex', flexDirection: 'column', minHeight: '100%', p: { xs: 1, sm: 2 } }}>
       <Container
         disableGutters
         sx={{

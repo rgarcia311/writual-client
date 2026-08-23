@@ -143,7 +143,7 @@ export const Projects = () => {
                 minHeight: 0,
                 alignSelf: 'stretch',
                 overflowX: 'hidden',
-                padding: 2,
+                padding: { xs: 1, sm: 2 },
                 minWidth: 0,
                 display: 'flex',
                 flexDirection: 'column',

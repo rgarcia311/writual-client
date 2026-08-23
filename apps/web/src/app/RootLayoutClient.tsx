@@ -7,6 +7,8 @@ import { ThemeProvider } from "@mui/material/styles";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SSRProvider } from '@webspatial/react-sdk';
 import './styles/global.scss'
+// Mobile rules for every route; project routes re-import it, which webpack dedupes.
+import '../styles/mobileLayout.css'
 import '@fontsource/lato/100.css'
 import '@fontsource/lato/300.css'
 import '@fontsource/lato'

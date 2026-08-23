@@ -14,6 +14,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import { ThreadListItem } from './ThreadListItem';
 import type { ConversationThread } from '@/interfaces/chat';
+import { MOBILE_MEDIA_QUERY } from '@/lib/breakpoints';
 
 interface Props {
   threads: ConversationThread[];
@@ -56,7 +57,9 @@ export function ThreadList({ threads, selectedConversationId, onlineUserIds, cur
         minHeight: 0,
         bgcolor: '#F7F7F7',
         flexShrink: 0,
-        display: { xs: 'none', sm: 'flex' },
+        display: 'flex',
+        // Same 768px boundary as the rest of the mobile layout; below it the drawer takes over.
+        [`@media ${MOBILE_MEDIA_QUERY}`]: { display: 'none' },
         flexDirection: 'column',
         overflow: 'hidden',
         borderRadius: '10px',

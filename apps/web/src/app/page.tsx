@@ -5,6 +5,7 @@ import { LandingSignIn } from '@/components/LandingSignIn/LandingSignIn';
 import '@fontsource/varela-round';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { MOBILE_MEDIA_QUERY } from '@/lib/breakpoints';
 
 export default async function LandingPage() {
   const cookieStore = await cookies();
@@ -24,6 +25,13 @@ export default async function LandingPage() {
         minHeight: 0,
         boxSizing: 'border-box',
         backgroundColor: 'background.default',
+        // A fixed-height, clipped column drops the sign-in button off the bottom of a phone.
+        [`@media ${MOBILE_MEDIA_QUERY}`]: {
+          height: 'auto',
+          minHeight: 'calc(100dvh - 16px)',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+        },
       }}
     >
       {/* Top hero band */}
@@ -36,7 +44,7 @@ export default async function LandingPage() {
           background:
             'linear-gradient(180deg, #13263c 0%, #0f2236 50%, #0c1b2d 100%)',
           borderRadius: 2,
-          height: 300,
+          height: { xs: 200, sm: 300 },
         }}
       >
         <Container

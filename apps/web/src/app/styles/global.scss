@@ -6,6 +6,9 @@ html {
     width: 100%;
     max-width: 100vw;
     height: 100%;
+    /* iOS inflates text in landscape without this, which breaks every fixed-height row. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
 }
 
 *, *:before, *:after {
@@ -28,6 +31,19 @@ body {
 #__next {
     height: 100%;
     width: 100%;
+}
+
+/*
+ * Mobile Safari's 100vh is the *expanded* viewport, so with the URL bar showing, the bottom of a
+ * full-height flex column sits below the fold — on a project page that is the last row of cards.
+ * `100dvh` tracks the visible height instead. Declared as a progressive enhancement so browsers
+ * without dvh keep the 100vh rules above.
+ */
+@supports (height: 100dvh) {
+    body {
+        height: 100dvh;
+        max-height: 100dvh;
+    }
 }
 
 input:-webkit-autofill,

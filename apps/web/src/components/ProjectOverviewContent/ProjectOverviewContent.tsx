@@ -103,6 +103,7 @@ export function ProjectOverviewContent({ projectId }: ProjectOverviewContentProp
             <Paper
               elevation={2}
               key={item._id}
+              className="project-overview-inspiration-card"
               sx={{
                 p: 2,
                 display: 'flex',

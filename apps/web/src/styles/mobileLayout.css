@@ -1,0 +1,294 @@
+/*
+ * Mobile layout — everything below 768px.
+ *
+ * Two rules govern this file:
+ *
+ * 1. It is loaded from more than one entry point, so its position in the emitted CSS bundle is
+ *    not guaranteed relative to `projectDetailsFloat.css` (or to Emotion's runtime-injected `sx`
+ *    classes). Every rule therefore wins on *specificity*, not source order — hence the
+ *    `.project-details-page` prefix on selectors that would otherwise tie. `!important` appears
+ *    only where the property is set by an `sx` class and no extra class is available.
+ *
+ * 2. Nothing here may leak above the breakpoint. The desktop and 768–900px tablet layouts
+ *    (including the `@media (max-width: 899.95px)` block in `projectDetailsFloat.css`) are
+ *    untouched.
+ *
+ * The breakpoint is mirrored in `lib/breakpoints.ts` — change both together.
+ *
+ * Shape of a mobile project page:
+ *
+ *   ┌ breadcrumb bar (menu button + wrapping title/actions) ┐
+ *   ├ stat rail — pinned, scrolls HORIZONTALLY ─────────────┤
+ *   └ content host — scrolls VERTICALLY ────────────────────┘
+ */
+
+@media (max-width: 767.95px) {
+  /* ------------------------------------------------------------------ tokens */
+
+  /*
+   * The class is repeated to double its specificity: these declarations override the *same*
+   * selector in `projectDetailsFloat.css`, which lands in a different CSS chunk, so a plain
+   * `.project-details-page` would be a specificity tie decided by load order.
+   */
+  .project-details-page.project-details-page {
+    /*
+     * One upstream value drives the whole rail: `--project-float-poster-card-height` and
+     * `--project-float-hero-card-height` are both computed from this, and the poster's width
+     * from its 2:3 aspect. Overriding it alone keeps every derived size consistent.
+     * 176 + 2*4 (surface) + 2*5 (inner) = 194px tall cards; poster card ≈ 135px wide.
+     */
+    --project-float-poster-content-height: 176px;
+    /* Just under 80vw so the next card peeks in and the row reads as scrollable. */
+    --project-float-mobile-card-width: min(78vw, 280px);
+    --project-float-stat-width: var(--project-float-mobile-card-width);
+    --project-float-info-width: var(--project-float-mobile-card-width);
+  }
+
+  /* ------------------------------------------------------------- page shell */
+
+  /*
+   * The side rail is a drawer at this width (see `MobileNavDrawer`), so the content column owns
+   * the full viewport. Padding moves onto the rail and the content host, which need it at
+   * different edges.
+   */
+  .project-details-page.project-details-page {
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+  }
+
+  .project-details-page .project-details-float-root {
+    padding-right: 0;
+    padding-bottom: 0;
+  }
+
+  /* -------------------------------------------------------- breadcrumb bar */
+
+  /*
+   * Fixed-height chrome cannot hold a project title plus two action buttons on a phone. Letting
+   * the row grow is better than clipping it — `--project-breadcrumb-row-height` stays the floor.
+   */
+  .project-details-page .project-breadcrumb-bar {
+    height: auto;
+    min-height: var(--app-chrome-row-height, 46px);
+    padding-top: 4px;
+    padding-bottom: 4px;
+    row-gap: 4px;
+  }
+
+  .project-details-page .project-breadcrumb-bar .MuiTypography-h6 {
+    font-size: 1rem;
+  }
+
+  .project-details-page .project-breadcrumb-bar .MuiBreadcrumbs-separator {
+    margin-left: 4px;
+    margin-right: 4px;
+  }
+
+  /* --------------------------------------------- stat rail: horizontal scroll */
+
+  /*
+   * All three hero variants collapse to the same thing: one non-wrapping row that scrolls
+   * sideways. `flex-wrap: nowrap` is the load-bearing declaration — the 899.95px block sets
+   * `wrap` on `.project-float-hero` and `.project-float-hero--fluid`, and both still match here.
+   *
+   * The band above already keeps this row out of the vertical scroller, so it stays put while
+   * the page's own cards scroll under it.
+   */
+  .project-details-page .project-float-hero,
+  .project-details-page .project-float-hero--fluid,
+  .project-details-page .project-float-hero--with-stats {
+    position: relative;
+    top: auto;
+    left: auto;
+    z-index: auto;
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: var(--project-float-stat-gap);
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    /*
+     * `overflow-x: auto` makes this a scroll container on *both* axes, so the tiles' elevation
+     * shadows would be shaved off top and bottom without this vertical inset.
+     */
+    padding: var(--project-float-shadow-inset, 6px) var(--app-body-padding);
+    box-sizing: border-box;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    scroll-padding-left: var(--app-body-padding);
+  }
+
+  .project-details-page .project-float-hero > * {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+  }
+
+  /*
+   * Every card is the same fixed width — nothing flexes, or the row would try to fit itself into
+   * the viewport instead of overflowing. Beats the deadline tile's `flex: 0.6 3 …` and the
+   * `--with-stats` `flex: 1 1 min(100%, …)` on specificity (3 classes vs 2).
+   */
+  .project-details-page .project-float-hero .project-float-tracking-stat,
+  .project-details-page .project-float-hero .project-float-tracking-stat--deadlines,
+  .project-details-page .project-float-hero .project-float-stat-anchor,
+  .project-details-page .project-float-hero .project-float-info-anchor {
+    flex: 0 0 var(--project-float-mobile-card-width);
+    width: var(--project-float-mobile-card-width);
+    min-width: var(--project-float-mobile-card-width);
+    max-width: var(--project-float-mobile-card-width);
+  }
+
+  .project-details-page .project-float-hero .project-float-poster-anchor {
+    flex: 0 0 var(--project-float-poster-card-width);
+    align-self: stretch;
+  }
+
+  /*
+   * The 899.95px block pins the artwork to a fixed height and centres it — sized for a stacked
+   * full-width tile, it leaves dead space in the shorter rail tile. Fill the content box instead,
+   * the way the `--fluid` hero already does on desktop.
+   */
+  .project-details-page .project-float-hero .project-float-poster-anchor > .MuiBox-root {
+    height: 100%;
+    align-items: stretch;
+  }
+
+  .project-details-page .project-float-hero .project-float-poster-tile__image {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+  }
+
+  /* The rail carries its own padding now; the band would otherwise double it. */
+  .project-details-page .project-float-sticky-stats-band {
+    padding: 0;
+  }
+
+  /* ----------------------------------------- content: one vertical scroller */
+
+  .project-details-page .project-details-float-scroll-host {
+    overscroll-behavior-y: contain;
+  }
+
+  /*
+   * Three classes, because two would tie with `--with-stats-rail`'s and chat's own rules for this
+   * element. Only the side insets are asserted — the top inset is each route's business (the rail
+   * pages already zero it; chat wants its 8px gap under the hero).
+   */
+  .project-details-page .project-details-float-root .project-details-float-content {
+    padding-left: var(--app-body-padding);
+    padding-right: var(--app-body-padding);
+  }
+
+  .project-details-page .project-details-float-root .project-details-float-content--bleed {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  /*
+   * Desktop reserves a screenful below the last row so a card can always scroll clear of the
+   * hero. On a phone the hero is only ~194px tall and that spacer becomes most of a blank screen.
+   */
+  .project-details-page .project-characters-scroll-end-spacer {
+    height: var(--app-body-padding);
+  }
+
+  /* -------------------------------------------------- character / note grids */
+
+  /*
+   * Fluid tracks rather than the desktop fixed 305/480px ones: one full-width card on a phone,
+   * two columns once the container clears ~610/960px. Card *heights* keep their desktop values.
+   */
+  .project-details-page .characters-page-cards {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--character-card-width, 305px)), 1fr));
+    justify-content: stretch;
+    justify-items: stretch;
+    column-gap: var(--project-float-stat-gap, var(--app-body-padding, 8px));
+  }
+
+  .project-details-page .characters-page-cards .character-card--grid {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .project-details-page .notes-page-cards {
+    /* Local custom property on `.notes-page-cards`, so it has to be re-declared, not inherited. */
+    --note-card-width: min(100%, 480px);
+    grid-template-columns: repeat(auto-fill, minmax(var(--note-card-width), 1fr));
+    justify-content: stretch;
+    justify-items: stretch;
+    column-gap: var(--project-float-stat-gap, var(--app-body-padding, 8px));
+  }
+
+  .project-details-page .notes-page-cards .note-card--grid {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* ------------------------------------------------------------ outline page */
+
+  /*
+   * One scroller per page: the step list gives up its own `max-height: 60vh` scrollport, and
+   * scene cards stack one per row.
+   */
+  .project-details-page .outline-page-step-scenes,
+  .project-details-page .outline-page-unassigned-scenes,
+  .project-details-page .outline-page-scenes-grid {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  /*
+   * `SceneCard`'s outline layout caps itself at `calc((100% - 32px) / 4)` inside an
+   * `@container (min-width: 400px)` query — on a stacked column that would squeeze each card to a
+   * quarter width. Three classes beat the Emotion `sx` class regardless of injection order.
+   */
+  .project-details-page .outline-page-step-scenes > *,
+  .project-details-page .outline-page-unassigned-scenes > *,
+  .project-details-page .outline-page-scenes-grid > * {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  /* ----------------------------------------------------------- overview page */
+
+  .project-details-page .project-overview-inspiration-card {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* ---------------------------------------------------------- screenplay page */
+
+  /*
+   * The 816px page auto-fits down to zoom 0.5 and `.screenplay-workspace` already pans
+   * horizontally, so mobile only gives the route back its side padding.
+   */
+  .project-details-page.project-details-page.project-details-page--screenplay {
+    padding: 0 0 14px;
+  }
+
+  /* ------------------------------------------------- projects list (non-project routes) */
+
+  /*
+   * `width: 570` comes from an Emotion `sx` class; `.MuiPaper-root.app-project-card` outranks it.
+   */
+  .MuiPaper-root.app-project-card {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .MuiPaper-root.app-project-card .app-project-card__media {
+    width: 120px;
+  }
+}

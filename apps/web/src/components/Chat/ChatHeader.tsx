@@ -11,6 +11,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import GroupIcon from '@mui/icons-material/Group';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import type { ConversationThread } from '@/interfaces/chat';
+import { MOBILE_MEDIA_QUERY } from '@/lib/breakpoints';
 
 interface Props {
   thread: ConversationThread | undefined;
@@ -66,7 +67,11 @@ export function ChatHeader({ thread, currentUserUid, typingUsers, onMenuClick, o
         minHeight: 64,
       }}
     >
-      <IconButton sx={{ display: { sm: 'none' } }} onClick={onMenuClick} size="small">
+      <IconButton
+        sx={{ display: 'none', [`@media ${MOBILE_MEDIA_QUERY}`]: { display: 'inline-flex' } }}
+        onClick={onMenuClick}
+        size="small"
+      >
         <MenuIcon />
       </IconButton>
       {thread && (
