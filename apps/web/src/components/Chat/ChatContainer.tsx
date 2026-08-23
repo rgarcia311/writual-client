@@ -19,6 +19,7 @@ import { MessageFeed } from './MessageFeed';
 import { MessageInput } from './MessageInput';
 import { NewGroupChatDialog } from './NewGroupChatDialog';
 import type { ChatMessage, ConversationThread, ConversationParticipant } from '@/interfaces/chat';
+import { MOBILE_MEDIA_QUERY } from '@/lib/breakpoints';
 import '@/styles/chatPage.css';
 
 interface Props {
@@ -202,7 +203,11 @@ export function ChatContainer({ projectId }: Props) {
         anchor="left"
         open={isMobileDrawerOpen}
         onClose={() => setIsMobileDrawerOpen(false)}
-        sx={{ display: { sm: 'none' }, '& .MuiDrawer-paper': { width: 300 } }}
+        sx={{
+          display: 'none',
+          [`@media ${MOBILE_MEDIA_QUERY}`]: { display: 'block' },
+          '& .MuiDrawer-paper': { width: 300 },
+        }}
       >
         <ThreadList
           threads={conversations}

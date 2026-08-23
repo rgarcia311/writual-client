@@ -191,6 +191,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   return (
     <Card
       enable-xr
+      className="app-project-card"
       role={to && !headerOnly ? 'button' : undefined}
       tabIndex={to && !headerOnly ? 0 : undefined}
       onKeyDown={to && !headerOnly ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(to); } } : undefined}
@@ -204,6 +205,8 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
         alignItems: 'flex-start',
         position: 'relative',
         width: maxWidth || 570,
+        // Never wider than its column: a 570px card forces horizontal page scroll on a phone.
+        maxWidth: '100%',
         alignSelf: 'flex-start',
         borderRadius: 2,
         boxShadow: enableCardShadow ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
@@ -316,6 +319,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
       </Box>
       <CardMedia
         component="img"
+        className="app-project-card__media"
         sx={{
           alignSelf: 'flex-start',
           p: enableCardShadow ? 1 : 0,
