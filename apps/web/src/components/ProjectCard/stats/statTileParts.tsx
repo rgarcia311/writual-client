@@ -11,7 +11,9 @@ import type { ProgressItem } from '../../../utils/progress';
  * miniature: the type stays readable and the card scrolls when the content outgrows it (hero cards
  * are pinned to the poster's height — see `--project-float-hero-card-height`).
  */
-export const TILE_HEADING_SIZE = '0.95rem';
+
+/** Matches the Project Details card's title (`subtitle1`, 1rem) so every hero card reads alike. */
+export const TILE_HEADING_SIZE = '1rem';
 export const TILE_VALUE_SIZE = '0.78rem';
 export const TILE_LABEL_SIZE = '0.68rem';
 export const TILE_META_SIZE = '0.66rem';
@@ -20,8 +22,93 @@ export const TILE_META_SIZE = '0.66rem';
 export const PAGES_BAR_HEIGHT_PX = 18;
 
 /**
- * Header row: tile title plus an optional trailing icon. The class is the hook floating stat cards
- * use to pin the header while the card body scrolls (see `projectDetailsFloat.css`).
+ * The tiles share one spacing rhythm so their rows line up with each other across a card row: the
+ * heading sits at the same height in every card, and what follows starts at the same offset under
+ * it. Individual tiles pick from these rather than choosing their own values.
+ */
+
+/** Between a tile's heading and its content, and between the blocks of content under it. */
+export const tileStackGap = (compact: boolean) => (compact ? 0.5 : 1);
+
+/** Between repeated rows inside a block — list items, grid rows. Tighter than the block gap. */
+export const tileRowGap = (compact: boolean) => (compact ? 0.5 : 0.75);
+
+/**
+ * The trailing glyph in a tile heading. One size for all of them: an outsized icon would push its
+ * own card's heading taller than the rest and put that card's content a row out of step.
+ */
+export const tileIconSx = (compact: boolean) => ({
+  fontSize: compact ? 18 : 22,
+  color: 'text.secondary' as const,
+});
+
+/**
+ * The root stack a stat tile is built on: a fixed header holding the title, and the tile's content
+ * in a scroller under it. The header is outside that scroller, so it cannot move — however long
+ * the content runs, and wherever the reader has scrolled to, the title stays where it is.
+ *
+ * Horizontal inset sits on the two halves rather than on this stack, so that a row painting a
+ * background (the next deadline, a hovered row) can bleed out past the text into the scroller's
+ * own padding instead of overflowing it and being clipped. There is no vertical inset: the card's
+ * own padding is the top gap, which is what puts every tile's heading on the same line.
+ */
+export function StatTileStack({
+  compact,
+  heading,
+  children,
+}: {
+  compact: boolean;
+  /** The tile's title row — a `TileHeading`. Held out of the scroller. */
+  heading: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const gap = tileStackGap(compact);
+  const inset = compact ? 0.5 : 0;
+
+  return (
+    <Box
+      className="stat-tile"
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        flex: 1,
+        minWidth: 0,
+        minHeight: 0,
+        gap,
+      }}
+    >
+      <Box className="stat-tile__header" sx={{ flexShrink: 0, minWidth: 0, px: inset }}>
+        {heading}
+      </Box>
+      {/* `min-height: 0` is what lets this shrink below its content and scroll rather than pushing
+          the tile taller; vertical only, so a wide row still wraps or clips as it did before. */}
+      <Box
+        className="stat-tile__body"
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          minWidth: 0,
+          px: inset,
+          overflowX: 'hidden',
+          overflowY: 'auto',
+          overscrollBehavior: 'contain',
+          display: 'flex',
+          flexDirection: 'column',
+          gap,
+          // Content keeps its own height and scrolls; without this a flex child would be squeezed
+          // to fit the body instead, and the tile would silently compress rather than scroll.
+          '& > *': { flexShrink: 0 },
+        }}
+      >
+        {children}
+      </Box>
+    </Box>
+  );
+}
+
+/**
+ * Header row: tile title plus an optional trailing icon. Goes in `StatTileStack`'s `heading` slot,
+ * which is what keeps it out of the scrolling half of the tile.
  */
 export function TileHeading({
   title,
@@ -34,12 +121,15 @@ export function TileHeading({
 }) {
   return (
     <Box
-      className="stat-tile-heading"
       sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}
     >
       <Typography
         variant="body2"
-        sx={{ fontWeight: 700, fontSize: compact ? TILE_HEADING_SIZE : undefined }}
+        sx={{
+          fontWeight: 700,
+          fontSize: compact ? TILE_HEADING_SIZE : undefined,
+          lineHeight: compact ? 1.25 : undefined,
+        }}
       >
         {title}
       </Typography>

@@ -5,6 +5,7 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Avatar from '@mui/material/Avatar';
 import GroupsIcon from '@mui/icons-material/Groups';
+import { StatTileStack, TileHeading, tileIconSx, tileRowGap } from './statTileParts';
 
 interface CharacterRankRow {
   name: string;
@@ -30,23 +31,21 @@ export function CharacterSceneCountStat({
   emptyMessage = 'Add characters and screenplay dialogue cues to populate this stat.',
   compact = false,
 }: CharacterSceneCountStatProps) {
-  const rowGap = compact ? 0.35 : 1;
   const avatarSize = compact ? 28 : 40;
 
   return (
-    <Box
-      sx={{ display: 'flex', flexDirection: 'column', flex: 1, gap: rowGap, minWidth: 0, minHeight: 0 }}
+    <StatTileStack
+      compact={compact}
+      heading={
+        <TileHeading
+          title="Character Scene Count"
+          compact={compact}
+          icon={
+            <GroupsIcon sx={tileIconSx(compact)} aria-hidden />
+          }
+        />
+      }
     >
-      <Box
-        className="stat-tile-heading"
-        sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}
-      >
-        <Typography variant="body2" sx={{ fontWeight: 700, fontSize: compact ? '0.8rem' : undefined }}>
-          Character Scene Count
-        </Typography>
-        <GroupsIcon sx={{ fontSize: compact ? 18 : 22, color: 'text.secondary' }} aria-hidden />
-      </Box>
-
       {topCharacters.length === 0 ? (
         <Typography
           variant="caption"
@@ -71,7 +70,7 @@ export function CharacterSceneCountStat({
               p: 0,
               display: 'flex',
               flexDirection: 'column',
-              gap: compact ? 0.35 : 1,
+              gap: tileRowGap(compact),
             }}
           >
             {topCharacters.map((row) => (
@@ -108,6 +107,6 @@ export function CharacterSceneCountStat({
           </Typography>
         </>
       )}
-    </Box>
+    </StatTileStack>
   );
 }

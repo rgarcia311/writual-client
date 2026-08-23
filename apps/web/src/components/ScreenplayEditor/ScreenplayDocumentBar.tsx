@@ -9,6 +9,7 @@ import { useUserProfileStore } from '@/state/user'
 import { ScreenplayDocumentTabs } from './ScreenplayDocumentTabs'
 import { ScreenplayImportDialog } from './ScreenplayImportDialog'
 import { ScreenplayDocumentActions } from './ScreenplayDocumentActions'
+import { NewScreenplayDocumentButton } from './NewScreenplayDocumentButton'
 import type { ScreenplayImportResult } from '@hooks/useScreenplayImport'
 
 interface ScreenplayDocumentBarProps {
@@ -19,10 +20,12 @@ interface ScreenplayDocumentBarProps {
  * Document tabs plus the "Import PDF" entry point, sitting above the screenplay editor.
  *
  * Import is offered to anyone who can edit the project; whether it also builds character and scene
- * cards is a separate, tier-gated choice made inside the dialog.
+ * cards is a separate, tier-gated choice made inside the dialog. Adding a screenplay alongside the
+ * ones already there — blank, or copied from one of the project's scripts — is greenlit+; see
+ * NewScreenplayDocumentButton.
  */
 export function ScreenplayDocumentBar({ projectId }: ScreenplayDocumentBarProps) {
-  const { documents, activeDocument, activeDocumentId, setActiveDocumentId } =
+  const { documents, projectTitle, activeDocument, activeDocumentId, setActiveDocumentId } =
     useScreenplayDocuments(projectId)
   const user = useUserProfileStore((s) => s.userProfile?.user)
   const [dialogOpen, setDialogOpen] = React.useState(false)
@@ -59,6 +62,15 @@ export function ScreenplayDocumentBar({ projectId }: ScreenplayDocumentBarProps)
           onChange={setActiveDocumentId}
           rightAdornment={
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <NewScreenplayDocumentButton
+                projectId={projectId}
+                defaultName={`Screenplay ${documents.length + 1}`}
+                documents={documents}
+                activeDocumentId={activeDocumentId}
+                projectTitle={projectTitle}
+                onCreated={setActiveDocumentId}
+                onError={setErrorNotice}
+              />
               <Button
                 size="small"
                 variant="outlined"

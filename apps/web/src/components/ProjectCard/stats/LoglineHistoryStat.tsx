@@ -9,7 +9,7 @@ import HistoryEduIcon from '@mui/icons-material/HistoryEdu';
 import OpenInFullIcon from '@mui/icons-material/OpenInFull';
 import { LoglineHistoryPanel } from '@/components/LoglineHistory';
 import type { LoglineHistoryViewProps } from '@/components/LoglineHistory';
-import { TileHeading, TILE_META_SIZE } from './statTileParts';
+import { StatTileStack, TileHeading, TILE_META_SIZE, tileIconSx } from './statTileParts';
 
 export interface LoglineHistoryStatProps extends Omit<LoglineHistoryViewProps, 'dense'> {
   compact?: boolean;
@@ -25,26 +25,27 @@ export function LoglineHistoryStat({ compact = false, onExpand, ...panelProps }:
   const { versions } = panelProps;
 
   return (
-    <Box
-      sx={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 0.5, minWidth: 0, minHeight: 0 }}
+    <StatTileStack
+      compact={compact}
+      heading={
+        <TileHeading
+          title="Logline History"
+          compact={compact}
+          icon={
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flexShrink: 0 }}>
+              {onExpand ? (
+                <Tooltip title="Open logline history">
+                  <IconButton size="small" aria-label="Open logline history" onClick={onExpand} sx={{ p: 0.25 }}>
+                    <OpenInFullIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                </Tooltip>
+              ) : null}
+              <HistoryEduIcon sx={tileIconSx(compact)} aria-hidden />
+            </Box>
+          }
+        />
+      }
     >
-      <TileHeading
-        title="Logline History"
-        compact={compact}
-        icon={
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flexShrink: 0 }}>
-            {onExpand ? (
-              <Tooltip title="Open logline history">
-                <IconButton size="small" aria-label="Open logline history" onClick={onExpand} sx={{ p: 0.25 }}>
-                  <OpenInFullIcon sx={{ fontSize: 16 }} />
-                </IconButton>
-              </Tooltip>
-            ) : null}
-            <HistoryEduIcon sx={{ fontSize: compact ? 18 : 22, color: 'text.secondary' }} aria-hidden />
-          </Box>
-        }
-      />
-
       {versions.length > 0 ? (
         <Typography variant="caption" color="text.secondary" sx={{ fontSize: TILE_META_SIZE }}>
           {versions.length} {versions.length === 1 ? 'version' : 'versions'}
@@ -52,6 +53,6 @@ export function LoglineHistoryStat({ compact = false, onExpand, ...panelProps }:
       ) : null}
 
       <LoglineHistoryPanel {...panelProps} dense={compact} />
-    </Box>
+    </StatTileStack>
   );
 }

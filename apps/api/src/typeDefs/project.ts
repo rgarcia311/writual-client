@@ -4,6 +4,7 @@ import { setProjectOutline, createOutlineFramework, updateOutlineFramework, dele
 import mongoose from "mongoose";
 import { AppUsers, Projects, Scenes, Characters, Messages, Conversations, Notes } from "@writual/db";
 import { requireTier } from "../utils/tierUtils";
+import { MULTI_SCREENPLAY_MIN_TIER } from "@writual/tier-logic";
 import { resolveScreenplayPageCount } from "../utils/screenplayPageEstimate";
 import { pusher } from "../services/pusher";
 import { inviteCollaborators, updateCollaborator, removeCollaborator, claimInvite, finalizeSignup } from "../resolvers/collaboratorResolvers";
@@ -13,7 +14,7 @@ import { createScene as createSceneService, updateScene as updateSceneService, d
 import { createCharacter as createCharacterService, updateCharacter as updateCharacterService, deleteCharacter as deleteCharacterService } from "../services/CharacterService";
 import { createNote as createNoteService, updateNote as updateNoteService, deleteNote as deleteNoteService } from "../services/NoteService";
 import { seedLoglineHistory, addLoglineVersion, updateLoglineVersion, deleteLoglineVersion, setCurrentLoglineVersion, addLoglineFeedback, deleteLoglineFeedback } from "../services/LoglineService";
-import { createScreenplayDocument as createScreenplayDocumentService, renameScreenplayDocument as renameScreenplayDocumentService, deleteScreenplayDocument as deleteScreenplayDocumentService, getScreenplayDocumentWithContent, pickPrimary, type ScreenplayDocumentRow } from "../services/ScreenplayDocumentService";
+import { listScreenplayDocuments, createScreenplayDocument as createScreenplayDocumentService, renameScreenplayDocument as renameScreenplayDocumentService, deleteScreenplayDocument as deleteScreenplayDocumentService, getScreenplayDocumentWithContent, pickPrimary, type ScreenplayDocumentRow } from "../services/ScreenplayDocumentService";
 export const ProjectType = `#graphql
 
     scalar JSON
@@ -1066,6 +1067,13 @@ export const resolvers = {
       await requireTier(context, 'spec');
       await verifyProjectWriteAccess(args.projectId, context.uid!);
       const { projectId, ...payload } = args;
+      // Every project gets its primary screenplay document at any tier; holding more than one is
+      // the greenlit+ feature. Checking the existing count rather than gating the whole mutation
+      // keeps a project that somehow has no document at all recoverable from any tier.
+      const existing = await listScreenplayDocuments(projectId);
+      if (existing.length > 0) {
+        await requireTier(context, MULTI_SCREENPLAY_MIN_TIER);
+      }
       return createScreenplayDocumentService(projectId, payload);
     },
     renameScreenplayDocument: async (

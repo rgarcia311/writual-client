@@ -2,7 +2,6 @@
 
 import * as React from 'react';
 import Paper from '@mui/material/Paper';
-import { useTheme } from '@mui/material/styles';
 
 /** Pixels of real depth these surfaces sit in front of page content on spatial platforms. */
 const XR_STAT_SURFACE_BACK_PX = 12;
@@ -19,7 +18,6 @@ export function FloatingStatSurface({
   className,
   variant = 'stat',
 }: FloatingStatSurfaceProps) {
-  const theme = useTheme();
   const variantClass =
     variant === 'poster'
       ? 'project-float-poster-anchor'
@@ -35,8 +33,8 @@ export function FloatingStatSurface({
       sx={{
         position: 'relative',
         borderRadius: 'var(--project-float-radius, 12px)',
-        // Every card is pinned to the poster's height, so each one clips its own overflow and
-        // scrolls internally (see `--project-float-hero-card-height`).
+        // Every card is pinned to the poster's height and clips to it; the tile inside scrolls its
+        // own content (see `--project-float-hero-card-height`).
         overflow: 'hidden',
         p: 'var(--project-float-stat-surface-padding, 4px)',
         ...(variant === 'stat'
@@ -47,9 +45,6 @@ export function FloatingStatSurface({
         {
           '--xr-back': `${XR_STAT_SURFACE_BACK_PX}px`,
           '--xr-background-material': 'translucent',
-          // Published so the sticky tile header can paint the card's own background over the
-          // content scrolling beneath it.
-          '--project-float-card-bg': theme.palette.background.paper,
         } as React.CSSProperties
       }
     >

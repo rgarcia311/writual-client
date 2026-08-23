@@ -22,3 +22,14 @@ export function normalizeTier(raw: unknown): Tier {
   }
   return 'spec';
 }
+
+/**
+ * Holding more than one screenplay document on a project — extra drafts, alternate cuts, an
+ * imported PDF kept alongside the original — is a greenlit+ capability. Every project keeps its
+ * single primary document at any tier; only *adding* to it is gated.
+ */
+export const MULTI_SCREENPLAY_MIN_TIER: Tier = 'greenlit';
+
+export function canCreateAdditionalScreenplays(tier: Tier): boolean {
+  return TIER_RANK[tier] >= TIER_RANK[MULTI_SCREENPLAY_MIN_TIER];
+}

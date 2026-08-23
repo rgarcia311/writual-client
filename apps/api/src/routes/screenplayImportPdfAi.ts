@@ -5,6 +5,7 @@ import { GraphQLError } from 'graphql';
 import { verifyUser } from '../lib/verifyUser';
 import { verifyProjectWriteAccess } from '../lib/projectAccess';
 import { requireTier } from '../utils/tierUtils';
+import { MULTI_SCREENPLAY_MIN_TIER } from '@writual/tier-logic';
 import { getAiConfig } from '../lib/aiEnrichment';
 import {
   importScreenplayPdf,
@@ -62,6 +63,23 @@ export function registerScreenplayImportPdfAiRoute(app: Express): void {
       // `withAi` opts into character/scene generation. Defaults true so the existing create-project
       // caller, which predates the flag, keeps its behaviour.
       const withAi = body.withAi !== false;
+
+      // Landing the PDF in a *new* document leaves the project holding several screenplays, which
+      // is the same greenlit+ capability the "New screenplay" button is gated on. Replacing an
+      // existing document adds no document and stays open to every tier.
+      if (mode === 'add') {
+        try {
+          await requireTier({ uid }, MULTI_SCREENPLAY_MIN_TIER);
+        } catch (e) {
+          res.status(403).json({
+            error:
+              e instanceof Error
+                ? e.message
+                : `Requires ${MULTI_SCREENPLAY_MIN_TIER} tier or higher`,
+          });
+          return;
+        }
+      }
 
       // Deriving characters and scenes is the greenlit+ feature; writing screenplay content is not.
       if (withAi) {
