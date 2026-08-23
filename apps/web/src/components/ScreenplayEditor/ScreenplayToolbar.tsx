@@ -14,8 +14,8 @@ import {
   ELEMENT_ICONS,
   ElementTooltipContent,
   TITLE_PAGE_ELEMENT_ORDER,
-  TITLE_PAGE_ELEMENT_TYPES,
 } from './WritualEditor'
+import { TITLE_PAGE_ELEMENT_TYPES } from './screenplaySeedDoc'
 import { useScreenplayEditorStore } from '@/state/screenplayEditor'
 
 interface ScreenplayToolbarProps {

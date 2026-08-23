@@ -5,6 +5,7 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import MovieFilterIcon from '@mui/icons-material/MovieFilter';
 import { alpha, useTheme } from '@mui/material/styles';
+import { StatTileStack, TileHeading, tileIconSx, tileRowGap } from './statTileParts';
 
 interface SceneHeadingRow {
   heading: string;
@@ -40,20 +41,19 @@ export function SceneIntExtAltStat({
 
   const altSlice = compact ? 4 : 12;
   const altRows = scenesWithAlts.slice(0, altSlice);
-  const stackGap = compact ? 0.35 : 1;
-
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, gap: stackGap, minHeight: 0, minWidth: 0 }}>
-      <Box
-        className="stat-tile-heading"
-        sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}
-      >
-        <Typography variant="body2" sx={{ fontWeight: 700, fontSize: compact ? '0.8rem' : undefined }}>
-          Scene Stats
-        </Typography>
-        <MovieFilterIcon sx={{ fontSize: compact ? 18 : 22, color: 'text.secondary' }} aria-hidden />
-      </Box>
-
+    <StatTileStack
+      compact={compact}
+      heading={
+        <TileHeading
+          title="Scene Stats"
+          compact={compact}
+          icon={
+            <MovieFilterIcon sx={tileIconSx(compact)} aria-hidden />
+          }
+        />
+      }
+    >
       {!hasDoc ? (
         <Typography
           variant="caption"
@@ -74,7 +74,7 @@ export function SceneIntExtAltStat({
             </Box>
           </Typography>
 
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: compact ? 0.25 : 0.5 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: tileRowGap(compact) }}>
             <Box
               sx={{
                 display: 'flex',
@@ -134,11 +134,14 @@ export function SceneIntExtAltStat({
           ) : (
             <Box
               component="ul"
+              className="scene-alts-list"
               sx={{
                 listStyle: 'disc',
                 m: 0,
                 pl: 2,
                 mb: 0,
+                // Capped here for the project-card grid; inside a floating stat card the card's own
+                // scroller takes over instead (see `projectDetailsFloat.css`).
                 maxHeight: compact ? theme.spacing(5) : 'none',
                 overflowY: compact ? 'auto' : 'visible',
                 '& li': {
@@ -162,6 +165,6 @@ export function SceneIntExtAltStat({
           )}
         </>
       )}
-    </Box>
+    </StatTileStack>
   );
 }

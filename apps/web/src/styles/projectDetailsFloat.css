@@ -373,6 +373,12 @@
   overflow: visible;
 }
 
+/* Same for the alts list on the Scene Stats card: one scrollbar per card, never two. */
+.project-float-stat-anchor .scene-alts-list {
+  max-height: none;
+  overflow: visible;
+}
+
 .project-float-stat-anchor {
   /* A tile that caps a list to scroll it internally gives that cap up inside a card: one scrollbar
      per card, never a scroller nested in a scroller. (Screenplay stat panes keep their own caps.) */
@@ -385,27 +391,18 @@
   overflow: hidden;
 }
 
-/* The card body is the scroller; its tile keeps its natural height instead of being squeezed. */
-.project-float-stat-anchor > .MuiBox-root {
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
-.project-float-stat-anchor > .MuiBox-root > * {
-  flex-shrink: 0;
-}
-
 /*
- * Tile headers stay put while the rest of the card scrolls under them. The offset box-shadow is a
- * repaint of the header 8px higher: it covers the scroller's own top padding, the one strip inside
- * the scrollport that a sticky header does not reach.
+ * Nothing scrolls at card level: the tile inside fills the card exactly, and the scrolling happens
+ * one level further in, in `.stat-tile__body` — below the title, which is held out of it.
  */
-.project-float-stat-anchor .stat-tile-heading {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background-color: var(--project-float-card-bg, transparent);
-  box-shadow: 0 -8px 0 var(--project-float-card-bg, transparent);
+.project-float-stat-anchor > .MuiBox-root {
+  overflow: hidden;
+}
+
+/* Exactly the card's height, so the tile's own body knows what it has to scroll within. */
+.project-float-stat-anchor > .MuiBox-root > * {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .project-details-float-main {

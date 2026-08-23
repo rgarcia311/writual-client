@@ -19,8 +19,11 @@ import {
   DevelopmentProgressDots,
   PagesProgressBar,
   StatGridCell,
+  StatTileStack,
   TileHeading,
   TILE_META_SIZE,
+  tileIconSx,
+  tileRowGap,
 } from './statTileParts';
 
 const HEALTH_LABEL: Record<TrackerScheduleStatus, string> = {
@@ -95,31 +98,18 @@ export function ProjectProgressStat({
   const scenesLocked = development.outlineSectionLocked;
 
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        flex: 1,
-        minHeight: 0,
-        minWidth: 0,
-        // Spread the rows over the tile's height instead of stacking them at the top.
-        justifyContent: 'space-between',
-        gap: compact ? 0.85 : 1,
-        px: compact ? 0.5 : 0,
-        py: compact ? 0.35 : 0,
-      }}
+    <StatTileStack
+      compact={compact}
+      heading={
+        <TileHeading
+          title="Project Progress"
+          compact={compact}
+          icon={
+            <TrendingUpIcon sx={tileIconSx(compact)} aria-hidden />
+          }
+        />
+      }
     >
-      <TileHeading
-        title="Project Progress"
-        compact={compact}
-        icon={
-          <TrendingUpIcon
-            sx={{ fontSize: compact ? 21 : 22, color: 'text.secondary' }}
-            aria-hidden
-          />
-        }
-      />
-
       {trackerEnabled ? (
         <PagesProgressBar
           label={target > 0 ? `${current} / ${target} Pages (${pct}%)` : `${current} / ? Pages`}
@@ -141,7 +131,7 @@ export function ProjectProgressStat({
           display: 'grid',
           gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
           columnGap: compact ? 1 : 1.5,
-          rowGap: compact ? 0.75 : 1,
+          rowGap: tileRowGap(compact),
         }}
       >
         <StatGridCell
@@ -207,6 +197,6 @@ export function ProjectProgressStat({
         }
         compact={compact}
       />
-    </Box>
+    </StatTileStack>
   );
 }

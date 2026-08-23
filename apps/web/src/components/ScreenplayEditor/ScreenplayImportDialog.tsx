@@ -26,7 +26,7 @@ import { useQuery } from '@tanstack/react-query'
 import { request } from 'graphql-request'
 import { GRAPHQL_ENDPOINT } from '@/lib/config'
 import { useUserProfileStore } from '@/state/user'
-import { TIER_RANK, type Tier } from '@/types/tier'
+import { MULTI_SCREENPLAY_MIN_TIER, TIER_RANK, type Tier } from '@/types/tier'
 import { PROJECT_IMPORT_ENTITIES_QUERY } from '@/queries/ScreenplayQueries'
 import type { ScreenplayDocumentSummary } from '@hooks/useScreenplayDocuments'
 import {
@@ -77,6 +77,9 @@ export function ScreenplayImportDialog({
 }: ScreenplayImportDialogProps) {
   const tier = useUserProfileStore((s) => (s.userProfile?.tier ?? 'spec') as Tier)
   const aiAvailable = TIER_RANK[tier] >= TIER_RANK[AI_MIN_TIER]
+  // Importing "as a new screenplay" leaves the project holding several, which the API refuses
+  // below greenlit — so offer replacing only, rather than letting the import fail at the end.
+  const canAddDocument = TIER_RANK[tier] >= TIER_RANK[MULTI_SCREENPLAY_MIN_TIER]
 
   const documentsWithContent = React.useMemo(
     () => documents.filter((d) => (d.versions?.length ?? 0) > 0),
@@ -100,7 +103,7 @@ export function ScreenplayImportDialog({
   React.useEffect(() => {
     if (!open) return
     setFile(null)
-    setMode(projectHasScreenplay ? 'replace' : 'replace')
+    setMode('replace')
     setTargetDocumentId(activeDocumentId)
     setDocumentName('')
     setWithAi(aiAvailable)
@@ -195,11 +198,15 @@ export function ScreenplayImportDialog({
                   <FormControlLabel
                     value="add"
                     control={<Radio size="small" />}
-                    disabled={isPending}
+                    disabled={isPending || !canAddDocument}
                     label={
                       <OptionLabel
                         title="Add as a new screenplay"
-                        description="Keeps what you have and adds the PDF as its own document."
+                        description={
+                          canAddDocument
+                            ? 'Keeps what you have and adds the PDF as its own document.'
+                            : `Keeps what you have and adds the PDF as its own document. Requires ${MULTI_SCREENPLAY_MIN_TIER} tier or higher.`
+                        }
                       />
                     }
                   />

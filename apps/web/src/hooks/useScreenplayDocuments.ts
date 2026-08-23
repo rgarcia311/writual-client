@@ -25,6 +25,8 @@ export interface ScreenplayDocumentSummary {
 
 export interface UseScreenplayDocumentsResult {
   documents: ScreenplayDocumentSummary[]
+  /** The project's own title — the name its first screenplay carries, and the title page's title. */
+  projectTitle: string | null
   /** The selected document, or the primary when nothing has been picked yet. */
   activeDocument: ScreenplayDocumentSummary | null
   activeDocumentId: string | null
@@ -53,12 +55,19 @@ export function useScreenplayDocuments(
         input: { user, _id: projectId },
       }),
     enabled: Boolean(projectId && user),
-  }) as { data?: { getProjectData?: Array<{ screenplayDocuments?: ScreenplayDocumentSummary[] }> }; isLoading: boolean }
+  }) as {
+    data?: {
+      getProjectData?: Array<{ title?: string | null; screenplayDocuments?: ScreenplayDocumentSummary[] }>
+    }
+    isLoading: boolean
+  }
 
   const documents = React.useMemo(
     () => data?.getProjectData?.[0]?.screenplayDocuments ?? [],
     [data],
   )
+
+  const projectTitle = data?.getProjectData?.[0]?.title ?? null
 
   const stored = projectId ? activeByProject[projectId] : undefined
 
@@ -80,6 +89,7 @@ export function useScreenplayDocuments(
 
   return {
     documents,
+    projectTitle,
     activeDocument,
     activeDocumentId: activeDocument?._id ?? null,
     setActiveDocumentId,

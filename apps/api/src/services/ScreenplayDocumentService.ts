@@ -17,6 +17,49 @@ import { resolveScreenplayPageCount } from "../utils/screenplayPageEstimate";
 /** Yjs collaboration state, written by apps/hocuspocus, keyed `"<projectId>:<documentId>"`. */
 const YJS_COLLECTION = "yjs_documents";
 
+/**
+ * What a project's first screenplay was called before it took the project's title. Still the schema
+ * default, and the marker the one-time rename below looks for.
+ */
+const LEGACY_PRIMARY_NAME = "Screenplay";
+
+/** The project's title, trimmed; empty when the project is gone or has no title. */
+async function getProjectTitle(pid: mongoose.Types.ObjectId): Promise<string> {
+  const project = await Projects.findById(pid).select("title").lean().exec();
+  const title = (project as { title?: unknown } | null)?.title;
+  return typeof title === "string" ? title.trim() : "";
+}
+
+/**
+ * A project's first screenplay is named after the project; the writer names the ones they add
+ * after it. Projects migrated before that was true all got the generic `"Screenplay"`, so their
+ * sole document adopts the title here, on read.
+ *
+ * The rename is self-limiting: after it the name no longer matches, so later reads fall straight
+ * through. A project with a second document is left alone (its tabs are the writer's own naming),
+ * and so is a document whose name is anything else — including one the writer renamed.
+ */
+async function adoptProjectTitleForSolePrimary(
+  pid: mongoose.Types.ObjectId,
+  documents: ScreenplayDocumentRow[]
+): Promise<ScreenplayDocumentRow[]> {
+  const only = documents[0];
+  if (documents.length !== 1 || only.name !== LEGACY_PRIMARY_NAME) return documents;
+
+  const title = await getProjectTitle(pid);
+  if (title === "" || title === only.name) return documents;
+
+  const renamed = await Screenplays.findOneAndUpdate(
+    { _id: only._id, name: LEGACY_PRIMARY_NAME },
+    { $set: { name: title } },
+    { new: true }
+  )
+    .lean()
+    .exec();
+
+  return [(renamed as unknown as ScreenplayDocumentRow) ?? only];
+}
+
 export interface ScreenplayDocumentRow {
   _id: mongoose.Types.ObjectId;
   projectId: mongoose.Types.ObjectId;
@@ -93,10 +136,21 @@ export async function ensureScreenplayDocuments(
     .sort({ order: 1, createdAt: 1 })
     .lean()
     .exec();
-  if (existing.length > 0) return existing as unknown as ScreenplayDocumentRow[];
+  if (existing.length > 0) {
+    return adoptProjectTitleForSolePrimary(
+      pid,
+      existing as unknown as ScreenplayDocumentRow[]
+    );
+  }
 
   const project = await Projects.findById(pid).select("screenplay title").lean().exec();
   if (!project) return [];
+
+  const projectTitle = (project as { title?: unknown }).title;
+  const primaryName =
+    typeof projectTitle === "string" && projectTitle.trim() !== ""
+      ? projectTitle.trim()
+      : LEGACY_PRIMARY_NAME;
 
   const legacy = (project as { screenplay?: Record<string, unknown> }).screenplay;
   const legacyVersions = Array.isArray(legacy?.versions) ? legacy!.versions : [];
@@ -115,7 +169,9 @@ export async function ensureScreenplayDocuments(
     {
       $setOnInsert: {
         projectId: pid,
-        name: "Screenplay",
+        // The project's own screenplay, so it carries the project's name; a writer adding a second
+        // one names it themselves.
+        name: primaryName,
         isPrimary: true,
         order: 0,
         sourceFileName: null,
@@ -301,10 +357,14 @@ export async function createScreenplayDocument(
   const existing = await ensureScreenplayDocuments(pid);
   const nextOrder = existing.reduce((max, d) => Math.max(max, d.order ?? 0), -1) + 1;
 
+  // Unnamed additions are numbered by position. Only a project with no documents at all reaches
+  // the title branch — `ensureScreenplayDocuments` above normally creates the first one itself.
   const name =
     typeof payload.name === "string" && payload.name.trim() !== ""
       ? payload.name.trim()
-      : `Screenplay ${existing.length + 1}`;
+      : existing.length === 0
+        ? (await getProjectTitle(pid)) || LEGACY_PRIMARY_NAME
+        : `Screenplay ${existing.length + 1}`;
 
   const created = await Screenplays.create({
     projectId: pid,

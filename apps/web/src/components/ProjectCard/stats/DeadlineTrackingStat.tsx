@@ -16,7 +16,15 @@ import {
   formatWritingTrackerDueDateIso,
   formatWritingTrackerRelativeDeadlineShort,
 } from '../../../utils/progress';
-import { TileHeading, TILE_META_SIZE, TILE_VALUE_SIZE, TILE_LABEL_SIZE } from './statTileParts';
+import {
+  StatTileStack,
+  TileHeading,
+  TILE_META_SIZE,
+  TILE_VALUE_SIZE,
+  TILE_LABEL_SIZE,
+  tileIconSx,
+  tileRowGap,
+} from './statTileParts';
 import { DeadlineRowEditor, type DeadlineDraftValue } from './DeadlineRowEditor';
 
 interface DeadlineTrackingStatProps {
@@ -157,7 +165,7 @@ export function DeadlineTrackingStat({
 }: DeadlineTrackingStatProps) {
   const [editingDraft, setEditingDraft] = React.useState<number | null>(null);
   const [savingDraft, setSavingDraft] = React.useState<number | null>(null);
-  const calendarIconSx = { fontSize: compact ? 20 : 22, color: 'text.secondary' };
+  const calendarIconSx = tileIconSx(compact);
   const manageLabel = trackerEnabled ? 'Add or edit draft deadlines' : 'Add progress tracking';
   const canEditRows = Boolean(onSaveDeadline);
 
@@ -206,19 +214,7 @@ export function DeadlineTrackingStat({
 
   if (deadlines.length === 0) {
     return (
-      <Box
-        sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: compact ? 0.85 : 1,
-          flex: 1,
-          minWidth: 0,
-          minHeight: 0,
-          px: compact ? 0.5 : 0,
-          py: compact ? 0.35 : 0,
-        }}
-      >
-        {heading}
+      <StatTileStack compact={compact} heading={heading}>
         <Typography
           variant="caption"
           color="text.secondary"
@@ -226,7 +222,7 @@ export function DeadlineTrackingStat({
         >
           {emptyNote}
         </Typography>
-      </Box>
+      </StatTileStack>
     );
   }
 
@@ -234,20 +230,7 @@ export function DeadlineTrackingStat({
   const remaining = deadlines.filter((d) => !d.isPast).length;
 
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: compact ? 0.75 : 1,
-        flex: 1,
-        minWidth: 0,
-        minHeight: 0,
-        px: compact ? 0.5 : 0,
-        py: compact ? 0.35 : 0,
-      }}
-    >
-      {heading}
-
+    <StatTileStack compact={compact} heading={heading}>
       <Typography
         variant="caption"
         sx={{ fontSize: compact ? TILE_LABEL_SIZE : undefined, lineHeight: 1.3 }}
@@ -265,7 +248,7 @@ export function DeadlineTrackingStat({
       {/* Scrolls internally past the CSS max height so a long list never stretches the hero row. */}
       <Box
         className="deadline-tracking-stat__list"
-        sx={{ display: 'flex', flexDirection: 'column', gap: compact ? 0.5 : 0.75 }}
+        sx={{ display: 'flex', flexDirection: 'column', gap: tileRowGap(compact) }}
       >
         {deadlines.map((deadline) =>
           editingDraft === deadline.draftNumber ? (
@@ -305,6 +288,6 @@ export function DeadlineTrackingStat({
           ),
         )}
       </Box>
-    </Box>
+    </StatTileStack>
   );
 }

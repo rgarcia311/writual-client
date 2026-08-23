@@ -9,6 +9,7 @@ export const SCREENPLAY_DOCUMENTS_QUERY = gql`
   query GetScreenplayDocuments($input: ProjectFilters) {
     getProjectData(input: $input) {
       _id
+      title
       screenplayDocuments {
         _id
         name
