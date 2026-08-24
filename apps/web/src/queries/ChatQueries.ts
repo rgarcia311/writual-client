@@ -16,7 +16,7 @@ export const GET_PROJECT_CHATS = gql`
   query GetProjectChats {
     getProjectChats {
       _id title displayName ownerDisplayName user genre type poster sharedWith createdAt unreadCount
-      collaborators { _id email uid status permissionLevel aspects invitedAt }
+      collaborators { _id email uid status permissionLevel aspects screenplayDocumentIds invitedAt }
       developmentStatus {
         outlineStarted charactersStarted screenplayStarted
       }

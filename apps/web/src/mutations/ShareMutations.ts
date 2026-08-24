@@ -8,6 +8,7 @@ const COLLABORATOR_FIELDS = gql`
     status
     permissionLevel
     aspects
+    screenplayDocumentIds
     invitedAt
   }
 `;
@@ -26,8 +27,8 @@ export const INVITE_COLLABORATORS = gql`
 
 export const UPDATE_COLLABORATOR = gql`
   ${COLLABORATOR_FIELDS}
-  mutation UpdateCollaborator($projectId: ID!, $collaboratorId: ID!, $permissionLevel: String, $aspects: [String!]) {
-    updateCollaborator(projectId: $projectId, collaboratorId: $collaboratorId, permissionLevel: $permissionLevel, aspects: $aspects) {
+  mutation UpdateCollaborator($projectId: ID!, $collaboratorId: ID!, $permissionLevel: String, $aspects: [String!], $screenplayDocumentIds: [ID!]) {
+    updateCollaborator(projectId: $projectId, collaboratorId: $collaboratorId, permissionLevel: $permissionLevel, aspects: $aspects, screenplayDocumentIds: $screenplayDocumentIds) {
       _id
       collaborators {
         ...CollaboratorFields

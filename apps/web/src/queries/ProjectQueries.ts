@@ -70,7 +70,7 @@ query GetProjectData($input: ProjectFilters) {
             createdAt
             feedback { _id authorUid authorName text createdAt }
         }
-        collaborators { _id uid email status permissionLevel aspects }
+        collaborators { _id uid email status permissionLevel aspects screenplayDocumentIds }
         user
         displayName
         email
@@ -147,6 +147,25 @@ query GetProjectData($input: ProjectFilters) {
           draftDueDates { draftNumber label dueDate tag }
         }
         progressTrackingEnabled
+    }
+}
+`;
+
+/**
+ * Who a project is shared with, and what each of them was granted — owner uid, collaborator rows
+ * and the screenplay documents a grant can name. Deliberately tiny: the chat reads this on every
+ * project it opens, and the fuller PROJECT_QUERY carries scenes, characters and script bodies.
+ */
+export const PROJECT_ACCESS_QUERY = gql`
+query GetProjectAccess($input: ProjectFilters) {
+    getProjectData(input: $input) {
+        _id
+        title
+        user
+        displayName
+        sharedWith
+        collaborators { _id uid email status permissionLevel aspects screenplayDocumentIds invitedAt }
+        screenplayDocuments { _id name isPrimary order }
     }
 }
 `;

@@ -54,7 +54,7 @@ query GetProjectTrackingStats($input: ProjectFilters!) {
       createdAt
       feedback { _id authorUid authorName text createdAt }
     }
-    collaborators { _id uid email status permissionLevel aspects }
+    collaborators { _id uid email status permissionLevel aspects screenplayDocumentIds }
     genre
     type
     activeVersion
