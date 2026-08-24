@@ -8,6 +8,7 @@ query GetProjectData($input: ProjectFilters) {
     logline
     genre
     type
+    timePeriod
     user
     displayName
     email

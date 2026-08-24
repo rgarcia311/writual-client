@@ -93,7 +93,9 @@ export function ProjectBreadcrumbBar({
         </Breadcrumbs>
       </Box>
       {rightAdornment ? (
-        <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>{rightAdornment}</Box>
+        <Box className="project-breadcrumb-actions" sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+          {rightAdornment}
+        </Box>
       ) : null}
     </Box>
   );

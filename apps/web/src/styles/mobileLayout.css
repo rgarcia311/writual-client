@@ -17,7 +17,7 @@
  *
  * Shape of a mobile project page:
  *
- *   ┌ breadcrumb bar (menu button + wrapping title/actions) ┐
+ *   ┌ breadcrumb bar (menu button + truncating title + actions, one row) ┐
  *   ├ stat rail — pinned, scrolls HORIZONTALLY ─────────────┤
  *   └ content host — scrolls VERTICALLY ────────────────────┘
  */
@@ -65,24 +65,128 @@
   /* -------------------------------------------------------- breadcrumb bar */
 
   /*
-   * Fixed-height chrome cannot hold a project title plus two action buttons on a phone. Letting
-   * the row grow is better than clipping it — `--project-breadcrumb-row-height` stays the floor.
+   * One row, always: menu button, crumb trail and page actions share the single chrome line. Both
+   * sides are elastic — the trail truncates and the actions taper (see below) rather than either
+   * wrapping onto a second line, so the bar keeps `--app-chrome-row-height` and nothing below it
+   * shifts.
    */
   .project-details-page .project-breadcrumb-bar {
-    height: auto;
+    flex-wrap: nowrap;
+    height: var(--app-chrome-row-height, 46px);
     min-height: var(--app-chrome-row-height, 46px);
-    padding-top: 4px;
-    padding-bottom: 4px;
-    row-gap: 4px;
+    padding-top: 0;
+    padding-bottom: 0;
+    column-gap: 4px;
   }
 
   .project-details-page .project-breadcrumb-bar .MuiTypography-h6 {
     font-size: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /*
+   * The trail column is `flex: 1` with a zero basis, so on its own it would collapse to nothing
+   * before a wide action group gave up a pixel. This floor reverses that: the title always keeps
+   * a few characters and the actions shrink to make room.
+   */
+  .project-details-page .project-breadcrumb-bar > .MuiBox-root:not(.project-breadcrumb-actions) {
+    min-width: 5rem;
+  }
+
+  .project-details-page .project-breadcrumb-bar .MuiBreadcrumbs-ol {
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+
+  .project-details-page .project-breadcrumb-bar .MuiBreadcrumbs-li {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  /* The crumb link is inline by default, so it would hand its child no width to ellipsise in. */
+  .project-details-page .project-breadcrumb-bar .MuiBreadcrumbs-li > a {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  /*
+   * Drop the "Projects" root crumb and the separator after it (MUI interleaves crumb, separator,
+   * crumb …, so those are the first two children). The drawer already links Projects, and the
+   * ~90px it costs is the difference between an ellipsised page title and a readable one.
+   */
+  .project-details-page .project-breadcrumb-bar .MuiBreadcrumbs-ol > li:nth-child(1),
+  .project-details-page .project-breadcrumb-bar .MuiBreadcrumbs-ol > li:nth-child(2) {
+    display: none;
   }
 
   .project-details-page .project-breadcrumb-bar .MuiBreadcrumbs-separator {
     margin-left: 4px;
     margin-right: 4px;
+    flex-shrink: 0;
+  }
+
+  /*
+   * Actions stay on the row at full size. Pages with several of them (outline) would push the row
+   * past the viewport, so the group scrolls sideways instead of wrapping or overflowing the page.
+   */
+  .project-details-page .project-breadcrumb-bar .project-breadcrumb-actions {
+    min-width: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  .project-details-page .project-breadcrumb-bar .project-breadcrumb-actions > * {
+    flex-wrap: nowrap;
+  }
+
+  .project-details-page .project-breadcrumb-bar .project-breadcrumb-actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  /*
+   * Action buttons shrink alongside the crumb trail rather than holding a fixed width and
+   * squeezing the title alone. The `vw` term is tuned so each `clamp()` sits at its maximum at
+   * exactly 665px (11px / 665px = 1.654vw, 18px / 665px = 2.706vw) and scales down from there —
+   * no second breakpoint, just a continuous taper. `flex-shrink: 1` is the backstop: if a page
+   * stacks enough actions that even the tapered widths overflow, they give up width too instead
+   * of pushing the row off-screen.
+   */
+  .project-details-page .project-breadcrumb-bar .MuiButton-root {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: clamp(0.5625rem, 1.654vw, 0.6875rem);
+    letter-spacing: 0.015em;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    padding-left: clamp(4px, 1.2vw, 8px);
+    padding-right: clamp(4px, 1.2vw, 8px);
+  }
+
+  .project-details-page .project-breadcrumb-bar .MuiButton-startIcon {
+    flex-shrink: 0;
+    margin-left: 0;
+    margin-right: clamp(2px, 0.6vw, 4px);
+  }
+
+  .project-details-page .project-breadcrumb-bar .MuiButton-startIcon > *:nth-of-type(1) {
+    font-size: clamp(0.875rem, 2.706vw, 1.125rem);
+  }
+
+  /* The icon-only actions (card picker, overflow menus) taper on the same curve. */
+  .project-details-page .project-breadcrumb-bar .project-breadcrumb-actions .MuiIconButton-root {
+    flex-shrink: 0;
+    padding: clamp(3px, 0.75vw, 5px);
+  }
+
+  .project-details-page .project-breadcrumb-bar .project-breadcrumb-actions .MuiIconButton-root .MuiSvgIcon-root {
+    font-size: clamp(1rem, 3.008vw, 1.25rem);
   }
 
   /* --------------------------------------------- stat rail: horizontal scroll */
