@@ -25,6 +25,8 @@ export interface FloatingProjectInfoTileProps {
   genre: string;
   logline: string;
   projectTypeLabel?: string;
+  /** Era the story is set in, e.g. "1970s" or "Near future". */
+  timePeriod?: string;
   /** Comparable titles from the project's "similar projects" field. */
   similarProjects?: string[];
   projectId?: string;
@@ -38,6 +40,7 @@ const FIELD_PLACEHOLDERS = {
   logline: 'e.g., A washed-up boxer gets one last shot at the title',
   genre: 'e.g., Drama, Horror, Comedy, Fantasy, SciFi',
   type: 'e.g., Feature, Television, Short, Play, Musical',
+  timePeriod: 'e.g., 1970s, Present day, Near future',
   similarProjects: 'e.g., Chinatown, Fargo, Michael Clayton',
 } as const;
 
@@ -82,6 +85,7 @@ export function FloatingProjectInfoTile({
   genre,
   logline,
   projectTypeLabel,
+  timePeriod,
   similarProjects,
   projectId,
   isLoading = false,
@@ -226,6 +230,11 @@ export function FloatingProjectInfoTile({
               label="Type"
               value={projectTypeLabel}
               placeholder={FIELD_PLACEHOLDERS.type}
+            />
+            <InfoFieldRow
+              label="Time period"
+              value={timePeriod}
+              placeholder={FIELD_PLACEHOLDERS.timePeriod}
             />
             <InfoFieldRow
               label="Similar projects"

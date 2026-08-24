@@ -30,6 +30,7 @@ export const createProject = (root, { input }) => {
         title: input.title,
         logline: input.logline,
         genre: input.genre,
+        timePeriod: input.timePeriod,
         budget: input.budget,
         poster: input.poster,
         similarProjects: input.similarProjects,

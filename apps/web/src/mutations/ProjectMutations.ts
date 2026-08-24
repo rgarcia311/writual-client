@@ -9,6 +9,7 @@ export const CREATE_PROJECT = gql`
     $email: String
     $logline: String
     $genre: String
+    $timePeriod: String
     $poster: String
     $outlineName: String
     $sharedWith: [String]
@@ -26,6 +27,7 @@ export const CREATE_PROJECT = gql`
         email: $email
         logline: $logline
         genre: $genre
+        timePeriod: $timePeriod
         poster: $poster
         outlineName: $outlineName
         sharedWith: $sharedWith
