@@ -3,13 +3,22 @@ import mongoose from 'mongoose';
 import { GraphQLError } from 'graphql';
 import { Projects, AppUsers } from '@writual/db';
 import { adminAuth } from '../lib/firebase-admin';
+import { screenplayGrantNormalizer } from '../lib/collaboratorGrants';
 import { sendEmail } from '../services/emailService';
 
 // ─── inviteCollaborators ────────────────────────────────────────────────────
 
 export async function inviteCollaborators(
   _: unknown,
-  { projectId, invitations }: { projectId: string; invitations: Array<{ email: string; permissionLevel: string; aspects: string[] }> },
+  { projectId, invitations }: {
+    projectId: string;
+    invitations: Array<{
+      email: string;
+      permissionLevel: string;
+      aspects: string[];
+      screenplayDocumentIds?: string[] | null;
+    }>;
+  },
   context: { uid: string | null }
 ) {
   if (!context.uid) throw new GraphQLError('Unauthorized', { extensions: { code: 'UNAUTHENTICATED' } });
@@ -19,6 +28,7 @@ export async function inviteCollaborators(
 
   const newCollaborators: any[] = [];
   const reinvites: any[] = [];
+  const normalizeGrant = screenplayGrantNormalizer(projectId);
 
   for (const inv of invitations) {
     const email = inv.email.toLowerCase().trim();
@@ -26,8 +36,10 @@ export async function inviteCollaborators(
 
     if (existing?.status === 'active') continue;
 
+    const screenplayDocumentIds = await normalizeGrant(inv.screenplayDocumentIds);
+
     if (existing?.status === 'pending') {
-      reinvites.push({ email, newToken: randomUUID(), permissionLevel: inv.permissionLevel, aspects: inv.aspects });
+      reinvites.push({ email, newToken: randomUUID(), permissionLevel: inv.permissionLevel, aspects: inv.aspects, screenplayDocumentIds });
       continue;
     }
 
@@ -48,6 +60,7 @@ export async function inviteCollaborators(
       status: isExistingUser ? 'active' : 'pending',
       permissionLevel: inv.permissionLevel,
       aspects: inv.aspects,
+      screenplayDocumentIds,
       inviteToken: randomUUID(),
       invitedAt: new Date(),
     });
@@ -68,9 +81,10 @@ export async function inviteCollaborators(
     await Projects.updateOne(
       { _id: projectId, 'collaborators.email': r.email },
       { $set: {
-        'collaborators.$.inviteToken':     r.newToken,
-        'collaborators.$.permissionLevel': r.permissionLevel,
-        'collaborators.$.aspects':         r.aspects,
+        'collaborators.$.inviteToken':           r.newToken,
+        'collaborators.$.permissionLevel':       r.permissionLevel,
+        'collaborators.$.aspects':               r.aspects,
+        'collaborators.$.screenplayDocumentIds': r.screenplayDocumentIds,
       } }
     );
   }
@@ -107,14 +121,30 @@ export async function inviteCollaborators(
 
 export async function updateCollaborator(
   _: unknown,
-  { projectId, collaboratorId, permissionLevel, aspects }: { projectId: string; collaboratorId: string; permissionLevel?: string; aspects?: string[] },
+  { projectId, collaboratorId, permissionLevel, aspects, screenplayDocumentIds }: {
+    projectId: string;
+    collaboratorId: string;
+    permissionLevel?: string;
+    aspects?: string[];
+    screenplayDocumentIds?: string[] | null;
+  },
   context: { uid: string | null }
 ) {
   if (!context.uid) throw new GraphQLError('Unauthorized', { extensions: { code: 'UNAUTHENTICATED' } });
 
+  // Checked before the grant is normalized: normalizing reads (and can lazily create) the
+  // project's screenplay documents, which a non-owner must not be able to trigger.
+  const owned = await Projects.exists({ _id: projectId, user: context.uid });
+  if (!owned) throw new GraphQLError('Forbidden or project not found', { extensions: { code: 'FORBIDDEN' } });
+
   const update: Record<string, any> = {};
   if (permissionLevel != null) update['collaborators.$[elem].permissionLevel'] = permissionLevel;
   if (aspects != null) update['collaborators.$[elem].aspects'] = aspects;
+  // Absent leaves the grant alone; an empty list is a deliberate reset to "every document".
+  if (screenplayDocumentIds != null) {
+    update['collaborators.$[elem].screenplayDocumentIds'] =
+      await screenplayGrantNormalizer(projectId)(screenplayDocumentIds);
+  }
 
   const updated = await Projects.findOneAndUpdate(
     { _id: projectId, user: context.uid },

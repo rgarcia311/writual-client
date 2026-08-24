@@ -8,6 +8,8 @@ import ListItemButton from '@mui/material/ListItemButton';
 import Typography from '@mui/material/Typography';
 import GroupIcon from '@mui/icons-material/Group';
 import type { ConversationThread } from '@/interfaces/chat';
+import { PermissionChip } from '@/components/CollaboratorAccess';
+import type { ParticipantAccess } from '@hooks/useProjectSharing';
 
 function formatTimestamp(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -28,12 +30,17 @@ interface Props {
   isActive: boolean;
   onlineUserIds: string[];
   currentUserUid: string;
+  /** How the other person in a direct thread reaches this project. */
+  participantAccess: (uid: string) => ParticipantAccess;
   onClick: () => void;
 }
 
-export function ThreadListItem({ thread, isActive, onlineUserIds, currentUserUid, onClick }: Props) {
+export function ThreadListItem({ thread, isActive, onlineUserIds, currentUserUid, participantAccess, onClick }: Props) {
   const isDirect = thread.type === 'direct';
   const other = isDirect ? thread.participants.find((p) => p.uid !== currentUserUid) : null;
+  // What this person can do on the project, shown next to their name so a note about the script
+  // can be read against whether they are able to change it.
+  const access = other ? participantAccess(other.uid) : null;
 
   const title = isDirect
     ? (other?.displayName ?? other?.name ?? 'Unknown')
@@ -91,9 +98,18 @@ export function ThreadListItem({ thread, isActive, onlineUserIds, currentUserUid
       </Badge>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
-          <Typography variant="body2" fontWeight={600} noWrap sx={{ flex: 1 }}>
+          <Typography variant="body2" fontWeight={600} noWrap sx={{ minWidth: 0 }}>
             {title}
           </Typography>
+          {access && (access.role || access.collaborator) && (
+            <Box sx={{ flexShrink: 0 }}>
+              <PermissionChip
+                level={access.collaborator?.permissionLevel ?? 'edit'}
+                role={access.role ?? undefined}
+              />
+            </Box>
+          )}
+          <Box sx={{ flex: 1 }} />
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0 }}>
             <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
               {formatTimestamp(timestamp)}

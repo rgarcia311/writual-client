@@ -15,6 +15,7 @@ import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import { ThreadListItem } from './ThreadListItem';
 import type { ConversationThread } from '@/interfaces/chat';
 import { MOBILE_MEDIA_QUERY } from '@/lib/breakpoints';
+import type { ParticipantAccess } from '@hooks/useProjectSharing';
 
 interface Props {
   threads: ConversationThread[];
@@ -22,11 +23,13 @@ interface Props {
   onlineUserIds: string[];
   currentUserUid: string;
   projectId: string;
+  /** How a given uid reaches this project, so each direct thread can show their permission. */
+  participantAccess: (uid: string) => ParticipantAccess;
   onSelect: (id: string) => void;
   onNewGroupChat: () => void;
 }
 
-export function ThreadList({ threads, selectedConversationId, onlineUserIds, currentUserUid, projectId, onSelect, onNewGroupChat }: Props) {
+export function ThreadList({ threads, selectedConversationId, onlineUserIds, currentUserUid, projectId, participantAccess, onSelect, onNewGroupChat }: Props) {
   const [search, setSearch] = React.useState('');
 
   const sorted = [...threads].sort((a, b) => {
@@ -131,6 +134,7 @@ export function ThreadList({ threads, selectedConversationId, onlineUserIds, cur
               isActive={thread._id === selectedConversationId}
               onlineUserIds={onlineUserIds}
               currentUserUid={currentUserUid}
+              participantAccess={participantAccess}
               onClick={() => onSelect(thread._id)}
             />
           ))

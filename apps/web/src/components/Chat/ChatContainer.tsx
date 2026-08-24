@@ -13,6 +13,7 @@ import { SEND_MESSAGE, MARK_AS_READ, CREATE_GROUP_CONVERSATION, LEAVE_CONVERSATI
 import { useUserProfileStore } from '@/state/user';
 import { usePusher } from '@/hooks/usePusher';
 import { usePresence } from '@/hooks/usePresence';
+import { useProjectSharing } from '@/hooks/useProjectSharing';
 import { ThreadList } from './ThreadList';
 import { ChatHeader } from './ChatHeader';
 import { MessageFeed } from './MessageFeed';
@@ -56,6 +57,10 @@ export function ChatContainer({ projectId }: Props) {
 
   usePusher(selectedConversationId, projectId);
   const { typingUsers, onlineUserIds, sendTypingEvent } = usePresence(projectId);
+
+  // Who else is on this project and what they were granted — the chat labels every conversation
+  // with it, and lets the owner change it without leaving the page.
+  const { participantAccess, screenplayDocuments, isViewerOwner } = useProjectSharing(projectId);
 
   const sendMutation = useMutation({
     mutationFn: (vars: { conversationId: string; text: string; clientGeneratedId: string }) =>
@@ -188,6 +193,7 @@ export function ChatContainer({ projectId }: Props) {
       onlineUserIds={onlineUserIds}
       currentUserUid={currentUserUid}
       projectId={projectId}
+      participantAccess={participantAccess}
       onSelect={handleSelectThread}
       onNewGroupChat={() => setIsGroupDialogOpen(true)}
     />
@@ -215,6 +221,7 @@ export function ChatContainer({ projectId }: Props) {
           onlineUserIds={onlineUserIds}
           currentUserUid={currentUserUid}
           projectId={projectId}
+          participantAccess={participantAccess}
           onSelect={handleSelectThread}
           onNewGroupChat={() => setIsGroupDialogOpen(true)}
         />
@@ -244,6 +251,10 @@ export function ChatContainer({ projectId }: Props) {
               thread={selectedThread}
               currentUserUid={currentUserUid}
               typingUsers={typingUsers}
+              projectId={projectId}
+              participantAccess={participantAccess}
+              screenplayDocuments={screenplayDocuments}
+              canManageAccess={isViewerOwner}
               onMenuClick={() => setIsMobileDrawerOpen(true)}
               onLeaveConversation={() => leaveConversationMutation.mutate(selectedThread._id)}
             />

@@ -73,6 +73,11 @@ export const ProjectType = `#graphql
         status: String!
         permissionLevel: String!
         aspects: [String!]!
+        """
+        Screenplay documents this collaborator was granted. Empty means every document on the
+        project, including ones added later — the default for anyone with the screenplay aspect.
+        """
+        screenplayDocumentIds: [ID!]!
         invitedAt: String
     }
 
@@ -80,6 +85,8 @@ export const ProjectType = `#graphql
         email: String!
         permissionLevel: String!
         aspects: [String!]!
+        """Omit or send an empty list to grant every screenplay document."""
+        screenplayDocumentIds: [ID!]
     }
 
     type ChatThread {
@@ -161,7 +168,7 @@ export const ProjectType = `#graphql
         addLoglineFeedback(projectId: ID!, versionId: ID!, text: String!): [LoglineVersion!]!
         deleteLoglineFeedback(projectId: ID!, versionId: ID!, feedbackId: ID!): [LoglineVersion!]!
         inviteCollaborators(projectId: ID!, invitations: [InvitationInput!]!): Project
-        updateCollaborator(projectId: ID!, collaboratorId: ID!, permissionLevel: String, aspects: [String!]): Project
+        updateCollaborator(projectId: ID!, collaboratorId: ID!, permissionLevel: String, aspects: [String!], screenplayDocumentIds: [ID!]): Project
         removeCollaborator(projectId: ID!, collaboratorId: ID!): Project
         claimInvite(token: String!): Project
         finalizeSignup: Boolean
@@ -1475,6 +1482,10 @@ export const resolvers = {
   },
   Collaborator: {
     _id: (parent: any) => String(parent._id),
+    screenplayDocumentIds: (parent: any) =>
+      Array.isArray(parent?.screenplayDocumentIds)
+        ? parent.screenplayDocumentIds.map((id: unknown) => String(id))
+        : [],
     invitedAt: (parent: any) => parent?.invitedAt != null ? String(parent.invitedAt) : null,
   },
   ChatThread: {

@@ -14,6 +14,10 @@ const collaboratorSchema = new mongoose.Schema({
   // 'treatment' is retained for backward compatibility: the Treatment feature was removed, but
   // existing collaborator docs may still hold this value and would fail enum validation on save.
   aspects:         [{ type: String, enum: ['logline', 'characters', 'outline', 'treatment', 'screenplay'] }],
+  // Which of the project's screenplay documents this collaborator was granted, by `Screenplays._id`.
+  // Empty is the default and means *every* document, including ones added after the invite — so a
+  // collaborator is never left behind when the writer starts a new draft.
+  screenplayDocumentIds: { type: [mongoose.Schema.Types.ObjectId], default: [] },
   inviteToken:     { type: String, default: null },
   invitedAt:       { type: Date, default: Date.now },
 });
