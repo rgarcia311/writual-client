@@ -71,6 +71,13 @@ interface CharacterCardProps {
   fullWidthInParent?: boolean;
   /** Characters page grid: fixed 305×385px tile via CSS vars. */
   gridTile?: boolean;
+  /**
+   * Drag handlers from `useCharacterReorder`, spread onto the card root so the whole tile is the
+   * drag handle. Omitted on surfaces where cards are not reorderable (screenplay panes).
+   */
+  dragProps?: React.HTMLAttributes<HTMLDivElement> & { draggable?: boolean };
+  /** True while this card is the one being dragged; dims it so the drop preview reads clearly. */
+  dragging?: boolean;
 }
 
 export const CharacterCard: React.FC<CharacterCardProps> = ({
@@ -87,6 +94,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   onDeleteClick,
   fullWidthInParent = false,
   gridTile = false,
+  dragProps,
+  dragging = false,
 }) => {
   const detailCount = Array.isArray(details) ? Math.max(1, details.length) : 1;
   const { hoverHandlers, xrStyle } = useSpatialHoverLift(8, 24);
@@ -103,8 +112,15 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   return (
       <Card
         enable-xr
-        className={gridTile ? 'character-card--grid' : undefined}
+        className={[
+          gridTile ? 'character-card--grid' : null,
+          dragProps ? 'character-card--draggable' : null,
+          dragging ? 'character-card--dragging' : null,
+        ]
+          .filter(Boolean)
+          .join(' ') || undefined}
         {...hoverHandlers}
+        {...dragProps}
         style={xrStyle}
         sx={{
           // <PROTECTED> — character card dimensions; see .cursor/rules/character-card-dimensions.mdc
@@ -199,6 +215,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         <CardMedia
           component="img"
           image={imageSrc}
+          // Without this the browser drags the portrait itself instead of the card.
+          draggable={false}
           alt={name ? `${name} character` : 'Character'}
           className={gridTile ? 'character-card__media' : undefined}
           sx={{

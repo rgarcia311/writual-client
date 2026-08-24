@@ -26,6 +26,7 @@ import {
   createCharacter as createCharacterAction,
   updateCharacter as updateCharacterAction,
   deleteCharacter as deleteCharacterAction,
+  reorderCharacters as reorderCharactersAction,
 } from '../../app/actions/characters';
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { useUserProfileStore } from '@/state/user';
@@ -35,6 +36,7 @@ import { FeatureGate } from '@/components/Auth/FeatureGate';
 import { useScreenplayDocuments } from '@hooks/useScreenplayDocuments';
 import { ScreenplayDocumentTabs } from '@/components/ScreenplayEditor/ScreenplayDocumentTabs';
 import { filterByDocument } from '@/lib/screenplayDocumentEntities';
+import { useCharacterReorder } from './useCharacterReorder';
 import '@/styles/charactersPage.css';
 
 const endpoint = GRAPHQL_ENDPOINT;
@@ -221,6 +223,38 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
     },
   });
 
+  const reorderCharactersMutation = useMutation({
+    mutationFn: (orderedIds: string[]) => reorderCharactersAction(projectId, orderedIds),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['project-characters', projectId] });
+      await queryClient.refetchQueries({ queryKey: ['project-characters', projectId] });
+    },
+    onError: (err: { message?: string }) => {
+      // Drop the dragged order so the grid shows what the server actually has.
+      clearPendingOrder();
+      setErrorMessage(err?.message || 'Failed to reorder characters.');
+      setErrorOpen(true);
+    },
+  });
+
+  const characterIds = React.useMemo(
+    () => characters.map((character) => character._id as string),
+    [characters],
+  );
+  const charactersById = React.useMemo(
+    () => new Map(characters.map((character) => [character._id as string, character])),
+    [characters],
+  );
+  const reorderMutate = reorderCharactersMutation.mutate;
+  const handleReorder = React.useCallback(
+    (orderedIds: string[]) => reorderMutate(orderedIds),
+    [reorderMutate],
+  );
+  const { orderedIds, draggingId, getDragProps, clearPendingOrder } = useCharacterReorder(
+    characterIds,
+    handleReorder,
+  );
+
   const handleSubmit = (values: NewCharacterValues) => {
     createCharacterMutation.mutate(values);
   };
@@ -345,14 +379,18 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
         }}
       >
         {pendingNewCharacter && <CharacterCardSkeleton gridTile />}
-        {characters.map((character, index) => {
+        {orderedIds.map((characterId, index) => {
+          const character = charactersById.get(characterId);
+          if (!character) return null;
           const cardId = index + 1;
           const details = character.details as Array<Record<string, unknown>> | undefined;
           return (
             <CharacterCard
               gridTile
+              dragProps={getDragProps(characterId)}
+              dragging={draggingId === characterId}
               imageUrl={character.imageUrl as string | undefined}
-              key={(character._id as string) ?? `character-${index}`}
+              key={characterId}
               id={cardId}
               name={character.name as string}
               details={details}

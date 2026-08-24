@@ -112,3 +112,27 @@ export async function deleteCharacter(characterId: string) {
   }
   return result.deleteCharacter.deleted;
 }
+
+const REORDER_CHARACTERS_MUTATION = `
+  mutation ReorderCharacters($projectId: String!, $characterIds: [String!]!) {
+    reorderCharacters(projectId: $projectId, characterIds: $characterIds) {
+      _id
+    }
+  }
+`;
+
+/**
+ * Persists a new card order for the characters the user can currently see.
+ *
+ * `characterIds` is the visible tab's cast in its new order; the server keeps characters on other
+ * screenplay tabs in place, so a partial list is expected rather than the whole project.
+ */
+export async function reorderCharacters(projectId: string, characterIds: string[]) {
+  const result = await serverAuthRequest<{ reorderCharacters: Array<{ _id: string }> | null }>(
+    REORDER_CHARACTERS_MUTATION,
+    { projectId, characterIds }
+  );
+  revalidatePath(`/project/${projectId}`);
+  revalidatePath(`/project/${projectId}/characters`);
+  return result.reorderCharacters ?? [];
+}

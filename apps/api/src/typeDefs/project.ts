@@ -11,7 +11,7 @@ import { inviteCollaborators, updateCollaborator, removeCollaborator, claimInvit
 import { verifyProjectWriteAccess, verifyProjectCommentAccess } from "../lib/projectAccess";
 import { GraphQLError } from "graphql";
 import { createScene as createSceneService, updateScene as updateSceneService, deleteScene as deleteSceneService } from "../services/SceneService";
-import { createCharacter as createCharacterService, updateCharacter as updateCharacterService, deleteCharacter as deleteCharacterService } from "../services/CharacterService";
+import { createCharacter as createCharacterService, updateCharacter as updateCharacterService, deleteCharacter as deleteCharacterService, reorderCharacters as reorderCharactersService } from "../services/CharacterService";
 import { createNote as createNoteService, updateNote as updateNoteService, deleteNote as deleteNoteService } from "../services/NoteService";
 import { seedLoglineHistory, addLoglineVersion, updateLoglineVersion, deleteLoglineVersion, setCurrentLoglineVersion, addLoglineFeedback, deleteLoglineFeedback } from "../services/LoglineService";
 import { listScreenplayDocuments, createScreenplayDocument as createScreenplayDocumentService, renameScreenplayDocument as renameScreenplayDocumentService, deleteScreenplayDocument as deleteScreenplayDocumentService, getScreenplayDocumentWithContent, pickPrimary, type ScreenplayDocumentRow } from "../services/ScreenplayDocumentService";
@@ -157,6 +157,8 @@ export const ProjectType = `#graphql
         createCharacter(projectId: String!, input: CreateCharacterInput!): Character
         updateCharacter(characterId: String!, input: UpdateCharacterInput!): Character
         deleteCharacter(characterId: String!): DeleteResult
+        """Rewrites the project's character order from the supplied sequence of character ids."""
+        reorderCharacters(projectId: String!, characterIds: [String!]!): [Character]
         createNote(projectId: String!, input: CreateNoteInput!): Note
         updateNote(noteId: String!, input: UpdateNoteInput!): Note
         deleteNote(noteId: String!): DeleteResult
@@ -1171,6 +1173,13 @@ export const resolvers = {
       await verifyProjectWriteAccess((character as any).projectId.toString(), context.uid);
       const result = await deleteCharacterService(args.characterId);
       return { deleted: result.deleted, projectId: result.projectId ?? null };
+    },
+    reorderCharacters: async (_root: unknown, args: { projectId: string; characterIds: string[] }, context: { uid: string | null }) => {
+      if (!context.uid) throw new GraphQLError('Unauthorized', { extensions: { code: 'UNAUTHENTICATED' } });
+      await verifyProjectWriteAccess(args.projectId, context.uid);
+      // Reordering is allowed while the section is locked: locking freezes the cast and its
+      // versions, not the order the writer chooses to read them in.
+      return reorderCharactersService(args.projectId, args.characterIds ?? []);
     },
     createNote: async (_root: unknown, args: { projectId: string; input: any }, context: { uid: string | null }) => {
       if (!context.uid) throw new GraphQLError('Unauthorized', { extensions: { code: 'UNAUTHENTICATED' } });

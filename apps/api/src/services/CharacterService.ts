@@ -378,3 +378,58 @@ export async function unlockCharactersSection(projectId: string): Promise<void> 
     $set: { modified_date: nowIso(), charactersSectionLocked: false },
   }).exec();
 }
+
+/**
+ * Reorders `project.characterOrder` from a client-supplied sequence of character ids.
+ *
+ * The Characters page shows one screenplay document's cast at a time, so the sequence is usually a
+ * subset of the project's characters. Rather than replacing the whole order, the supplied ids are
+ * written back into the slots those same ids already occupied, which leaves every character on the
+ * other tabs exactly where it was. Ids that are not in the project are ignored, and any supplied
+ * character that is missing from the sequence keeps its slot.
+ */
+export async function reorderCharacters(
+  projectId: string,
+  characterIds: string[]
+): Promise<mongoose.Document[]> {
+  const pid = toObjectId(projectId);
+  const project = await Projects.findById(pid).lean().exec();
+  if (!project) throw new Error("Project not found");
+
+  const order: mongoose.Types.ObjectId[] = (project as any).characterOrder ?? [];
+  const orderKeys = order.map((id) => id.toString());
+  const orderSet = new Set(orderKeys);
+
+  // Keep only ids the project actually owns, and drop duplicates so one card cannot claim two slots.
+  const seen = new Set<string>();
+  const requested: string[] = [];
+  for (const id of characterIds) {
+    const key = typeof id === "string" ? id : String(id);
+    if (!orderSet.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    requested.push(key);
+  }
+  if (requested.length === 0) return getCharactersByProjectId(projectId);
+
+  const requestedSet = new Set(requested);
+  const slots = orderKeys
+    .map((key, index) => (requestedSet.has(key) ? index : -1))
+    .filter((index) => index >= 0);
+
+  const nextKeys = [...orderKeys];
+  slots.forEach((slot, i) => {
+    nextKeys[slot] = requested[i];
+  });
+
+  const unchanged = nextKeys.every((key, index) => key === orderKeys[index]);
+  if (!unchanged) {
+    await Projects.findByIdAndUpdate(pid, {
+      $set: {
+        characterOrder: nextKeys.map((key) => new mongoose.Types.ObjectId(key)),
+        modified_date: nowIso(),
+      },
+    }).exec();
+  }
+
+  return getCharactersByProjectId(projectId);
+}
