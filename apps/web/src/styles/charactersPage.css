@@ -43,3 +43,22 @@
   min-height: 0;
   overflow-y: auto;
 }
+
+/* Drag-to-reorder: whole tile is the handle, so signal it and keep the dragged card readable. */
+.characters-page-cards .character-card--draggable {
+  cursor: grab;
+}
+
+.characters-page-cards .character-card--draggable:active {
+  cursor: grabbing;
+}
+
+.characters-page-cards .character-card--dragging {
+  opacity: 0.4;
+}
+
+/* The browser drags the card, not the text or portrait inside it. */
+.characters-page-cards .character-card--draggable img {
+  -webkit-user-drag: none;
+  user-select: none;
+}
