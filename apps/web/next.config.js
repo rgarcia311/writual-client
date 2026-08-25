@@ -29,6 +29,14 @@ const nextConfig = {
     experimental: {
         webpackMemoryOptimizations: true,
         proxyTimeout: 600_000,
+        serverActions: {
+            // Character portraits and project posters are uploaded inline as base64 (up to 2MB
+            // each, six per gallery — see utils/imageFile.ts and shared/ImageGalleryField), and
+            // every character save goes through a server action. Next's 1MB default rejects the
+            // request body before the action runs, so a gallery of uploaded images could never be
+            // saved. Kept just above the largest gallery a character can hold.
+            bodySizeLimit: '16mb',
+        },
     },
   async rewrites() {
     const origin = apiOriginForRewrites();

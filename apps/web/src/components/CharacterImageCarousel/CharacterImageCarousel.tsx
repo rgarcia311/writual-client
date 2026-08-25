@@ -58,10 +58,40 @@ export function CharacterImageCarousel({
       return next < 0 ? next + gallery.length : next;
     });
 
+  // A press that travels is a drag (reordering a card, moving a pane), not a click on the picture,
+  // so the press origin is remembered and a click that moved is ignored.
+  const pressOriginRef = React.useRef<{ x: number; y: number } | null>(null);
+  const DRAG_SLOP_PX = 5;
+
+  const handleImagePointerDown = (e: React.PointerEvent) => {
+    pressOriginRef.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const handleImageClick = (e: React.MouseEvent) => {
+    if (!multiple) return;
+    const origin = pressOriginRef.current;
+    pressOriginRef.current = null;
+    if (
+      origin &&
+      (Math.abs(e.clientX - origin.x) > DRAG_SLOP_PX ||
+        Math.abs(e.clientY - origin.y) > DRAG_SLOP_PX)
+    ) {
+      return;
+    }
+    e.stopPropagation();
+    e.preventDefault();
+    step(1);
+  };
+
   const stop = (e: React.SyntheticEvent) => {
     e.stopPropagation();
     e.preventDefault();
   };
+
+  // Pointer events fire ahead of mouse events, so a surface that drags on `pointerdown` (the
+  // screenplay character pane) would start a drag the moment an arrow or dot is pressed. Only the
+  // propagation is stopped here: preventing the default would suppress the click that follows.
+  const stopBubble = (e: React.PointerEvent) => e.stopPropagation();
 
   const arrowSx = {
     position: 'absolute',
@@ -105,7 +135,15 @@ export function CharacterImageCarousel({
         // Without this the browser drags the portrait itself instead of the card.
         draggable={false}
         alt={multiple ? `${alt} (${safeIndex + 1} of ${gallery.length})` : alt}
-        sx={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
+        onPointerDown={handleImagePointerDown}
+        onClick={handleImageClick}
+        sx={{
+          display: 'block',
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          cursor: multiple ? 'pointer' : undefined,
+        }}
       />
 
       {multiple && (
@@ -118,6 +156,7 @@ export function CharacterImageCarousel({
               step(-1);
             }}
             onMouseDown={stop}
+            onPointerDown={stopBubble}
             sx={{ ...arrowSx, left: 4 }}
           >
             <ChevronLeftIcon fontSize="small" />
@@ -130,61 +169,67 @@ export function CharacterImageCarousel({
               step(1);
             }}
             onMouseDown={stop}
+            onPointerDown={stopBubble}
             sx={{ ...arrowSx, right: 4 }}
           >
             <ChevronRightIcon fontSize="small" />
           </IconButton>
-
-          {/*
-            Dot strip: one dot per image, centered under the portrait, the filled one marking the
-            image on screen. Clicking a dot moves straight to that image; the gallery is capped at
-            six, so every dot fits without crowding.
-          */}
-          <Box
-            sx={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              bottom: 0,
-              zIndex: 2,
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              gap: 0.75,
-              py: 0.75,
-              // Dots have to read over a light or busy portrait, so they sit on their own scrim.
-              background: 'linear-gradient(to top, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0))',
-            }}
-          >
-            {gallery.map((url, i) => (
-              <Box
-                key={`${url}-${i}`}
-                component="button"
-                type="button"
-                aria-label={`Show image ${i + 1} of ${gallery.length}`}
-                aria-current={i === safeIndex}
-                onClick={(e: React.MouseEvent) => {
-                  stop(e);
-                  setIndex(i);
-                }}
-                onMouseDown={stop}
-                sx={{
-                  cursor: 'pointer',
-                  width: 9,
-                  height: 9,
-                  padding: 0,
-                  borderRadius: '50%',
-                  border: `1px solid ${DOT_BORDER_COLOR}`,
-                  backgroundColor: i === safeIndex ? DOT_ACTIVE_COLOR : DOT_INACTIVE_COLOR,
-                  transition: 'background-color 120ms ease, transform 120ms ease',
-                  transform: i === safeIndex ? 'scale(1.15)' : 'none',
-                  '&:hover': { backgroundColor: DOT_ACTIVE_COLOR },
-                }}
-              />
-            ))}
-          </Box>
         </>
       )}
+
+      {/*
+        Dot strip: one dot per image, centered under the portrait, the filled one marking the image
+        on screen. Always rendered, single image included — the dots are how a card says how many
+        portraits a character has, so a lone dot is the honest answer rather than no answer at all.
+        Clicking a dot moves straight to that image; the gallery is capped at six, so every dot fits
+        without crowding.
+      */}
+      <Box
+        sx={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 2,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: 0.75,
+          py: 0.75,
+        }}
+      >
+        {gallery.map((url, i) => (
+          <Box
+            key={`${url}-${i}`}
+            component="button"
+            type="button"
+            aria-label={`Show image ${i + 1} of ${gallery.length}`}
+            aria-current={i === safeIndex}
+            disabled={!multiple}
+            onClick={(e: React.MouseEvent) => {
+              stop(e);
+              setIndex(i);
+            }}
+            onMouseDown={stop}
+            onPointerDown={stopBubble}
+            sx={{
+              cursor: multiple ? 'pointer' : 'default',
+              width: 9,
+              height: 9,
+              padding: 0,
+              borderRadius: '50%',
+              border: `1px solid ${DOT_BORDER_COLOR}`,
+              // Each dot carries its own contrast against a light or busy portrait, rather than a
+              // scrim behind the whole strip.
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.55)',
+              backgroundColor: i === safeIndex ? DOT_ACTIVE_COLOR : DOT_INACTIVE_COLOR,
+              transition: 'background-color 120ms ease, transform 120ms ease',
+              transform: i === safeIndex ? 'scale(1.15)' : 'none',
+              '&:hover': { backgroundColor: DOT_ACTIVE_COLOR },
+            }}
+          />
+        ))}
+      </Box>
     </Box>
   );
 }

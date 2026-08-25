@@ -12,22 +12,23 @@ function normalizeDocumentId(
 }
 
 /**
- * Cleans a caller-supplied portrait gallery: trims, drops blanks, and drops duplicates so the card
- * never scrolls through the same picture twice. `primary` is the legacy single-image field, used
- * only when no gallery was supplied.
+ * Cleans a caller-supplied portrait gallery: trims and drops blank entries (rows the user never
+ * filled in). `primary` is the legacy single-image field, used only when no gallery was supplied.
+ *
+ * Repeated URLs are kept. They used to be dropped as duplicates, but the gallery is whatever the
+ * user arranged in the form: silently saving one image when they added two reads as the feature
+ * being broken, and the same picture twice is a legitimate thing to ask for.
  */
 function normalizeImageGallery(
   gallery: (string | null | undefined)[] | undefined,
   primary: string | null | undefined
 ): string[] {
   const source = gallery ?? (primary != null ? [primary] : []);
-  const seen = new Set<string>();
   const cleaned: string[] = [];
   for (const url of source) {
     if (typeof url !== "string") continue;
     const trimmed = url.trim();
-    if (!trimmed || seen.has(trimmed)) continue;
-    seen.add(trimmed);
+    if (!trimmed) continue;
     cleaned.push(trimmed);
   }
   return cleaned;
