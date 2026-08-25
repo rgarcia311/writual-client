@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { Box } from '@mui/system';
 import { Tabs, Tab } from '@mui/material';
+import { TABS_CONTENT_GAP_SX } from '@/styles/tabsSpacing';
 import { ProjectCard, ProjectCardSkeleton } from './ProjectCard';
 import { ProgressTrackingModal, SerializedTracker } from './ProjectCard/ProgressTrackingModal';
 import { CreateProject } from './CreateProject';
@@ -149,7 +150,7 @@ export const Projects = () => {
                 flexDirection: 'column',
             }}
         >
-            <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} sx={{ mb: 2 }} data-tour="projects-tabs">
+            <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} sx={TABS_CONTENT_GAP_SX} data-tour="projects-tabs">
                 <Tab label="My Projects" />
                 <Tab label={sharedProjects.length > 0 ? `Shared With Me (${sharedProjects.length})` : 'Shared With Me'} />
             </Tabs>

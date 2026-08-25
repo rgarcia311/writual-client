@@ -420,7 +420,10 @@ export const ProjectType = `#graphql
         """Screenplay document this character came from; null means the primary document."""
         screenplayDocumentId: String
         name: String
+        """Primary portrait — the first entry of imageUrls."""
         imageUrl: String
+        """Full portrait gallery in display order; the card scrolls through these."""
+        imageUrls: [String]
         details: [CharacterDetails]
         activeVersion: Int
         lockedVersion: Int
@@ -456,6 +459,8 @@ export const ProjectType = `#graphql
         """Screenplay document to attach the character to; omit for the primary document."""
         screenplayDocumentId: String
         imageUrl: String
+        """Portrait gallery in display order; the first entry also becomes imageUrl."""
+        imageUrls: [String]
         activeVersion: Int
         lockedVersion: Int
         details: [CharacterDetailInput]
@@ -463,6 +468,8 @@ export const ProjectType = `#graphql
 
     input UpdateCharacterInput {
         imageUrl: String
+        """Replaces the whole gallery; the first entry also becomes imageUrl."""
+        imageUrls: [String]
         newVersion: Boolean
         activeVersion: Int
         lockedVersion: Int
@@ -1538,7 +1545,17 @@ export const resolvers = {
     screenplayDocumentId: (parent: any) =>
       parent?.screenplayDocumentId != null ? String(parent.screenplayDocumentId) : null,
     name: (parent: any) => parent?.details?.[0]?.name ?? parent?.name ?? null,
-    imageUrl: (parent: any) => parent?.imageUrl ?? null,
+    // A character saved before multi-image support has only imageUrl; one saved after has the
+    // gallery, whose first entry is kept in sync with imageUrl. Either shape resolves to both.
+    imageUrl: (parent: any) =>
+      parent?.imageUrl ?? (Array.isArray(parent?.imageUrls) ? parent.imageUrls[0] : null) ?? null,
+    imageUrls: (parent: any) => {
+      const gallery = Array.isArray(parent?.imageUrls)
+        ? parent.imageUrls.filter((url: unknown) => typeof url === "string" && url.trim())
+        : [];
+      if (gallery.length) return gallery;
+      return parent?.imageUrl ? [parent.imageUrl] : [];
+    },
     activeVersion: (parent: any) => parent?.activeVersion ?? 1,
     lockedVersion: (parent: any) => parent?.lockedVersion ?? null,
     details: (parent: any) => {

@@ -13,7 +13,7 @@ import {
 } from '@mui/material';
 
 import { isValidImageUrl, getImageUrlForStorage } from '../../utils/imageUrl';
-import { ImageUploadField } from '../shared/ImageUploadField';
+import { ImageGalleryField } from '../shared/ImageGalleryField';
 
 export interface NewCharacterValues {
   name: string;
@@ -22,7 +22,11 @@ export interface NewCharacterValues {
   bio: string;
   want: string;
   need: string;
-  imageUrl: string;
+  /**
+   * Portrait gallery in display order; the first entry is the primary image. Blank entries are
+   * rows the user has not filled in yet and are dropped on submit.
+   */
+  imageUrls: string[];
 }
 
 const BLANK_VALUES: NewCharacterValues = {
@@ -32,7 +36,7 @@ const BLANK_VALUES: NewCharacterValues = {
   bio: '',
   want: '',
   need: '',
-  imageUrl: '',
+  imageUrls: [],
 };
 
 interface NewCharacterFormProps {
@@ -63,14 +67,17 @@ export function NewCharacterForm({ open, onCancel, onSubmit, submitting = false,
   const handleSubmit = () => {
     onSubmit({
       ...values,
-      imageUrl: getImageUrlForStorage(values.imageUrl),
+      imageUrls: values.imageUrls
+        .filter((url) => url.trim())
+        .map((url) => getImageUrlForStorage(url)),
     });
   };
 
-  const imageUrlValid = isValidImageUrl(values.imageUrl);
-  const imageUrlTouched = values.imageUrl.trim().length > 0;
+  // One bad URL anywhere in the gallery blocks the save, so the user is not left wondering which
+  // image failed to appear on the card.
+  const imagesValid = values.imageUrls.every((url) => !url.trim() || isValidImageUrl(url));
   const nameValid = values.name.trim().length > 0;
-  const canSubmit = nameValid && !submitting && (!imageUrlTouched || imageUrlValid);
+  const canSubmit = nameValid && !submitting && imagesValid;
 
   const inputAutofillSx = {
     '& input:-webkit-autofill, & input:-webkit-autofill:focus': {
@@ -100,11 +107,10 @@ export function NewCharacterForm({ open, onCancel, onSubmit, submitting = false,
           <TextField label="Gender" value={values.gender} onChange={update('gender')} fullWidth InputLabelProps={{ shrink: true }} />
           <TextField label="Age" type="number" value={values.age} onChange={update('age')} fullWidth InputLabelProps={{ shrink: true }} />
         </Container>
-        <ImageUploadField
+        <ImageGalleryField
           label="Image"
-          value={values.imageUrl}
-          onChange={(imageUrl) => setValues((prev) => ({ ...prev, imageUrl }))}
-          shrinkLabel
+          value={values.imageUrls}
+          onChange={(imageUrls) => setValues((prev) => ({ ...prev, imageUrls }))}
           helperText="Paste an image URL, or upload one from your computer."
         />
         <TextField label="Bio" value={values.bio} onChange={update('bio')} fullWidth multiline minRows={3} InputLabelProps={{ shrink: true }} />

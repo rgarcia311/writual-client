@@ -60,6 +60,9 @@ export function ScreenplayDocumentBar({ projectId }: ScreenplayDocumentBarProps)
           documents={documents}
           activeDocumentId={activeDocumentId}
           onChange={setActiveDocumentId}
+          // The editor canvas sits directly under this bar and pays for every pixel of height, so
+          // it keeps its own tight spacing instead of the standard tabs-to-cards gap.
+          contentGap={false}
           rightAdornment={
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <NewScreenplayDocumentButton
