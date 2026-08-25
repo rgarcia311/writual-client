@@ -17,7 +17,17 @@ export const characterSchema = new mongoose.Schema({
     required: true,
     index: true,
   },
+  /**
+   * Primary portrait. Kept as the first entry of `imageUrls` so every reader written before
+   * multi-image support keeps working unchanged.
+   */
   imageUrl: { type: String },
+  /**
+   * Full portrait gallery, in display order. The card scrolls through these; index 0 mirrors
+   * `imageUrl`. Absent on characters created before multi-image support, which read as the single
+   * `imageUrl` entry.
+   */
+  imageUrls: { type: [String], default: undefined },
   /**
    * The screenplay document this character was derived from, when it came from a PDF import.
    * Null/absent means the character belongs to the project's primary screenplay document, which is

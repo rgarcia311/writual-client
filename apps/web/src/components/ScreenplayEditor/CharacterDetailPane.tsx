@@ -9,6 +9,7 @@ import Chip from '@mui/material/Chip'
 import IconButton from '@mui/material/IconButton'
 import Typography from '@mui/material/Typography'
 import CloseIcon from '@mui/icons-material/Close'
+import { CharacterImageCarousel } from '@/components/CharacterImageCarousel'
 import { useScreenplayCharacterLookupStore } from '@/state/screenplayCharacterLookup'
 import { useScreenplayCharacterPanesStore } from '@/state/screenplayCharacterPanes'
 import { useIsSpatialEnvironment } from '@/hooks/useIsSpatialEnvironment'
@@ -59,7 +60,11 @@ export function CharacterDetailPane({ paneId }: CharacterDetailPaneProps) {
   const activeVersion = character?.lockedVersion ?? character?.activeVersion ?? 1
   const detail =
     character?.details?.find((d) => d.version === activeVersion) ?? character?.details?.[0]
-  const imageSrc = character?.imageUrl?.trim() ? character.imageUrl : DEFAULT_CHARACTER_IMAGE
+  // Characters saved before multi-image support carry only `imageUrl`, which reads as a one-image
+  // gallery; anything longer gets arrows and dots from the carousel.
+  const gallery = (character?.imageUrls ?? []).filter((url) => typeof url === 'string' && url.trim())
+  const primaryImage = character?.imageUrl?.trim()
+  const images = gallery.length ? gallery : primaryImage ? [primaryImage] : []
   const genderAbbrev = abbreviateGender(detail?.gender)
   const badgeLabel = [detail?.age, genderAbbrev].filter(Boolean).join(' ')
 
@@ -128,12 +133,11 @@ export function CharacterDetailPane({ paneId }: CharacterDetailPaneProps) {
         sx={{ cursor: 'move', userSelect: 'none' }}
       >
         <Box sx={{ position: 'relative' }}>
-          <Box
-            component="img"
-            src={imageSrc}
+          <CharacterImageCarousel
+            images={images}
+            fallbackSrc={DEFAULT_CHARACTER_IMAGE}
             alt={pane.characterName ? `${pane.characterName} character` : 'Character'}
-            draggable={false}
-            sx={{ width: '100%', height: 260, objectFit: 'cover', display: 'block', pointerEvents: 'none' }}
+            height="260px"
           />
           <IconButton
             aria-label="Close"
@@ -147,6 +151,8 @@ export function CharacterDetailPane({ paneId }: CharacterDetailPaneProps) {
               position: 'absolute',
               top: 10,
               right: 10,
+              // Above the carousel's arrows and dot strip.
+              zIndex: 3,
               color: '#fff',
               backgroundColor: 'rgba(28,41,74,0.45)',
               '&:hover': { backgroundColor: 'rgba(28,41,74,0.65)' },

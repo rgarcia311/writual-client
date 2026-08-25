@@ -11,6 +11,29 @@ function normalizeDocumentId(
   return mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null;
 }
 
+/**
+ * Cleans a caller-supplied portrait gallery: trims and drops blank entries (rows the user never
+ * filled in). `primary` is the legacy single-image field, used only when no gallery was supplied.
+ *
+ * Repeated URLs are kept. They used to be dropped as duplicates, but the gallery is whatever the
+ * user arranged in the form: silently saving one image when they added two reads as the feature
+ * being broken, and the same picture twice is a legitimate thing to ask for.
+ */
+function normalizeImageGallery(
+  gallery: (string | null | undefined)[] | undefined,
+  primary: string | null | undefined
+): string[] {
+  const source = gallery ?? (primary != null ? [primary] : []);
+  const cleaned: string[] = [];
+  for (const url of source) {
+    if (typeof url !== "string") continue;
+    const trimmed = url.trim();
+    if (!trimmed) continue;
+    cleaned.push(trimmed);
+  }
+  return cleaned;
+}
+
 /** Single character detail (version) entry. */
 export interface CharacterDetailPayload {
   version?: number;
@@ -25,6 +48,8 @@ export interface CharacterDetailPayload {
 /** Payload for creating a new character (order from project.characterOrder). */
 export interface CreateCharacterPayload {
   imageUrl?: string;
+  /** Portrait gallery in display order; its first entry also becomes `imageUrl`. */
+  imageUrls?: string[];
   details?: CharacterDetailPayload[];
   activeVersion?: number;
   lockedVersion?: number;
@@ -35,6 +60,8 @@ export interface CreateCharacterPayload {
 /** Payload for updating an existing character (in-place or add new version). */
 export interface UpdateCharacterPayload {
   imageUrl?: string;
+  /** Replaces the whole gallery; its first entry also becomes `imageUrl`. */
+  imageUrls?: string[];
   newVersion?: boolean;
   details?: CharacterDetailPayload[];
   activeVersion?: number;
@@ -115,10 +142,12 @@ export async function createCharacter(
 
   const details = payload.details ?? [];
   const firstDetail = details[0];
+  const gallery = normalizeImageGallery(payload.imageUrls, payload.imageUrl);
   const doc = {
     projectId: pid,
     screenplayDocumentId: normalizeDocumentId(payload.screenplayDocumentId),
-    imageUrl: payload.imageUrl ?? undefined,
+    imageUrl: gallery[0] ?? undefined,
+    imageUrls: gallery.length ? gallery : undefined,
     activeVersion: payload.activeVersion ?? 1,
     lockedVersion: payload.lockedVersion ?? undefined,
     details: details.length
@@ -200,8 +229,21 @@ export async function updateCharacter(
   const newVersion = !!payload.newVersion;
   const detailPayload = payload.details?.[0];
 
-  if (payload.imageUrl !== undefined) {
-    charObj.imageUrl = payload.imageUrl;
+  // `set` rather than plain assignment: the gallery is an array path with no default, and set()
+  // is what marks it modified (and unsets it) reliably when the whole array is replaced.
+  const applyGallery = (gallery: string[]) => {
+    charObj.set("imageUrls", gallery.length ? gallery : undefined);
+    charObj.set("imageUrl", gallery[0] ?? undefined);
+    charObj.markModified("imageUrls");
+  };
+
+  if (payload.imageUrls !== undefined) {
+    applyGallery(normalizeImageGallery(payload.imageUrls, payload.imageUrl));
+  } else if (payload.imageUrl !== undefined) {
+    // Single-image callers (older clients, the screenplay import) only ever set the primary
+    // portrait, so the rest of an existing gallery is left in place.
+    const rest = Array.isArray(charObj.imageUrls) ? charObj.imageUrls.slice(1) : [];
+    applyGallery(normalizeImageGallery([payload.imageUrl, ...rest], undefined));
   }
   if (payload.activeVersion !== undefined) {
     charObj.activeVersion = payload.activeVersion;

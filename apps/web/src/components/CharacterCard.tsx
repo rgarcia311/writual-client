@@ -1,35 +1,16 @@
 import * as React from 'react';
-import { styled } from '@mui/material/styles';
 import Card from '@mui/material/Card';
 import CardHeader from '@mui/material/CardHeader';
-import CardMedia from '@mui/material/CardMedia';
 import CardContent from '@mui/material/CardContent';
-import Collapse from '@mui/material/Collapse';
-import IconButton, { IconButtonProps } from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { Box, IconButton as MuiIconButton, Tooltip } from '@mui/material';
 import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { VersionSelectorWithAdd } from '@/components/VersionSelectorWithAdd/VersionSelectorWithAdd';
+import { CharacterImageCarousel } from '@/components/CharacterImageCarousel';
 import { useSpatialHoverLift } from '@/hooks/useSpatialHoverLift';
-
-interface ExpandMoreProps extends IconButtonProps {
-  expand: boolean;
-}
-
-const ExpandMore = styled((props: ExpandMoreProps) => {
-  const { expand, ...other } = props;
-  return <IconButton {...other} />;
-})(({ theme, expand }) => ({
-  transform: !expand ? 'rotate(0deg)' : 'rotate(180deg)',
-  marginLeft: 'auto',
-  transition: theme.transitions.create('transform', {
-    duration: theme.transitions.duration.shortest,
-  }),
-}));
 
 const DEFAULT_CHARACTER_IMAGE = '/default-character-image.png';
 
@@ -48,10 +29,16 @@ interface CharacterCardProps {
   details?: any[];
   id: number;
   imageUrl?: string;
-  /** Whether this card is the one currently expanded (only one card expanded at a time) */
+  /**
+   * Full portrait gallery in display order. When it holds more than one image the card's portrait
+   * region becomes a carousel; falls back to `imageUrl` when absent.
+   */
+  imageUrls?: string[];
+  /**
+   * Non-grid cards grow to fit their details when true. Grid tiles keep their fixed height and
+   * scroll instead, so the Characters page leaves this alone.
+   */
   expanded?: boolean;
-  /** Called when the expand/collapse icon is clicked */
-  onExpandClick?: () => void;
   /** When true, version selector and add version are disabled */
   locked?: boolean;
   /** Called when user requests to add a new character version */
@@ -85,8 +72,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   details,
   id,
   imageUrl,
+  imageUrls,
   expanded = false,
-  onExpandClick,
   locked = false,
   onAddVersion,
   onToggleLock,
@@ -107,7 +94,13 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
 
   const detail = details?.find((d: any) => d.version === version)
 
-  const imageSrc = imageUrl?.trim() ? imageUrl : DEFAULT_CHARACTER_IMAGE;
+  // Characters saved before multi-image support carry only `imageUrl`, so it stands in as a
+  // one-image gallery.
+  const gallery = React.useMemo(() => {
+    const list = (imageUrls ?? []).filter((url) => typeof url === 'string' && url.trim());
+    if (list.length) return list;
+    return imageUrl?.trim() ? [imageUrl] : [];
+  }, [imageUrls, imageUrl]);
 
   return (
       <Card
@@ -146,23 +139,34 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           position: 'relative',
         }}
       >
+        {/*
+          Tool bar: its own opaque strip across the top of the card, with the portrait running
+          underneath it, so the controls stay readable over a light or busy uploaded image.
+        */}
         <Box
+          className="character-card__tools"
           sx={{
             position: 'absolute',
-            top: 8,
-            left: 8,
-            right: 8,
+            top: 0,
+            left: 0,
+            right: 0,
+            minHeight: 'var(--character-card-tools-height, 40px)',
+            px: 0.5,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            pointerEvents: 'none',
+            backgroundColor: 'var(--character-card-tools-bg, #e7e4d1)',
+            // The bar is a fixed light strip in both themes, so its icons are pinned dark rather
+            // than following the palette's text color.
+            color: 'rgba(0, 0, 0, 0.72)',
             zIndex: 1,
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', pointerEvents: 'auto' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <Tooltip title={locked ? 'Unlock character' : 'Lock character'}>
               <MuiIconButton
                 size="small"
+                color="inherit"
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggleLock?.();
@@ -174,6 +178,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             <Tooltip title="Edit character">
               <MuiIconButton
                 size="small"
+                color="inherit"
                 onClick={(e) => {
                   e.stopPropagation();
                   onEditClick?.(detail);
@@ -188,6 +193,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                 <span>
                   <MuiIconButton
                     size="small"
+                    color="inherit"
                     disabled={locked}
                     aria-label="Delete character"
                     onClick={(e) => {
@@ -201,7 +207,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
               </Tooltip>
             )}
           </Box>
-          <Box sx={{ pointerEvents: 'auto' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <VersionSelectorWithAdd
               value={String(version)}
               versionOptions={versionOptions}
@@ -212,45 +218,27 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             />
           </Box>
         </Box>
-        <CardMedia
-          component="img"
-          image={imageSrc}
-          // Without this the browser drags the portrait itself instead of the card.
-          draggable={false}
+        <CharacterImageCarousel
+          images={gallery}
+          fallbackSrc={DEFAULT_CHARACTER_IMAGE}
           alt={name ? `${name} character` : 'Character'}
           className={gridTile ? 'character-card__media' : undefined}
-          sx={{
-            height: gridTile ? 'var(--character-card-media-height, 240px)' : '300px',
-            flexShrink: 0,
-            objectFit: 'cover',
-          }}
+          height={gridTile ? 'var(--character-card-media-height, 240px)' : '300px'}
         />
           <CardHeader
-            action={
-              <ExpandMore
-                expand={expanded}
-                onClick={onExpandClick}
-                aria-expanded={expanded}
-                aria-label="show more"
-              >
-                <ExpandMoreIcon />
-              </ExpandMore>
-            }
             title={detail ? `${name ?? ''} ${detail.age ?? ''} ${abbreviateGender(detail.gender)}`.trim() : name}
-            subheader={detail ? `Version: ${detail.version}` : undefined}
             titleTypographyProps={{ noWrap: true }}
           />
 
-        {expanded && detail && (
+        {/* Details always show; the card's own CardContent scroll handles bios longer than the tile. */}
+        {detail && (
             <CardContent>
-              <Collapse in={expanded} timeout="auto" unmountOnExit>
-                <Typography paragraph>Character Details:</Typography>
-                <Box sx={{ maxWidth: "300px"}}>
-                  <Typography paragraph>{detail.bio}</Typography>
-                  <Typography>Want: {detail.want}</Typography>
-                  <Typography>Need: {detail.need}</Typography>
-                </Box>
-            </Collapse>
+              <Typography paragraph>Character Details:</Typography>
+              <Box sx={{ maxWidth: "300px"}}>
+                <Typography paragraph>{detail.bio}</Typography>
+                <Typography>Want: {detail.want}</Typography>
+                <Typography>Need: {detail.need}</Typography>
+              </Box>
             </CardContent>
           )}
 

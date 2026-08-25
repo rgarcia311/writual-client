@@ -35,13 +35,15 @@
 .characters-page-cards .character-card--grid .MuiCardHeader-root {
   flex-shrink: 0;
   padding-top: 8px;
-  padding-bottom: 8px;
+  /* Name sits directly on top of the details block, so no gap under it. */
+  padding-bottom: 0;
 }
 
 .characters-page-cards .character-card--grid .MuiCardContent-root {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  padding-top: 0;
 }
 
 /* Drag-to-reorder: whole tile is the handle, so signal it and keep the dragged card readable. */

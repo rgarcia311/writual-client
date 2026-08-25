@@ -14,6 +14,8 @@ export interface ProjectCharacterLookup {
   _id: string;
   name: string;
   imageUrl?: string;
+  /** Portrait gallery in display order; the first entry mirrors `imageUrl`. */
+  imageUrls?: string[];
   activeVersion?: number;
   lockedVersion?: number | null;
   details?: ProjectCharacterDetail[];

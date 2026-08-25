@@ -10,6 +10,7 @@ const CREATE_CHARACTER_MUTATION = `
       projectId
       name
       imageUrl
+      imageUrls
       activeVersion
       lockedVersion
       details { version name gender age bio need want }
@@ -24,6 +25,7 @@ const UPDATE_CHARACTER_MUTATION = `
       projectId
       name
       imageUrl
+      imageUrls
       activeVersion
       lockedVersion
       details { version name gender age bio need want }
@@ -44,6 +46,8 @@ export async function createCharacter(
   projectId: string,
   payload: {
     imageUrl?: string;
+    /** Portrait gallery in display order; the first entry becomes the primary `imageUrl`. */
+    imageUrls?: string[];
     details?: any[];
     activeVersion?: number;
     lockedVersion?: number;
@@ -57,6 +61,7 @@ export async function createCharacter(
       projectId,
       input: {
         imageUrl: payload.imageUrl,
+        imageUrls: payload.imageUrls,
         details: payload.details,
         activeVersion: payload.activeVersion,
         lockedVersion: payload.lockedVersion,
@@ -73,6 +78,8 @@ export async function updateCharacter(
   characterId: string,
   payload: {
     imageUrl?: string;
+    /** Replaces the whole gallery; the first entry becomes the primary `imageUrl`. */
+    imageUrls?: string[];
     newVersion?: boolean;
     details?: any[];
     activeVersion?: number;
@@ -85,6 +92,7 @@ export async function updateCharacter(
       characterId,
       input: {
         imageUrl: payload.imageUrl,
+        imageUrls: payload.imageUrls,
         newVersion: payload.newVersion,
         details: payload.details,
         activeVersion: payload.activeVersion,

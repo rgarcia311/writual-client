@@ -19,6 +19,7 @@ query GetProjectCharacters($input: ProjectFilters!) {
       screenplayDocumentId
       name
       imageUrl
+      imageUrls
       activeVersion
       lockedVersion
       details {

@@ -47,6 +47,18 @@ interface CharactersContentProps {
 
 const CHARACTERS_PAGE_STAT_KEYS = ['characters', 'deadlines'] as const;
 
+/**
+ * A character's portraits in display order. Characters saved before multi-image support carry only
+ * `imageUrl`, which reads as a one-image gallery.
+ */
+function characterGallery(character: Record<string, unknown>): string[] {
+  const gallery = (character.imageUrls as string[] | undefined) ?? [];
+  const cleaned = gallery.filter((url) => typeof url === 'string' && url.trim());
+  if (cleaned.length) return cleaned;
+  const primary = character.imageUrl as string | undefined;
+  return primary?.trim() ? [primary] : [];
+}
+
 export function CharactersContent({ projectId }: CharactersContentProps) {
   const queryClient = useQueryClient();
   const setPendingNewCharacter = useCreateCharacterModalStore((s) => s.setPendingNewCharacter);
@@ -54,7 +66,6 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
   const [createOpen, setCreateOpen] = React.useState(false);
   const [errorOpen, setErrorOpen] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState('Failed to create character.');
-  const [expandedCardId, setExpandedCardId] = React.useState<number | undefined>(undefined);
   const [lockAllConfirmOpen, setLockAllConfirmOpen] = React.useState(false);
   const [editingCharacter, setEditingCharacter] = React.useState<{
     characterId: string;
@@ -129,7 +140,7 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
   const createCharacterMutation = useMutation({
     mutationFn: async (values: NewCharacterValues) => {
       const payload = {
-        imageUrl: values.imageUrl.trim() || undefined,
+        imageUrls: values.imageUrls.filter((url) => url.trim()),
         // Tag the new character to the tab being viewed, or it would be filtered out of the grid
         // the moment it is created.
         screenplayDocumentId: activeDocumentId,
@@ -182,7 +193,9 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
     mutationFn: async (values: NewCharacterValues) => {
       if (!editingCharacter) throw new Error('No character selected for edit.');
       return updateCharacterAction(editingCharacter.characterId, {
-        imageUrl: values.imageUrl.trim() || undefined,
+        // Sent even when empty: the gallery replaces what is stored, so clearing every image here
+        // is how a character's portraits are removed.
+        imageUrls: values.imageUrls.filter((url) => url.trim()),
         details: [
           {
             version: editingCharacter.version,
@@ -273,7 +286,7 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
         bio: (detail?.bio as string) ?? '',
         want: (detail?.want as string) ?? '',
         need: (detail?.need as string) ?? '',
-        imageUrl: (character.imageUrl as string) ?? '',
+        imageUrls: characterGallery(character),
       },
     });
   };
@@ -389,15 +402,11 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
               gridTile
               dragProps={getDragProps(characterId)}
               dragging={draggingId === characterId}
-              imageUrl={character.imageUrl as string | undefined}
+              imageUrls={characterGallery(character)}
               key={characterId}
               id={cardId}
               name={character.name as string}
               details={details}
-              expanded={expandedCardId === cardId}
-              onExpandClick={() =>
-                setExpandedCardId((prev) => (prev === cardId ? undefined : cardId))
-              }
               locked={character.lockedVersion != null}
               onToggleLock={() =>
                 updateCharacterLockMutation.mutate({

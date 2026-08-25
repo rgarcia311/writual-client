@@ -86,6 +86,13 @@
   --character-card-height: 390px;
   --character-card-media-height: 240px;
   /* </PROTECTED> */
+  /*
+   * Tool bar sitting over the top of the portrait. Slightly darker than the default portrait's
+   * cream background (#f5f3e2) so the lock / edit / delete / version controls stay legible over any
+   * uploaded image instead of disappearing into a light one.
+   */
+  --character-card-tools-bg: #e7e4d1;
+  --character-card-tools-height: 40px;
 }
 
 .project-details-page {

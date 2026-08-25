@@ -12,5 +12,7 @@ export type Character = {
   _id: string;
   projectId: string;
   imageUrl?: string;
+  /** Portrait gallery in display order; the first entry mirrors `imageUrl`. */
+  imageUrls?: string[];
   details: CharacterDetails[];
 };

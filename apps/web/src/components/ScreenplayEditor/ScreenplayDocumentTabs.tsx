@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { Box, Tab, Tabs, Tooltip } from '@mui/material'
 import type { ScreenplayDocumentSummary } from '@hooks/useScreenplayDocuments'
+import { TABS_CONTENT_GAP } from '@/styles/tabsSpacing'
 
 interface ScreenplayDocumentTabsProps {
   documents: ScreenplayDocumentSummary[]
@@ -10,6 +11,12 @@ interface ScreenplayDocumentTabsProps {
   onChange: (documentId: string) => void
   /** Rendered to the right of the tabs — the import button on the screenplay page. */
   rightAdornment?: React.ReactNode
+  /**
+   * Standard gap between the strip and the content it switches; see
+   * `.cursor/rules/tabs-content-spacing.mdc`. Only the screenplay editor turns it off, since its
+   * canvas has its own dense chrome rather than a card grid underneath.
+   */
+  contentGap?: boolean
 }
 
 /**
@@ -25,6 +32,7 @@ export function ScreenplayDocumentTabs({
   activeDocumentId,
   onChange,
   rightAdornment,
+  contentGap = true,
 }: ScreenplayDocumentTabsProps) {
   const showTabs = documents.length > 1
   if (!showTabs && !rightAdornment) return null
@@ -46,6 +54,7 @@ export function ScreenplayDocumentTabs({
         width: '100%',
         minHeight: 40,
         flexShrink: 0,
+        mb: contentGap ? TABS_CONTENT_GAP : 0,
       }}
     >
       {showTabs ? (
