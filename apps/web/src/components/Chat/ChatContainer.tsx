@@ -2,7 +2,6 @@
 
 import * as React from 'react';
 import Box from '@mui/material/Box';
-import Drawer from '@mui/material/Drawer';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import ForumIcon from '@mui/icons-material/Forum';
@@ -21,6 +20,8 @@ import { MessageInput } from './MessageInput';
 import { NewGroupChatDialog } from './NewGroupChatDialog';
 import type { ChatMessage, ConversationThread, ConversationParticipant } from '@/interfaces/chat';
 import { MOBILE_MEDIA_QUERY } from '@/lib/breakpoints';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { useProjectShellContext } from '@/components/ProjectFloat';
 import '@/styles/chatPage.css';
 
 interface Props {
@@ -33,9 +34,14 @@ export function ChatContainer({ projectId }: Props) {
   const currentUserUid = userProfile?.user ?? '';
 
   const [selectedConversationId, setSelectedConversationId] = React.useState<string | null>(null);
-  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = React.useState(false);
   const [isGroupDialogOpen, setIsGroupDialogOpen] = React.useState(false);
   const hasAutoSelected = React.useRef(false);
+  // A thread the user tapped themselves — the only thing that opens the full-screen thread view
+  // on mobile, so an auto-selection made before the media query resolved can be undone.
+  const hasUserSelected = React.useRef(false);
+
+  const isMobile = useIsMobile();
+  const { projectTitle } = useProjectShellContext();
 
   const { data: conversationsData, isLoading: conversationsLoading } = useQuery({
     queryKey: ['projectConversations', projectId],
@@ -47,13 +53,18 @@ export function ChatContainer({ projectId }: Props) {
   const conversations = conversationsData ?? [];
   const selectedThread = conversations.find((t) => t._id === selectedConversationId) ?? null;
 
-  // Auto-select General conversation on first load
+  // Auto-select General conversation on first load. Mobile opens on the conversation list instead:
+  // the two panes take turns owning the screen there, so a thread opens only on a tap.
   React.useEffect(() => {
+    if (isMobile) {
+      if (!hasUserSelected.current) setSelectedConversationId(null);
+      return;
+    }
     if (!hasAutoSelected.current && conversations.length > 0) {
       hasAutoSelected.current = true;
       setSelectedConversationId(conversations[0]._id);
     }
-  }, [conversations.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [conversations.length, isMobile]); // eslint-disable-line react-hooks/exhaustive-deps
 
   usePusher(selectedConversationId, projectId);
   const { typingUsers, onlineUserIds, sendTypingEvent } = usePresence(projectId);
@@ -78,6 +89,7 @@ export function ChatContainer({ projectId }: Props) {
           uid: currentUserUid,
           name: userProfile?.name ?? null,
           displayName: userProfile?.displayName ?? null,
+          email: userProfile?.email ?? null,
         },
       };
       queryClient.setQueryData(['messages', conversationId], (old: any) => {
@@ -182,9 +194,17 @@ export function ChatContainer({ projectId }: Props) {
   }, [conversations, currentUserUid]);
 
   const handleSelectThread = (id: string) => {
+    hasUserSelected.current = true;
     setSelectedConversationId(id);
-    setIsMobileDrawerOpen(false);
   };
+
+  const handleBackToList = () => {
+    hasUserSelected.current = false;
+    setSelectedConversationId(null);
+  };
+
+  // Mobile is one pane at a time: the list until a thread is tapped, then the thread until Back.
+  const showThreadListOnMobile = !selectedConversationId;
 
   const threadListContent = (
     <ThreadList
@@ -193,6 +213,8 @@ export function ChatContainer({ projectId }: Props) {
       onlineUserIds={onlineUserIds}
       currentUserUid={currentUserUid}
       projectId={projectId}
+      projectTitle={projectTitle}
+      showOnMobile={showThreadListOnMobile}
       participantAccess={participantAccess}
       onSelect={handleSelectThread}
       onNewGroupChat={() => setIsGroupDialogOpen(true)}
@@ -201,37 +223,27 @@ export function ChatContainer({ projectId }: Props) {
 
   return (
     <Box sx={{ display: 'flex', flex: 1, width: '100%', minWidth: 0, minHeight: 0, gap: 1 }}>
-      {/* Desktop thread list */}
       {threadListContent}
-
-      {/* Mobile drawer */}
-      <Drawer
-        anchor="left"
-        open={isMobileDrawerOpen}
-        onClose={() => setIsMobileDrawerOpen(false)}
-        sx={{
-          display: 'none',
-          [`@media ${MOBILE_MEDIA_QUERY}`]: { display: 'block' },
-          '& .MuiDrawer-paper': { width: 300 },
-        }}
-      >
-        <ThreadList
-          threads={conversations}
-          selectedConversationId={selectedConversationId}
-          onlineUserIds={onlineUserIds}
-          currentUserUid={currentUserUid}
-          projectId={projectId}
-          participantAccess={participantAccess}
-          onSelect={handleSelectThread}
-          onNewGroupChat={() => setIsGroupDialogOpen(true)}
-        />
-      </Drawer>
 
       {/* Right pane */}
       <Paper
         elevation={2}
-        enable-xr
-        sx={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, minHeight: 0, borderRadius: '10px' }}
+        enable-xr=""
+        sx={{
+          position: 'relative',
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          minWidth: 0,
+          minHeight: 0,
+          borderRadius: '10px',
+          // The list owns the whole screen until a thread is opened; the open thread then runs
+          // edge to edge, so its radius goes too.
+          [`@media ${MOBILE_MEDIA_QUERY}`]: showThreadListOnMobile
+            ? { display: 'none' }
+            : { borderRadius: 0 },
+        }}
         style={
           {
             '--xr-back': '16px',
@@ -255,7 +267,7 @@ export function ChatContainer({ projectId }: Props) {
               participantAccess={participantAccess}
               screenplayDocuments={screenplayDocuments}
               canManageAccess={isViewerOwner}
-              onMenuClick={() => setIsMobileDrawerOpen(true)}
+              onBack={handleBackToList}
               onLeaveConversation={() => leaveConversationMutation.mutate(selectedThread._id)}
             />
             <MessageFeed

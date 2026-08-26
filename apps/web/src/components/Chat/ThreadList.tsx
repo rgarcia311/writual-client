@@ -14,6 +14,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import { ThreadListItem } from './ThreadListItem';
 import type { ConversationThread } from '@/interfaces/chat';
+import { chatPersonName } from '@/lib/chatPersonName';
 import { MOBILE_MEDIA_QUERY } from '@/lib/breakpoints';
 import type { ParticipantAccess } from '@hooks/useProjectSharing';
 
@@ -23,13 +24,17 @@ interface Props {
   onlineUserIds: string[];
   currentUserUid: string;
   projectId: string;
+  /** Shown above the "Conversations" header on mobile, where the list is the whole screen. */
+  projectTitle?: string;
+  /** Mobile shows the list full screen instead of hiding it behind the thread view. */
+  showOnMobile?: boolean;
   /** How a given uid reaches this project, so each direct thread can show their permission. */
   participantAccess: (uid: string) => ParticipantAccess;
   onSelect: (id: string) => void;
   onNewGroupChat: () => void;
 }
 
-export function ThreadList({ threads, selectedConversationId, onlineUserIds, currentUserUid, projectId, participantAccess, onSelect, onNewGroupChat }: Props) {
+export function ThreadList({ threads, selectedConversationId, onlineUserIds, currentUserUid, projectId, projectTitle, showOnMobile = false, participantAccess, onSelect, onNewGroupChat }: Props) {
   const [search, setSearch] = React.useState('');
 
   const sorted = [...threads].sort((a, b) => {
@@ -45,7 +50,7 @@ export function ThreadList({ threads, selectedConversationId, onlineUserIds, cur
           return (t.name ?? '').toLowerCase().includes(lower);
         }
         const other = t.participants.find((p) => p.uid !== currentUserUid);
-        return (other?.displayName ?? other?.name ?? '').toLowerCase().includes(lower);
+        return chatPersonName(other, '').toLowerCase().includes(lower);
       })
     : sorted;
 
@@ -61,8 +66,12 @@ export function ThreadList({ threads, selectedConversationId, onlineUserIds, cur
         bgcolor: '#F7F7F7',
         flexShrink: 0,
         display: 'flex',
-        // Same 768px boundary as the rest of the mobile layout; below it the drawer takes over.
-        [`@media ${MOBILE_MEDIA_QUERY}`]: { display: 'none' },
+        // Same 768px boundary as the rest of the mobile layout: the list and the thread view take
+        // turns owning the whole screen, so only one of the two is mounted-visible at a time.
+        [`@media ${MOBILE_MEDIA_QUERY}`]: showOnMobile
+          // Full screen means edge to edge: no radius, nothing to round against.
+          ? { width: '100%', flexShrink: 1, borderRadius: 0 }
+          : { display: 'none' },
         flexDirection: 'column',
         overflow: 'hidden',
         borderRadius: '10px',
@@ -80,9 +89,21 @@ export function ThreadList({ threads, selectedConversationId, onlineUserIds, cur
           justifyContent: 'space-between',
         }}
       >
-        <Typography variant="subtitle2" fontWeight={600}>
-          Conversations
-        </Typography>
+        <Box sx={{ minWidth: 0 }}>
+          {projectTitle && (
+            <Typography
+              variant="subtitle1"
+              fontWeight={700}
+              noWrap
+              sx={{ display: 'none', [`@media ${MOBILE_MEDIA_QUERY}`]: { display: 'block' } }}
+            >
+              {projectTitle}
+            </Typography>
+          )}
+          <Typography variant="subtitle2" fontWeight={600}>
+            Conversations
+          </Typography>
+        </Box>
         <Tooltip title="New Group Chat">
           <IconButton size="small" onClick={onNewGroupChat}>
             <GroupAddIcon fontSize="small" />

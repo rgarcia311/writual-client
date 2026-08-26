@@ -11,6 +11,7 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import type { ConversationParticipant } from '@/interfaces/chat';
+import { chatPersonName } from '@/lib/chatPersonName';
 
 interface Props {
   open: boolean;
@@ -66,7 +67,7 @@ export function NewGroupChatDialog({ open, onClose, participants, onCreate }: Pr
                   size="small"
                 />
               }
-              label={p.displayName ?? p.name ?? p.uid}
+              label={chatPersonName(p, p.uid)}
               sx={{ display: 'flex' }}
             />
           ))

@@ -190,7 +190,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 
   return (
     <Card
-      enable-xr
+      enable-xr=""
       className="app-project-card"
       role={to && !headerOnly ? 'button' : undefined}
       tabIndex={to && !headerOnly ? 0 : undefined}
@@ -250,6 +250,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
               anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
               transformOrigin={{ vertical: 'top', horizontal: 'right' }}
               onClick={(e) => e.stopPropagation()}
+              slotProps={{ paper: { sx: { mt: '2px' } } }}
             >
               {onEnableProgressTracking !== undefined && (
                 <MenuItem

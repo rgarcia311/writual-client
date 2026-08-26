@@ -77,10 +77,12 @@ export function SettingsPopover({ standalone = false }: SettingsPopoverProps) {
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         PaperProps={{
-          sx: { minWidth: 220, mt: 1.5 },
-          'enable-xr': true,
+          sx: { minWidth: 220, maxWidth: 320, width: 'max-content', mt: 1.5 },
+          'enable-xr': '',
+          // No `position` override here: the Popover paper must stay absolutely
+          // positioned, otherwise it lays out as a block child of the full-viewport
+          // modal root and renders full width.
           style: {
-            position: 'relative',
             '--xr-back': '24px',
             '--xr-background-material': 'translucent',
           } as React.CSSProperties,

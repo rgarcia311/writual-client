@@ -115,7 +115,7 @@ export function ShareProjectModal({ open, onClose, projectId, projectTitle, coll
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
       PaperProps={{
-        'enable-xr': true,
+        'enable-xr': '',
         style: {
           position: 'relative',
           '--xr-back': '32px',

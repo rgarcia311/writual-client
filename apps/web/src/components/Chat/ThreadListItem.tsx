@@ -8,6 +8,7 @@ import ListItemButton from '@mui/material/ListItemButton';
 import Typography from '@mui/material/Typography';
 import GroupIcon from '@mui/icons-material/Group';
 import type { ConversationThread } from '@/interfaces/chat';
+import { chatPersonName } from '@/lib/chatPersonName';
 import { PermissionChip } from '@/components/CollaboratorAccess';
 import type { ParticipantAccess } from '@hooks/useProjectSharing';
 
@@ -43,7 +44,7 @@ export function ThreadListItem({ thread, isActive, onlineUserIds, currentUserUid
   const access = other ? participantAccess(other.uid) : null;
 
   const title = isDirect
-    ? (other?.displayName ?? other?.name ?? 'Unknown')
+    ? chatPersonName(other)
     : (thread.name ?? 'Group Chat');
 
   const avatarContent = isDirect

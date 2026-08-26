@@ -26,7 +26,24 @@ import { AppTopBar } from '../components/AppTopBar';
 import { ClientOnlyMuiLayout } from '../components/ClientOnlyMuiLayout';
 import { WalkthroughProvider } from '../components/Walkthrough';
 
-const client = new QueryClient();
+/**
+ * Shared query defaults.
+ *
+ * The screenplay page is the reason these exist: with React Query's zero `staleTime`, every return
+ * to a project refetched its whole script before anything could paint, and a background refetch on
+ * window focus did it again. A short staleness window plus a longer cache lifetime lets a revisit
+ * render from what is already in memory while any genuinely stale read happens behind it. Mutations
+ * that invalidate their keys still refetch immediately — `staleTime` does not gate invalidation.
+ */
+const client = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30 * 1000,
+      gcTime: 30 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 function isProjectDetailsRoute(pathname: string | null): boolean {
   return pathname != null && /^\/project\/[^/]+/.test(pathname);

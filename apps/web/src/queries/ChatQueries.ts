@@ -4,9 +4,9 @@ export const GET_PROJECT_CONVERSATIONS = gql`
   query GetProjectConversations($projectId: ID!) {
     getProjectConversations(projectId: $projectId) {
       _id projectId type name unreadCount
-      participants { uid displayName name }
+      participants { uid displayName name email }
       lastMessage { _id text senderId clientGeneratedId createdAt
-        sender { uid displayName name }
+        sender { uid displayName name email }
       }
     }
   }
@@ -21,7 +21,7 @@ export const GET_PROJECT_CHATS = gql`
         outlineStarted charactersStarted screenplayStarted
       }
       lastMessage { _id text senderId clientGeneratedId createdAt
-        sender { uid displayName name }
+        sender { uid displayName name email }
       }
     }
   }
@@ -31,7 +31,7 @@ export const GET_PROJECT_MESSAGES = gql`
   query GetProjectMessages($conversationId: ID!, $limit: Int, $offset: Int) {
     getProjectMessages(conversationId: $conversationId, limit: $limit, offset: $offset) {
       _id text senderId projectId clientGeneratedId createdAt
-      sender { uid displayName name }
+      sender { uid displayName name email }
     }
   }
 `;

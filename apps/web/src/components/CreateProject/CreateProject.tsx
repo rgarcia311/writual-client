@@ -153,7 +153,7 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
         // The walkthrough spotlights the create form and waits for it to close; the edit form
         // reuses this component, so only the create variant carries the tour anchor.
         'data-tour': isUpdate ? 'edit-project-dialog' : 'create-project-dialog',
-        'enable-xr': true,
+        'enable-xr': '',
         style: {
           backgroundColor: theme.palette.background.default,
           position: 'relative',

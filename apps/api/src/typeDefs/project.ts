@@ -31,6 +31,8 @@ export const ProjectType = `#graphql
         uid: String!
         name: String
         displayName: String
+        """Stands in as the person's label until they accept an invite and fill in a name."""
+        email: String
         tier: String!
         settings: UserSettings!
     }
@@ -110,6 +112,8 @@ export const ProjectType = `#graphql
         uid: String!
         displayName: String
         name: String
+        """Stands in as the person's label until they accept an invite and fill in a name."""
+        email: String
     }
 
     type ConversationThread {
@@ -796,6 +800,14 @@ export const resolvers = {
         .map((c: any) => c.uid);
       const allMemberUids: string[] = [...new Set([p.user, ...sharedWith, ...collabUids].filter(Boolean) as string[])];
 
+      // Someone invited to the project has an email on their collaborator row long before they
+      // ever sign in and fill in a name — until then that email is the only thing to call them by.
+      const projectEmailByUid: Record<string, string> = {};
+      if (p.user && p.email) projectEmailByUid[p.user] = p.email;
+      for (const c of (p.collaborators ?? []) as any[]) {
+        if (c.uid && c.email) projectEmailByUid[c.uid] = c.email;
+      }
+
       // Upsert DMs only for missing pairs (optimization)
       const otherMemberUids = allMemberUids.filter((uid) => uid !== context.uid);
       if (otherMemberUids.length > 0) {
@@ -845,7 +857,7 @@ export const resolvers = {
 
       // Bulk-fetch participant user objects
       const allUids = [...new Set((conversations as any[]).flatMap((c) => c.participants))];
-      const users = await AppUsers.find({ uid: { $in: allUids } }, { uid: 1, displayName: 1, name: 1 }).lean().exec();
+      const users = await AppUsers.find({ uid: { $in: allUids } }, { uid: 1, displayName: 1, name: 1, email: 1 }).lean().exec();
       const userMap: Record<string, any> = {};
       for (const u of users as any[]) { userMap[u.uid] = u; }
 
@@ -904,6 +916,7 @@ export const resolvers = {
           uid,
           displayName: userMap[uid]?.displayName ?? null,
           name: userMap[uid]?.name ?? null,
+          email: userMap[uid]?.email ?? projectEmailByUid[uid] ?? null,
         })),
         lastMessage: lastMessageMap[String(conv._id)] ?? null,
         unreadCount: unreadByConversation[String(conv._id)] ?? 0,
@@ -1372,6 +1385,14 @@ export const resolvers = {
         .map((c: any) => c.uid);
       const allMemberUids = new Set([p.user, ...sharedWith, ...collabUids].filter(Boolean) as string[]);
 
+      // Someone invited to the project has an email on their collaborator row long before they
+      // ever sign in and fill in a name — until then that email is the only thing to call them by.
+      const projectEmailByUid: Record<string, string> = {};
+      if (p.user && p.email) projectEmailByUid[p.user] = p.email;
+      for (const c of (p.collaborators ?? []) as any[]) {
+        if (c.uid && c.email) projectEmailByUid[c.uid] = c.email;
+      }
+
       for (const uid of participantUids) {
         if (!allMemberUids.has(uid)) throw new Error(`User ${uid} is not a member of this project`);
       }
@@ -1389,7 +1410,7 @@ export const resolvers = {
       });
       const saved = await conv.save();
 
-      const users = await AppUsers.find({ uid: { $in: participants } }, { uid: 1, displayName: 1, name: 1 }).lean().exec();
+      const users = await AppUsers.find({ uid: { $in: participants } }, { uid: 1, displayName: 1, name: 1, email: 1 }).lean().exec();
       const userMap: Record<string, any> = {};
       for (const u of users as any[]) { userMap[u.uid] = u; }
 
@@ -1402,6 +1423,7 @@ export const resolvers = {
           uid,
           displayName: userMap[uid]?.displayName ?? null,
           name: userMap[uid]?.name ?? null,
+          email: userMap[uid]?.email ?? projectEmailByUid[uid] ?? null,
         })),
         lastMessage: null,
         unreadCount: 0,

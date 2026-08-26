@@ -54,3 +54,19 @@
   padding-right: var(--app-body-padding);
   padding-bottom: 0;
 }
+
+/*
+ * Mobile: one pane fills the screen — the conversation list, or the thread once it is tapped.
+ * The hero's poster/stat cards would eat most of that height, so the chat route drops them here
+ * (they stay one tap away on the project's other pages) and the panes take the full content box.
+ * The breadcrumb bar stays: it carries the nav drawer's menu button.
+ */
+@media (max-width: 767.95px) {
+  .project-details-page .project-details-float-root--chat .project-float-hero {
+    display: none;
+  }
+
+  .project-details-page .project-details-float-root--chat .project-details-float-content {
+    padding: 0;
+  }
+}

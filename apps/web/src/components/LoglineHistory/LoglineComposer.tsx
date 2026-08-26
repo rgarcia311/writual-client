@@ -18,6 +18,11 @@ export interface LoglineComposerProps {
   /** Tighter type and spacing for the small stat tile. */
   dense?: boolean;
   autoFocus?: boolean;
+  /**
+   * Lays the field and its submit button out on one row, button to the right, instead of stacking
+   * the actions underneath. Used by the panel's bottom-docked composer.
+   */
+  inlineAction?: boolean;
 }
 
 /** Below this many characters left, the counter appears — it stays out of the way until relevant. */
@@ -29,6 +34,7 @@ const COUNTER_VISIBLE_REMAINING = 120;
  * instead of scrolling inside a fixed-height box.
  *
  * Submits on the button or ⌘/Ctrl+Enter; Escape cancels when the caller offers a cancel action.
+ * With `inlineAction`, the submit button sits to the right of the field rather than below it.
  */
 export function LoglineComposer({
   initialValue = '',
@@ -40,6 +46,7 @@ export function LoglineComposer({
   isPending = false,
   dense = false,
   autoFocus = false,
+  inlineAction = false,
 }: LoglineComposerProps) {
   const [value, setValue] = React.useState(initialValue);
 
@@ -64,54 +71,83 @@ export function LoglineComposer({
     }
   };
 
+  const field = (
+    <TextField
+      multiline
+      minRows={inlineAction ? 1 : dense ? 2 : 3}
+      fullWidth
+      size="small"
+      autoFocus={autoFocus}
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => setValue(e.target.value.slice(0, maxLength))}
+      onKeyDown={handleKeyDown}
+      inputProps={{ maxLength, 'aria-label': placeholder }}
+      sx={{
+        '& .MuiInputBase-root': { alignItems: 'flex-start', p: dense ? 0.75 : 1 },
+        // No maxRows above, so the textarea is sized by its content; hiding overflow keeps a
+        // scrollbar from ever appearing inside it while it grows.
+        '& .MuiInputBase-inputMultiline': {
+          fontSize: dense ? '0.75rem' : '0.875rem',
+          lineHeight: 1.45,
+          overflow: 'hidden',
+        },
+      }}
+    />
+  );
+
+  const counter =
+    remaining <= COUNTER_VISIBLE_REMAINING ? (
+      <Typography
+        variant="caption"
+        color={remaining <= 0 ? 'error.main' : 'text.secondary'}
+        sx={{ mr: 'auto', fontSize: '0.65rem' }}
+      >
+        {remaining} left
+      </Typography>
+    ) : null;
+
+  const cancelButton = onCancel ? (
+    <Button size="small" onClick={onCancel} disabled={isPending} sx={{ minWidth: 0 }}>
+      Cancel
+    </Button>
+  ) : null;
+
+  const submitButton = (
+    <Button
+      size="small"
+      variant="contained"
+      onClick={submit}
+      disabled={!canSubmit}
+      sx={{ minWidth: 0, whiteSpace: 'nowrap' }}
+    >
+      {submitLabel}
+    </Button>
+  );
+
+  if (inlineAction) {
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, minWidth: 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.75, minWidth: 0 }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>{field}</Box>
+          {/* The field grows downward as it wraps, so the buttons stay pinned to its first row. */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0, mt: dense ? 0.25 : 0.5 }}>
+            {cancelButton}
+            {submitButton}
+          </Box>
+        </Box>
+        {counter ? <Box sx={{ display: 'flex' }}>{counter}</Box> : null}
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: dense ? 0.5 : 1, minWidth: 0 }}>
-      <TextField
-        multiline
-        minRows={dense ? 2 : 3}
-        fullWidth
-        size="small"
-        autoFocus={autoFocus}
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => setValue(e.target.value.slice(0, maxLength))}
-        onKeyDown={handleKeyDown}
-        inputProps={{ maxLength, 'aria-label': placeholder }}
-        sx={{
-          '& .MuiInputBase-root': { alignItems: 'flex-start', p: dense ? 0.75 : 1 },
-          // No maxRows above, so the textarea is sized by its content; hiding overflow keeps a
-          // scrollbar from ever appearing inside it while it grows.
-          '& .MuiInputBase-inputMultiline': {
-            fontSize: dense ? '0.75rem' : '0.875rem',
-            lineHeight: 1.45,
-            overflow: 'hidden',
-          },
-        }}
-      />
+      {field}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.75 }}>
-        {remaining <= COUNTER_VISIBLE_REMAINING ? (
-          <Typography
-            variant="caption"
-            color={remaining <= 0 ? 'error.main' : 'text.secondary'}
-            sx={{ mr: 'auto', fontSize: '0.65rem' }}
-          >
-            {remaining} left
-          </Typography>
-        ) : null}
-        {onCancel ? (
-          <Button size="small" onClick={onCancel} disabled={isPending} sx={{ minWidth: 0 }}>
-            Cancel
-          </Button>
-        ) : null}
-        <Button
-          size="small"
-          variant="contained"
-          onClick={submit}
-          disabled={!canSubmit}
-          sx={{ minWidth: 0, whiteSpace: 'nowrap' }}
-        >
-          {submitLabel}
-        </Button>
+        {counter}
+        {cancelButton}
+        {submitButton}
       </Box>
     </Box>
   );

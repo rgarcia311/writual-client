@@ -220,6 +220,38 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
     },
   });
 
+  const addCharacterVersionMutation = useMutation({
+    mutationFn: async (characterId: string) => {
+      const character = characters.find((c) => c._id === characterId);
+      const details = (character?.details as Array<Record<string, unknown>> | undefined) ?? [];
+      // The new version starts as a copy of the latest one so the card still reads as the same
+      // character until the writer edits it, rather than rendering a blank profile.
+      const source = details[details.length - 1] ?? {};
+      return updateCharacterAction(characterId, {
+        newVersion: true,
+        activeVersion: details.length + 1,
+        details: [
+          {
+            name: (source.name as string) ?? (character?.name as string) ?? '',
+            gender: (source.gender as string) ?? '',
+            age: source.age as number | undefined,
+            bio: (source.bio as string) ?? '',
+            want: (source.want as string) ?? '',
+            need: (source.need as string) ?? '',
+          },
+        ],
+      });
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['project-characters', projectId] });
+      await queryClient.refetchQueries({ queryKey: ['project-characters', projectId] });
+    },
+    onError: (err: { message?: string }) => {
+      setErrorMessage(err?.message || 'Failed to add character version.');
+      setErrorOpen(true);
+    },
+  });
+
   const deleteCharacterMutation = useMutation({
     mutationFn: (characterId: string) => deleteCharacterAction(characterId),
     onSuccess: async () => {
@@ -414,6 +446,7 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
                   locked: character.lockedVersion == null,
                 })
               }
+              onAddVersion={() => addCharacterVersionMutation.mutate(character._id as string)}
               onEditClick={(detail) => handleEditClick(character, detail)}
               onDeleteClick={
                 // The server rejects deletes while the section is locked, so hide the control

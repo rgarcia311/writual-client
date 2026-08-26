@@ -73,7 +73,7 @@ export function NoteCard({
 
   return (
     <Card
-      enable-xr
+      enable-xr=""
       className={gridTile ? 'note-card--grid' : undefined}
       {...hoverHandlers}
       style={xrStyle}
