@@ -111,7 +111,13 @@ export function AppTopBar() {
         >
           <AppLogo size={30} />
         </MuiLink>
+        {/*
+          `data-app-bar-actions` is a hook for routes that render inside this layout but have
+          nothing for these controls to act on — see `app/not-found.tsx`, which hides the
+          cluster with a stylesheet. The bar itself stays, so the logo remains a way home.
+        */}
         <Box
+          data-app-bar-actions=""
           sx={{
             display: 'flex',
             flexDirection: 'row',

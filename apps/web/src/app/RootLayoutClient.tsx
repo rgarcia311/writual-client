@@ -49,6 +49,9 @@ function isProjectDetailsRoute(pathname: string | null): boolean {
   return pathname != null && /^\/project\/[^/]+/.test(pathname);
 }
 
+/** Pre-auth routes: the top bar's Create Project and settings actions have nothing to act on. */
+const CHROMELESS_ROUTES = ['/'];
+
 export function RootLayoutClient({
   children,
 }: {
@@ -56,7 +59,8 @@ export function RootLayoutClient({
 }) {
   const pathname = usePathname();
   const { theme: isLightMode, setTheme, appliedTheme } = getTheme();
-  const showTopBar = pathname !== '/' && !isProjectDetailsRoute(pathname);
+  const showTopBar =
+    !CHROMELESS_ROUTES.includes(pathname ?? '') && !isProjectDetailsRoute(pathname);
 
   return (
     <SSRProvider>
