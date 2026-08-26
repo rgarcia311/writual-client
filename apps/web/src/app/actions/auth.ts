@@ -3,7 +3,24 @@
 import { adminAuth } from '@/lib/firebase-admin';
 import { cookies } from 'next/headers';
 
-export async function verifyAndLogin(idToken) {
+/** Mirrors the `Tier` union the API enforces; `beta-access` is granted server-side, never chosen. */
+type SelectableTier = 'spec' | 'indie' | 'greenlit';
+
+export interface VerifyAndLoginResult {
+  status?: 'success';
+  success?: boolean;
+  error?: string;
+}
+
+export async function verifyAndLogin(
+  idToken: string,
+  /**
+   * Tier picked on `/signup`. Only written when present, so the global auth listener in
+   * `ClientOnlyMuiLayout` — which re-verifies on every id-token change with no tier — cannot
+   * clear the choice a signing-up user just made.
+   */
+  tierId?: SelectableTier
+): Promise<VerifyAndLoginResult | undefined> {
   try {
     // 1. Verify the token with Firebase Admin
     const decodedToken = await adminAuth.verifyIdToken(idToken);
@@ -34,6 +51,15 @@ export async function verifyAndLogin(idToken) {
         secure,
         path: "/",
       });
+      if (tierId) {
+        (await cookies()).set("signup-tier", tierId, {
+          maxAge: Math.floor(expiresIn / 1000),
+          httpOnly: true,
+          secure,
+          path: "/",
+        });
+      }
+
       return { status: "success" };
     }
   } catch (error) {

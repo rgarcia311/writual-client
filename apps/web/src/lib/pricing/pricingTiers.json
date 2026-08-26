@@ -1,0 +1,106 @@
+{
+  "$comment": "Pricing and features for the signed-out membership tier cards. Switch `active` to change which block the UI renders; no code change is needed. Tier ids must stay in sync with the `Tier` union in src/types/tier.ts and the tiers the API enforces.",
+  "active": "beta",
+  "blocks": {
+    "release": {
+      "label": "Public pricing",
+      "tiers": [
+        {
+          "id": "spec",
+          "title": "Spec",
+          "tagline": "Free forever",
+          "monthlyPrice": 0,
+          "yearlyPricePerMonth": 0,
+          "annualTotal": 0,
+          "featured": false,
+          "features": [
+            "1 Project",
+            "Standard Editor",
+            "Basic Character Profiles",
+            "PDF Export"
+          ]
+        },
+        {
+          "id": "indie",
+          "title": "Indie",
+          "tagline": "For the working writer",
+          "monthlyPrice": 12,
+          "yearlyPricePerMonth": 9,
+          "annualTotal": 108,
+          "featured": true,
+          "features": [
+            "Unlimited Projects",
+            "Full Outline Framework",
+            "Advanced Scene Stats",
+            "Custom Templates"
+          ]
+        },
+        {
+          "id": "greenlit",
+          "title": "Greenlit",
+          "tagline": "Professional",
+          "monthlyPrice": 28,
+          "yearlyPricePerMonth": 20,
+          "annualTotal": 240,
+          "featured": false,
+          "features": [
+            "Real-time Project Messaging",
+            "Multi-user Collaboration",
+            "Version History",
+            "Priority Support"
+          ]
+        }
+      ]
+    },
+    "beta": {
+      "label": "Beta — every tier free",
+      "tiers": [
+        {
+          "id": "spec",
+          "title": "Spec",
+          "tagline": "Free during beta",
+          "monthlyPrice": 0,
+          "yearlyPricePerMonth": 0,
+          "annualTotal": 0,
+          "featured": false,
+          "features": [
+            "1 Project",
+            "Standard Editor",
+            "Basic Character Profiles",
+            "PDF Export"
+          ]
+        },
+        {
+          "id": "indie",
+          "title": "Indie",
+          "tagline": "Free during beta",
+          "monthlyPrice": 0,
+          "yearlyPricePerMonth": 0,
+          "annualTotal": 0,
+          "featured": true,
+          "features": [
+            "Unlimited Projects",
+            "Full Outline Framework",
+            "Advanced Scene Stats",
+            "Custom Templates"
+          ]
+        },
+        {
+          "id": "greenlit",
+          "title": "Greenlit",
+          "tagline": "Free during beta",
+          "monthlyPrice": 0,
+          "yearlyPricePerMonth": 0,
+          "annualTotal": 0,
+          "featured": false,
+          "features": [
+            "Real-time Project Messaging",
+            "Multi-user Collaboration",
+            "Version History",
+            "Priority Support"
+          ]
+        }
+      ]
+    }
+  }
+}
