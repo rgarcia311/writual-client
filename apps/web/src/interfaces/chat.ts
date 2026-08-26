@@ -4,6 +4,8 @@ export interface ChatSender {
   uid: string;
   name: string | null;
   displayName: string | null;
+  /** Stands in as this person's label until they accept their invite and have a name. */
+  email: string | null;
 }
 
 export interface ChatMessage {
@@ -28,6 +30,8 @@ export interface ConversationParticipant {
   uid: string;
   displayName: string | null;
   name: string | null;
+  /** Stands in as this person's label until they accept their invite and have a name. */
+  email: string | null;
 }
 
 export interface ConversationThread {

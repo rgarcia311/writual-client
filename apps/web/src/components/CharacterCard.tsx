@@ -94,6 +94,22 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
 
   const detail = details?.find((d: any) => d.version === version)
 
+  // The parent persists the new version and refetches, so the card waits for that version to
+  // actually exist before selecting it — otherwise it would briefly show an empty profile.
+  const [pendingVersion, setPendingVersion] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    if (pendingVersion != null && detailCount >= pendingVersion) {
+      setVersion(pendingVersion);
+      setPendingVersion(null);
+    }
+  }, [detailCount, pendingVersion]);
+
+  const handleAddVersion = React.useCallback(() => {
+    if (!onAddVersion || locked) return;
+    setPendingVersion(detailCount + 1);
+    onAddVersion();
+  }, [onAddVersion, locked, detailCount]);
+
   // Characters saved before multi-image support carry only `imageUrl`, so it stands in as a
   // one-image gallery.
   const gallery = React.useMemo(() => {
@@ -104,7 +120,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
 
   return (
       <Card
-        enable-xr
+        enable-xr=""
         className={[
           gridTile ? 'character-card--grid' : null,
           dragProps ? 'character-card--draggable' : null,
@@ -212,7 +228,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
               value={String(version)}
               versionOptions={versionOptions}
               onVersionChange={setVersion}
-              onAddVersion={() => onAddVersion?.()}
+              onAddVersion={onAddVersion ? handleAddVersion : undefined}
               disabled={locked}
               addVersionAriaLabel="Add new character version"
             />

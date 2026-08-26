@@ -97,7 +97,7 @@ export function CharacterDetailPane({ paneId }: CharacterDetailPaneProps) {
 
   return (
     <Box
-      enable-xr
+      enable-xr=""
       onPointerDown={() => bringToFront(paneId)}
       sx={{
         position: 'fixed',

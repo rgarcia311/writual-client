@@ -16,9 +16,7 @@
  * meant to remove.
  */
 
-const DB_NAME = 'writual-screenplay-cache'
-const DB_VERSION = 1
-const STORE = 'snapshots'
+import { screenplayIdbTx, SNAPSHOT_STORE } from './screenplayIdb'
 
 /** Snapshots older than this are ignored on read (and dropped) — the document has moved on. */
 const SNAPSHOT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
@@ -72,67 +70,13 @@ export function peekScreenplaySnapshot(projectId: string): ScreenplaySnapshot | 
   return sessionMemo.get(projectId) ?? null
 }
 
-function openDb(): Promise<IDBDatabase | null> {
-  if (typeof indexedDB === 'undefined') return Promise.resolve(null)
-  return new Promise((resolve) => {
-    let req: IDBOpenDBRequest
-    try {
-      req = indexedDB.open(DB_NAME, DB_VERSION)
-    } catch {
-      resolve(null)
-      return
-    }
-    req.onupgradeneeded = () => {
-      const db = req.result
-      if (!db.objectStoreNames.contains(STORE)) {
-        db.createObjectStore(STORE, { keyPath: 'projectId' })
-      }
-    }
-    req.onsuccess = () => resolve(req.result)
-    // Private-mode / quota-disabled browsers reject here; the caller degrades to a spinner.
-    req.onerror = () => resolve(null)
-    req.onblocked = () => resolve(null)
-  })
-}
-
-function tx<T>(
-  mode: IDBTransactionMode,
-  run: (store: IDBObjectStore) => IDBRequest<T>,
-): Promise<T | null> {
-  return openDb().then(
-    (db) =>
-      new Promise<T | null>((resolve) => {
-        if (!db) {
-          resolve(null)
-          return
-        }
-        let req: IDBRequest<T>
-        try {
-          req = run(db.transaction(STORE, mode).objectStore(STORE))
-        } catch {
-          db.close()
-          resolve(null)
-          return
-        }
-        req.onsuccess = () => {
-          resolve(req.result ?? null)
-          db.close()
-        }
-        req.onerror = () => {
-          resolve(null)
-          db.close()
-        }
-      }),
-  )
-}
-
 export async function readScreenplaySnapshot(
   projectId: string,
 ): Promise<ScreenplaySnapshot | null> {
   const memoized = sessionMemo.get(projectId)
   if (memoized !== undefined) return memoized
 
-  const snap = (await tx<ScreenplaySnapshot>('readonly', (s) => s.get(projectId))) ?? null
+  const snap = (await screenplayIdbTx<ScreenplaySnapshot>(SNAPSHOT_STORE, 'readonly', (s) => s.get(projectId))) ?? null
   const usable =
     snap &&
     Array.isArray(snap.blocks) &&
@@ -155,10 +99,10 @@ export async function writeScreenplaySnapshot(snapshot: ScreenplaySnapshot): Pro
       ? { ...snapshot, blocks: snapshot.blocks.slice(0, SNAPSHOT_MAX_BLOCKS) }
       : snapshot
   sessionMemo.set(trimmed.projectId, trimmed)
-  await tx('readwrite', (s) => s.put(trimmed))
+  await screenplayIdbTx(SNAPSHOT_STORE, 'readwrite', (s) => s.put(trimmed))
 }
 
 export async function deleteScreenplaySnapshot(projectId: string): Promise<void> {
   sessionMemo.set(projectId, null)
-  await tx('readwrite', (s) => s.delete(projectId))
+  await screenplayIdbTx(SNAPSHOT_STORE, 'readwrite', (s) => s.delete(projectId))
 }

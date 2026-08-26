@@ -65,6 +65,9 @@ import { useScreenplayDocumentsStore } from '@/state/screenplayDocuments'
 import { SCREENPLAY_DOCUMENT_QUERY } from '@/queries/ScreenplayQueries'
 import { useSyncWritingTrackerPageCount } from '@hooks/useSyncWritingTrackerPageCount'
 import { useScreenplaySnapshotPersistence } from '@hooks/useScreenplaySnapshotPersistence'
+import { useScreenplayLocalCache } from '@hooks/useScreenplayLocalCache'
+import { useScreenplayContentPersistence } from '@hooks/useScreenplayContentPersistence'
+import { useScreenplayEndRevalidation } from '@hooks/useScreenplayEndRevalidation'
 import { useUserProfileStore } from '@/state/user'
 import { useScreenplaySaveStatusStore } from '@/state/screenplaySaveStatus'
 import { useScreenplayEditorStore } from '@/state/screenplayEditor'
@@ -222,7 +225,11 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
    * Which of the project's screenplay documents to edit. The tab bar writes this selection; the
    * characters and outline pages read the same store so all three stay on the same script.
    */
-  const { activeDocumentId, isLoading: documentsLoading } = useScreenplayDocuments(projectId)
+  const {
+    activeDocumentId,
+    isLoading: documentsLoading,
+    rawData: documentListData,
+  } = useScreenplayDocuments(projectId)
 
   /**
    * Script body for the selected document only. `getProjectData` deliberately returns screenplay
@@ -239,7 +246,28 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
         documentId: activeDocumentId,
       }),
     enabled: Boolean(projectId && user && activeDocumentId),
+    /**
+     * Never refetched on mount or focus. A revisit is served from the local cache below, and the
+     * server read is deferred to `useScreenplayEndRevalidation` — an automatic refetch here would
+     * put the network back on the critical path, which is the cost this whole path removes.
+     * `invalidateQueries` still refetches it (that is how the end-of-document trigger works).
+     */
+    staleTime: Infinity,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   }) as { data: any; isLoading: boolean }
+
+  /**
+   * Hydrates both screenplay queries from IndexedDB and writes their results back, so the editor
+   * mounts from local storage on a revisit rather than waiting on the network.
+   */
+  useScreenplayLocalCache({
+    projectId,
+    documentId: activeDocumentId,
+    documentListData,
+    documentData,
+  })
 
   const { data: scenesData, isLoading: scenesLoading } = useQuery({
     queryKey: [PROJECT_SCENES_QUERY_KEY, projectId],
@@ -283,9 +311,30 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
     ) ?? false
   }, [project, user])
 
-  // The document body is a separate round trip; showing the editor before it lands would flash an
-  // empty script and then replace it.
-  if (scenesLoading || documentsLoading || documentLoading) {
+  /**
+   * Whether the saved body is the "no outline scenes yet" placeholder. If it is, seeding wants the
+   * project's scenes to re-derive it, so that one case still waits for the scenes query.
+   */
+  const savedBodyIsFallback = React.useMemo(
+    () => (savedScreenplayContent ? isUntouchedFallbackBody(savedScreenplayContent) : false),
+    [savedScreenplayContent],
+  )
+
+  /**
+   * A body is in hand — from the local cache or from the server — so the editor can mount now.
+   *
+   * The scenes query is deliberately not waited on here. It supplies the seed for a screenplay that
+   * has never been written and the edit permission, neither of which the reader of an existing
+   * script needs before seeing it: `editable` starts false and the effect in `ScreenplayEditorCore`
+   * turns it on when permissions land, so nothing can be typed into the gap.
+   */
+  const canMountFromSavedBody = Boolean(
+    activeDocumentId && savedScreenplayContent && !(savedBodyIsFallback && scenesLoading),
+  )
+
+  // With no body yet, the editor would flash an empty script and then replace it, so the curtain
+  // stays up until the queries that seed it have landed.
+  if (!canMountFromSavedBody && (scenesLoading || documentsLoading || documentLoading)) {
     return <ScreenplayInstantPreview projectId={projectId} documentId={activeDocumentId} />
   }
 
@@ -295,6 +344,7 @@ export function WritualEditor({ projectId }: WritualEditorProps) {
       projectId={projectId}
       documentId={activeDocumentId}
       canEdit={canEdit}
+      permissionsResolved={!scenesLoading}
       projectTitle={projectTitle}
       projectScenes={projectScenes}
       savedScreenplayContent={savedScreenplayContent}
@@ -310,6 +360,8 @@ interface CollabGateProps {
   projectId?: string
   documentId: string | null
   canEdit: boolean
+  /** False while the project query that carries edit permission is still in flight. */
+  permissionsResolved: boolean
   projectTitle: string | null
   projectScenes: ProjectScene[]
   savedScreenplayContent: unknown
@@ -321,6 +373,7 @@ function CollabGate({
   projectId,
   documentId,
   canEdit,
+  permissionsResolved,
   projectTitle,
   projectScenes,
   savedScreenplayContent,
@@ -341,6 +394,7 @@ function CollabGate({
       projectId={projectId}
       documentId={documentId}
       canEdit={canEdit}
+      permissionsResolved={permissionsResolved}
       projectTitle={projectTitle}
       projectScenes={projectScenes}
       savedScreenplayContent={savedScreenplayContent}
@@ -358,6 +412,7 @@ interface ScreenplayEditorCoreProps {
   projectId?: string
   documentId: string | null
   canEdit: boolean
+  permissionsResolved: boolean
   projectTitle: string | null
   projectScenes: ProjectScene[]
   savedScreenplayContent: unknown
@@ -371,6 +426,7 @@ function ScreenplayEditorCore({
   projectId,
   documentId,
   canEdit,
+  permissionsResolved,
   projectTitle,
   projectScenes,
   savedScreenplayContent,
@@ -606,6 +662,12 @@ function ScreenplayEditorCore({
   const { setActiveType, setCanEdit, setElementTypeFnRef } = useScreenplayEditorStore()
 
   const seededRef = React.useRef(false)
+  /** True once the writer has changed the document since it was seeded. */
+  const localEditsSinceSeedRef = React.useRef(false)
+  /** Suppresses the dirty flag while this component is the one calling `setContent`. */
+  const applyingServerContentRef = React.useRef(false)
+  /** The body object most recently pushed into the editor, so the same one is never re-applied. */
+  const appliedContentRef = React.useRef<unknown>(null)
 
   const user = useUserProfileStore((s) => s.userProfile?.user)
   const userDisplayName = useUserProfileStore((s) => s.userProfile?.displayName)
@@ -669,7 +731,14 @@ function ScreenplayEditorCore({
     if (collabActive) {
       base.push(Collaboration.configure({ document: ydoc }) as any)
 
-      if (canEdit) {
+      /**
+       * Extensions are built once, on the first render. Edit permission can still be in flight at
+       * that point (the editor now mounts from the local cache without waiting for it), so treat
+       * unresolved as "may edit" — otherwise a writer who arrived from cache would silently lose
+       * collaboration cursors for the rest of the session. Actual editing stays blocked either way:
+       * `editable` starts false and only the effect below turns it on.
+       */
+      if (canEdit || !permissionsResolved) {
         base.push(
           CollaborationCursor.configure({ provider }) as any,
         )
@@ -720,6 +789,36 @@ function ScreenplayEditorCore({
     pageRef,
     editorReady: editor != null,
     editor,
+  })
+
+  /**
+   * Persist the script body itself, so the next visit can mount without a round trip. Gated on
+   * `paginationReady` because before that the editor may still be empty, and an empty body must
+   * never replace a good cache entry.
+   */
+  useScreenplayContentPersistence({
+    projectId,
+    documentId,
+    editor,
+    enabled: paginationReady,
+  })
+
+  /**
+   * Pick up server-side changes when the reader reaches the end of what they have. This is a
+   * background refetch of an already-mounted query: it replaces no keys, remounts nothing, and
+   * never touches `workspaceRef.current.scrollTop`, so the reader stays exactly where they are.
+   */
+  const revalidateDocumentFromServer = React.useCallback(() => {
+    if (!projectId || !documentId) return
+    void queryClient.invalidateQueries({
+      queryKey: [SCREENPLAY_DOCUMENT_QUERY_KEY, projectId, documentId],
+    })
+  }, [queryClient, projectId, documentId])
+
+  useScreenplayEndRevalidation({
+    workspaceRef,
+    enabled: paginationReady && Boolean(projectId && documentId),
+    onReachEnd: revalidateDocumentFromServer,
   })
 
   /**
@@ -824,7 +923,13 @@ function ScreenplayEditorCore({
         projectScenes.length > 0 && isUntouchedFallbackBody(savedScreenplayContent)
           ? buildSeedDoc(projectScenes, titlePageBlocks)
           : savedScreenplayContent
-      queueMicrotask(() => editor.commands.setContent(content))
+      // Recorded so the adopt-newer-server-body effect below doesn't immediately re-apply this.
+      appliedContentRef.current = savedScreenplayContent
+      queueMicrotask(() => {
+        applyingServerContentRef.current = true
+        editor.commands.setContent(content)
+        applyingServerContentRef.current = false
+      })
       return
     }
 
@@ -832,6 +937,65 @@ function ScreenplayEditorCore({
 
     queueMicrotask(() => editor.commands.setContent(doc))
   }, [editor, projectScenes, savedScreenplayContent, collabActive, titlePageBlocks])
+
+  /**
+   * Solo mode only: pull the server's copy once on mount.
+   *
+   * Under collaboration the Y.Doc is authoritative and a stale cache can do no harm, so that path
+   * waits for `useScreenplayEndRevalidation`. Solo mode has no such backstop — autosave serialises
+   * whatever is in the editor — so a body restored from the local cache has to be checked against
+   * the server before an edit can overwrite a newer script. The read is a background refetch: the
+   * cached body is already on screen and stays there while it runs.
+   */
+  const soloRevalidatedRef = React.useRef(false)
+  React.useEffect(() => {
+    if (collabActive || soloRevalidatedRef.current || !projectId || !documentId) return
+    soloRevalidatedRef.current = true
+    revalidateDocumentFromServer()
+  }, [collabActive, projectId, documentId, revalidateDocumentFromServer])
+
+  /**
+   * Adopt a newer server body in place, without remounting or moving the reader.
+   *
+   * Only runs while the editor is untouched since seeding: once there are local edits, the writer's
+   * own work outranks the server's copy and autosave will reconcile it. `scrollTop` is captured and
+   * restored around the swap because replacing the document resets the scroll container, and the
+   * requirement is that a background fetch never moves the page under the reader.
+   */
+  React.useEffect(() => {
+    if (!editor) return
+    const markDirty = () => {
+      if (applyingServerContentRef.current) return
+      localEditsSinceSeedRef.current = true
+    }
+    editor.on('update', markDirty)
+    return () => {
+      editor.off('update', markDirty)
+    }
+  }, [editor])
+
+  React.useEffect(() => {
+    if (!editor || collabActive) return
+    if (!seededRef.current || localEditsSinceSeedRef.current) return
+    if (!savedScreenplayContent) return
+    if (appliedContentRef.current === savedScreenplayContent) return
+    appliedContentRef.current = savedScreenplayContent
+
+    const workspaceEl = workspaceRef.current
+    const scrollTop = workspaceEl?.scrollTop ?? 0
+
+    applyingServerContentRef.current = true
+    editor.commands.setContent(savedScreenplayContent as never)
+    applyingServerContentRef.current = false
+
+    if (!workspaceEl) return
+    // Pagination re-runs after the swap and rewrites every page height, so the offset is put back
+    // on the next frame rather than synchronously.
+    const rafId = requestAnimationFrame(() => {
+      workspaceEl.scrollTop = scrollTop
+    })
+    return () => cancelAnimationFrame(rafId)
+  }, [editor, collabActive, savedScreenplayContent])
 
   // ── Autosave (disabled when collab is active) ────────────────────────────
   useAutosave(editor, projectId, {

@@ -74,7 +74,7 @@ export function SceneDetailPane({ paneId }: SceneDetailPaneProps) {
 
   return (
     <Box
-      enable-xr
+      enable-xr=""
       onPointerDown={() => bringToFront(paneId)}
       sx={{
         position: 'fixed',

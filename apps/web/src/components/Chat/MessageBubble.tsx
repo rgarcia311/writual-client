@@ -7,6 +7,7 @@ import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import type { ChatMessage } from '@/interfaces/chat';
+import { chatPersonDisplayName } from '@/lib/chatPersonName';
 
 interface Props {
   message: ChatMessage;
@@ -17,8 +18,7 @@ interface Props {
 
 export function MessageBubble({ message, isOwn, showSender, onRetry }: Props) {
   const isPending = message._id.startsWith('temp-') && !message.isError;
-  const rawName = message.sender?.displayName ?? message.sender?.name ?? 'Unknown';
-  const senderName = rawName.replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+  const senderName = chatPersonDisplayName(message.sender);
 
   return (
     <Box

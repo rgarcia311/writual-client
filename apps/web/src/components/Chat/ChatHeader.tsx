@@ -8,11 +8,12 @@ import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import MenuIcon from '@mui/icons-material/Menu';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import GroupIcon from '@mui/icons-material/Group';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import TuneIcon from '@mui/icons-material/Tune';
 import type { ConversationThread } from '@/interfaces/chat';
+import { chatPersonName } from '@/lib/chatPersonName';
 import { MOBILE_MEDIA_QUERY } from '@/lib/breakpoints';
 import {
   ManageAccessDialog,
@@ -33,7 +34,8 @@ interface Props {
   screenplayDocuments: SharableScreenplayDocument[];
   /** Only the project's owner may re-grant someone else's access. */
   canManageAccess: boolean;
-  onMenuClick: () => void;
+  /** Mobile only: leaves the full-screen thread and returns to the conversation list. */
+  onBack: () => void;
   onLeaveConversation?: () => void;
 }
 
@@ -45,7 +47,7 @@ export function ChatHeader({
   participantAccess,
   screenplayDocuments,
   canManageAccess,
-  onMenuClick,
+  onBack,
   onLeaveConversation,
 }: Props) {
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
@@ -65,12 +67,12 @@ export function ChatHeader({
     : null;
 
   const title = isDirect
-    ? (other?.displayName ?? other?.name ?? 'Unknown')
+    ? chatPersonName(other)
     : (thread?.name ?? 'Group Chat');
 
   const subtitle = !isDirect && thread
     ? thread.participants
-        .map((p) => p.displayName ?? p.name ?? p.uid)
+        .map((p) => chatPersonName(p, p.uid))
         .join(', ')
     : null;
 
@@ -116,10 +118,11 @@ export function ChatHeader({
     >
       <IconButton
         sx={{ display: 'none', [`@media ${MOBILE_MEDIA_QUERY}`]: { display: 'inline-flex' } }}
-        onClick={onMenuClick}
+        onClick={onBack}
         size="small"
+        aria-label="Back to conversations"
       >
-        <MenuIcon />
+        <ArrowBackIcon />
       </IconButton>
       {thread && (
         <Avatar sx={{ width: 40, height: 40 }}>
@@ -188,7 +191,7 @@ export function ChatHeader({
               const memberAccess = participantAccess(p.uid);
               return (
                 <MenuItem key={p.uid} disabled sx={{ fontSize: 13, gap: 1, opacity: 1 }}>
-                  <Box component="span" sx={{ flex: 1 }}>{p.displayName ?? p.name ?? p.uid}</Box>
+                  <Box component="span" sx={{ flex: 1 }}>{chatPersonName(p, p.uid)}</Box>
                   {(memberAccess.role || memberAccess.collaborator) && (
                     <PermissionChip
                       level={memberAccess.collaborator?.permissionLevel ?? 'edit'}

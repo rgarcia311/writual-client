@@ -84,7 +84,7 @@ export function AppTopBar() {
   return (
     <>
       <Box
-        enable-xr
+        enable-xr=""
         sx={{
           display: 'flex',
           flexDirection: 'row',

@@ -87,7 +87,7 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
       elevation={2}
       collapsed={collapsed}
       data-tour="side-nav"
-      enable-xr
+      enable-xr=""
       style={
         {
           '--xr-back': `${XR_SIDENAV_BACK_PX}px`,

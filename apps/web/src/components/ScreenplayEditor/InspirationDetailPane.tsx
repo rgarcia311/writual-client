@@ -71,7 +71,7 @@ export function InspirationDetailPane({ paneId }: InspirationDetailPaneProps) {
 
   return (
     <Box
-      enable-xr
+      enable-xr=""
       onPointerDown={() => bringToFront(paneId)}
       sx={{
         position: 'fixed',

@@ -27,7 +27,7 @@ function OutlineFrameworkCard({ fw, onDelete, onEdit }: OutlineFrameworkCardProp
 
   return (
     <Card
-      enable-xr
+      enable-xr=""
       {...hoverHandlers}
       style={xrStyle}
       sx={{

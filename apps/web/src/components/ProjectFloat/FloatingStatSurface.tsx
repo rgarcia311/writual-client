@@ -28,7 +28,7 @@ export function FloatingStatSurface({
   return (
     <Paper
       elevation={2}
-      enable-xr
+      enable-xr=""
       className={`project-float-surface ${variantClass} ${className ?? ''}`.trim()}
       sx={{
         position: 'relative',

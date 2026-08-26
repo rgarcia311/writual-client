@@ -32,6 +32,8 @@ export interface UseScreenplayDocumentsResult {
   activeDocumentId: string | null
   setActiveDocumentId: (documentId: string) => void
   isLoading: boolean
+  /** The raw query payload, so callers can persist it verbatim to the local cache. */
+  rawData: unknown
 }
 
 /**
@@ -55,6 +57,14 @@ export function useScreenplayDocuments(
         input: { user, _id: projectId },
       }),
     enabled: Boolean(projectId && user),
+    /**
+     * The tab bar is hydrated from the local cache on a revisit, so an automatic refetch would only
+     * put a network round trip back in front of a list that is already on screen. Autosave and the
+     * document mutations invalidate this key when it actually changes; otherwise it refreshes at
+     * most every 5 minutes.
+     */
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   }) as {
     data?: {
       getProjectData?: Array<{ title?: string | null; screenplayDocuments?: ScreenplayDocumentSummary[] }>
@@ -94,5 +104,6 @@ export function useScreenplayDocuments(
     activeDocumentId: activeDocument?._id ?? null,
     setActiveDocumentId,
     isLoading,
+    rawData: data,
   }
 }
