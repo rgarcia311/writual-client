@@ -7,6 +7,10 @@ import { requireTier } from "../utils/tierUtils";
 import { MULTI_SCREENPLAY_MIN_TIER } from "@writual/tier-logic";
 import { resolveScreenplayPageCount } from "../utils/screenplayPageEstimate";
 import { pusher } from "../services/pusher";
+import { sendPushToUsers } from '../services/webPush';
+
+/** Notification banners truncate anyway; a long message is cut here so every OS shows the same text. */
+const PUSH_BODY_MAX_CHARS = 180;
 import { inviteCollaborators, updateCollaborator, removeCollaborator, claimInvite, finalizeSignup } from "../resolvers/collaboratorResolvers";
 import { verifyProjectWriteAccess, verifyProjectCommentAccess } from "../lib/projectAccess";
 import { GraphQLError } from "graphql";
@@ -150,6 +154,10 @@ export const ProjectType = `#graphql
         unlockCharactersSection(projectId: String!): Project
         sendMessage(conversationId: ID!, text: String!, clientGeneratedId: String): Message
         markAsRead(conversationId: ID!): Boolean
+        """Registers this browser for OS-level push. One per device/browser; re-registering the same endpoint is a no-op."""
+        registerPushSubscription(endpoint: String!, p256dh: String!, auth: String!, userAgent: String): Boolean!
+        """Drops one browser's push registration — the user turning notifications off on this device."""
+        unregisterPushSubscription(endpoint: String!): Boolean!
         setStatTilePreference(page: String!, statKeys: [String!]!): JSON
         clearStatTilePreference(page: String!): JSON
         setWalkthroughDismissed(dismissed: Boolean!): Boolean!
@@ -894,6 +902,8 @@ export const resolvers = {
         ? await Messages.aggregate([
             {
               $match: {
+                // A message you sent yourself is never unread to you.
+                senderId: { $ne: context.user._id },
                 $or: conversationIds.map((cid: any) => ({
                   conversationId: cid,
                   createdAt: { $gt: lastReadMap[String(cid)] ?? new Date(0) },
@@ -1005,6 +1015,8 @@ export const resolvers = {
         ? await Messages.aggregate([
             {
               $match: {
+                // A message you sent yourself is never unread to you.
+                senderId: { $ne: context.user._id },
                 $or: results.map((p: any) => ({
                   projectId: p._id,
                   createdAt: { $gt: lastReadMap[String(p._id)] ?? new Date(0) },
@@ -1285,7 +1297,7 @@ export const resolvers = {
       result.sender = context.user;
       result.clientGeneratedId = clientGeneratedId ?? null;
 
-      await pusher.trigger(`private-conversation-${conversationId}`, 'new-message', {
+      const broadcast = {
         _id: String(saved._id),
         text: saved.get('text'),
         senderId: String(saved.get('senderId')),
@@ -1293,7 +1305,43 @@ export const resolvers = {
         createdAt: saved.get('createdAt'),
         sender: context.user,
         clientGeneratedId: clientGeneratedId ?? null,
-      });
+      };
+
+      await pusher.trigger(`private-conversation-${conversationId}`, 'new-message', broadcast);
+
+      // A second copy goes to each recipient's own channel so the side nav badge and the OS
+      // notification fire whichever page they are on, without waiting for them to open the
+      // conversation. Per-user rather than per-project: the project channel is authorized for
+      // every project member, which would hand them DMs they are not a participant in.
+      const recipients = ((conv as any).participants as string[]).filter((p) => p !== context.uid);
+      if (recipients.length > 0) {
+        await pusher.trigger(
+          recipients.map((uid) => `private-user-${uid}`),
+          'new-message',
+          {
+            ...broadcast,
+            conversationId: String(conversationId),
+            conversationType: (conv as any).type ?? null,
+            conversationName: (conv as any).name ?? null,
+          }
+        );
+
+        // Web Push is what actually reaches the operating system — a closed tab, a phone in a
+        // pocket, an iOS home-screen app. The Pusher event above only ever reaches a page that is
+        // already running, and on Android and iOS a running page cannot raise a banner at all.
+        // Failures here must never fail the send, which is why this service swallows its own errors.
+        const senderName =
+          context.user.displayName?.trim() || context.user.name?.trim() || context.user.email?.trim() || 'New message';
+        const conversationName = (conv as any).name ?? null;
+        await sendPushToUsers(recipients, {
+          type: 'chat-message',
+          title: (conv as any).type === 'group' && conversationName ? `${senderName} in ${conversationName}` : senderName,
+          body: text.length > PUSH_BODY_MAX_CHARS ? `${text.slice(0, PUSH_BODY_MAX_CHARS - 1)}…` : text,
+          conversationId: String(conversationId),
+          projectId: String(projectId),
+          url: `/project/${String(projectId)}/chat?conversation=${String(conversationId)}`,
+        });
+      }
 
       return result;
     },
@@ -1304,6 +1352,38 @@ export const resolvers = {
         { uid: context.uid },
         { $set: { [`settings.lastReadByConversation.${conversationId}`]: new Date() } }
       );
+      return true;
+    },
+    registerPushSubscription: async (
+      _: unknown,
+      { endpoint, p256dh, auth, userAgent }: { endpoint: string; p256dh: string; auth: string; userAgent?: string | null },
+      context: { uid: string | null },
+    ) => {
+      if (!context.uid) throw new Error('Unauthorized');
+      if (!endpoint || !p256dh || !auth) throw new Error('Incomplete push subscription');
+
+      // Browsers hand back the same endpoint when a page re-subscribes, and a subscription that was
+      // rotated arrives as a new one. Replacing by endpoint keeps one row per device either way.
+      await AppUsers.updateOne(
+        { uid: context.uid },
+        { $pull: { pushSubscriptions: { endpoint } } },
+      ).exec();
+      await AppUsers.updateOne(
+        { uid: context.uid },
+        { $push: { pushSubscriptions: { endpoint, keys: { p256dh, auth }, userAgent: userAgent ?? null, createdAt: new Date() } } },
+      ).exec();
+      return true;
+    },
+    unregisterPushSubscription: async (
+      _: unknown,
+      { endpoint }: { endpoint: string },
+      context: { uid: string | null },
+    ) => {
+      if (!context.uid) throw new Error('Unauthorized');
+      await AppUsers.updateOne(
+        { uid: context.uid },
+        { $pull: { pushSubscriptions: { endpoint } } },
+      ).exec();
       return true;
     },
     setStatTilePreference: async (

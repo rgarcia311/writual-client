@@ -44,6 +44,20 @@ const nextConfig = {
       { source: '/api/screenplay/:path*', destination: `${origin}/api/screenplay/:path*` },
     ]
   },
+  // The service worker owns notification delivery, so a stale copy means a device that stops
+  // ringing until its cache expires. Browsers revalidate worker scripts on their own, but the CDN
+  // in front of this app does not — this keeps it from holding an old one.
+  async headers() {
+    return [
+      {
+        source: '/sw.js',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' },
+          { key: 'Service-Worker-Allowed', value: '/' },
+        ],
+      },
+    ]
+  },
   }
    
   module.exports = nextConfig
