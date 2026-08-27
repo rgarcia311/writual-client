@@ -307,11 +307,18 @@
   /* -------------------------------------------------- character / note grids */
 
   /*
-   * Fluid tracks rather than the desktop fixed 305/480px ones: one full-width card on a phone,
-   * two columns once the container clears ~610/960px. Card *heights* keep their desktop values.
+   * Two character cards per row on a phone: fluid half-width tracks rather than the desktop fixed
+   * 305px one. The tile is shrunk and flattened to match — at half the screen the desktop 390px
+   * height would read as a tall sliver, so it becomes a squat rectangle instead.
    */
   .project-details-page .characters-page-cards {
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--character-card-width, 305px)), 1fr));
+    /*
+     * Scoped to this grid, not to `.project-details-page`, because the notes page reads the same
+     * height var for its own cards and keeps the desktop size.
+     */
+    --character-card-height: 210px;
+    --character-card-media-height: 120px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     justify-content: stretch;
     justify-items: stretch;
     column-gap: var(--project-float-stat-gap, var(--app-body-padding, 8px));
@@ -321,6 +328,34 @@
     width: 100%;
     max-width: 100%;
   }
+
+  /*
+   * Type scaled down with the tile. The desktop card is wide enough for the default h5 name and
+   * body1 details; at half a phone's width they would each eat the whole card.
+   */
+  .project-details-page .characters-page-cards .character-card--grid .MuiCardHeader-root {
+    padding: 6px 10px 0;
+  }
+
+  .project-details-page .characters-page-cards .character-card--grid .MuiCardHeader-title {
+    font-size: 0.9375rem;
+    line-height: 1.3;
+  }
+
+  .project-details-page .characters-page-cards .character-card--grid .MuiCardContent-root {
+    padding: 0 10px 8px;
+  }
+
+  .project-details-page .characters-page-cards .character-card--grid .MuiCardContent-root .MuiTypography-root {
+    font-size: 0.75rem;
+    line-height: 1.4;
+  }
+
+  .project-details-page .characters-page-cards .character-card--grid .MuiCardContent-root .MuiTypography-paragraph {
+    margin-bottom: 6px;
+  }
+
+  /* Notes tracks stay fluid-but-full-width: one card on a phone, two once the container allows. */
 
   .project-details-page .notes-page-cards {
     /* Local custom property on `.notes-page-cards`, so it has to be re-declared, not inherited. */

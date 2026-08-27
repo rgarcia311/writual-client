@@ -8,6 +8,7 @@ import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { ME_QUERY } from '@/queries/UserQueries';
 import { useUserProfileStore } from '@/state/user';
 import { verifyAndLogin } from '@/app/actions/auth';
+import { forceSignOut } from '@/lib/forceSignOut';
 
 /**
  * Renders children only after mount. Use in root layout to avoid MUI/Emotion
@@ -31,7 +32,15 @@ export function ClientOnlyMuiLayout({ children }: { children: React.ReactNode })
 
       const idToken = await firebaseUser.getIdToken();
 
-      verifyAndLogin(idToken).catch(() => {});
+      // An "Unauthorized" answer means the server refused the token, so the session cookies the
+      // rest of the app runs on will never be written. Tear the session down instead of leaving a
+      // signed-in-looking UI on top of a session the server rejects. A *rejected* promise is a
+      // transport failure, not a verdict, so it is still ignored.
+      verifyAndLogin(idToken)
+        .then((result) => {
+          if (result?.status !== 'success') void forceSignOut();
+        })
+        .catch(() => {});
 
       // Set immediately — full beta-access optimistically, no flicker. The persisted settings for
       // this same account are carried over so preferences (colour mode, stat tiles) paint from the
