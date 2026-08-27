@@ -62,13 +62,45 @@ export function usePushNotificationsRuntime(): void {
   const uid = useUserProfileStore((s) => s.userProfile?.user ?? null);
   const enabled = useChatNotificationsStore((s) => s.enabled);
   const support = useChatNotificationsStore((s) => s.support);
+  const permission = useChatNotificationsStore((s) => s.permission);
   const setCapabilities = useChatNotificationsStore((s) => s.setCapabilities);
   const setPushSubscribed = useChatNotificationsStore((s) => s.setPushSubscribed);
 
-  // Read after mount only: neither exists during the server render, and a value guessed there
-  // would hydrate as a mismatch.
+  /**
+   * Read after mount only — neither value exists during the server render, and a value guessed
+   * there would hydrate as a mismatch.
+   *
+   * Re-read on every change, not just once. Someone who finds the setting blocked leaves to fix it
+   * in browser or OS settings and comes back to the same page; without this the app still believes
+   * the stale answer and leaves the switch greyed out with no way to prove otherwise.
+   */
   React.useEffect(() => {
-    setCapabilities({ support: getPushSupport(), permission: getNotificationPermission() });
+    const refresh = () => setCapabilities({ support: getPushSupport(), permission: getNotificationPermission() });
+    refresh();
+
+    let cancelled = false;
+    let status: PermissionStatus | null = null;
+    navigator.permissions
+      ?.query({ name: 'notifications' as PermissionName })
+      .then((result) => {
+        if (cancelled) return;
+        status = result;
+        result.addEventListener('change', refresh);
+      })
+      .catch(() => {
+        // Safari has no queryable notifications permission; the visibility listener covers it.
+      });
+
+    // The moment a trip to browser settings ends is the moment the old answer stops being true.
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+
+    return () => {
+      cancelled = true;
+      status?.removeEventListener('change', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
+    };
   }, [setCapabilities]);
 
   /**
@@ -98,7 +130,7 @@ export function usePushNotificationsRuntime(): void {
    */
   React.useEffect(() => {
     if (!uid || support !== 'supported' || !VAPID_PUBLIC_KEY) return;
-    if (!enabled || getNotificationPermission() !== 'granted') return;
+    if (!enabled || permission !== 'granted') return;
 
     let cancelled = false;
     (async () => {
@@ -114,7 +146,11 @@ export function usePushNotificationsRuntime(): void {
     })();
 
     return () => { cancelled = true; };
-  }, [uid, enabled, support, setPushSubscribed]);
+    // `permission` has to be a dependency, not something read inside the body. Granting it is the
+    // event that makes subscribing possible, and it is the only one of these that changes when the
+    // user answers the prompt — without it here, a first-time grant subscribed nothing until the
+    // next page load.
+  }, [uid, enabled, permission, support, setPushSubscribed]);
 
   // Keeps the reported state honest when a subscription was made in an earlier session, or has
   // been dropped from browser settings since.

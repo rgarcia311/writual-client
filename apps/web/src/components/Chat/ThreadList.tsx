@@ -13,6 +13,7 @@ import GroupAddIcon from '@mui/icons-material/GroupAdd';
 import SearchIcon from '@mui/icons-material/Search';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import { ThreadListItem } from './ThreadListItem';
+import { ChatNotificationPrompt } from './ChatNotificationPrompt';
 import type { ConversationThread } from '@/interfaces/chat';
 import { chatPersonName } from '@/lib/chatPersonName';
 import { MOBILE_MEDIA_QUERY } from '@/lib/breakpoints';
@@ -127,6 +128,7 @@ export function ThreadList({ threads, selectedConversationId, onlineUserIds, cur
           sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
         />
       </Box>
+      <ChatNotificationPrompt />
       <Box sx={{ flex: 1, overflowY: 'auto' }}>
         {filtered.length === 0 && search ? (
           <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: 'center' }}>
