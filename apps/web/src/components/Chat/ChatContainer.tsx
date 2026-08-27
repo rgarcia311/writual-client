@@ -22,7 +22,6 @@ import { NewGroupChatDialog } from './NewGroupChatDialog';
 import type { ChatMessage, ConversationThread, ConversationParticipant } from '@/interfaces/chat';
 import { MOBILE_MEDIA_QUERY } from '@/lib/breakpoints';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { useProjectShellContext } from '@/components/ProjectFloat';
 import '@/styles/chatPage.css';
 
 interface Props {
@@ -42,7 +41,6 @@ export function ChatContainer({ projectId }: Props) {
   const hasUserSelected = React.useRef(false);
 
   const isMobile = useIsMobile();
-  const { projectTitle } = useProjectShellContext();
 
   const { data: conversationsData, isLoading: conversationsLoading } = useProjectConversations(projectId);
 
@@ -233,7 +231,6 @@ export function ChatContainer({ projectId }: Props) {
       onlineUserIds={onlineUserIds}
       currentUserUid={currentUserUid}
       projectId={projectId}
-      projectTitle={projectTitle}
       showOnMobile={showThreadListOnMobile}
       participantAccess={participantAccess}
       onSelect={handleSelectThread}

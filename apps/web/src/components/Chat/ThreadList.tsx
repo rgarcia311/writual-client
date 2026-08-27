@@ -25,8 +25,6 @@ interface Props {
   onlineUserIds: string[];
   currentUserUid: string;
   projectId: string;
-  /** Shown above the "Conversations" header on mobile, where the list is the whole screen. */
-  projectTitle?: string;
   /** Mobile shows the list full screen instead of hiding it behind the thread view. */
   showOnMobile?: boolean;
   /** How a given uid reaches this project, so each direct thread can show their permission. */
@@ -35,7 +33,7 @@ interface Props {
   onNewGroupChat: () => void;
 }
 
-export function ThreadList({ threads, selectedConversationId, onlineUserIds, currentUserUid, projectId, projectTitle, showOnMobile = false, participantAccess, onSelect, onNewGroupChat }: Props) {
+export function ThreadList({ threads, selectedConversationId, onlineUserIds, currentUserUid, projectId, showOnMobile = false, participantAccess, onSelect, onNewGroupChat }: Props) {
   const [search, setSearch] = React.useState('');
 
   const sorted = [...threads].sort((a, b) => {
@@ -91,17 +89,13 @@ export function ThreadList({ threads, selectedConversationId, onlineUserIds, cur
         }}
       >
         <Box sx={{ minWidth: 0 }}>
-          {projectTitle && (
-            <Typography
-              variant="subtitle1"
-              fontWeight={700}
-              noWrap
-              sx={{ display: 'none', [`@media ${MOBILE_MEDIA_QUERY}`]: { display: 'block' } }}
-            >
-              {projectTitle}
-            </Typography>
-          )}
-          <Typography variant="subtitle2" fontWeight={600}>
+          {/* On mobile this is the whole screen's heading — the project name used to sit above it
+              and is gone, so the label takes over that size. */}
+          <Typography
+            variant="subtitle2"
+            fontWeight={600}
+            sx={{ [`@media ${MOBILE_MEDIA_QUERY}`]: { fontSize: '1.125rem', fontWeight: 700 } }}
+          >
             Conversations
           </Typography>
         </Box>
