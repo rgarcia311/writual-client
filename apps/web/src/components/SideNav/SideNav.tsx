@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Autocomplete, Box, Button, Drawer, IconButton, Link as MuiLink, Paper, TextField, Tooltip } from "@mui/material";
+import { Autocomplete, Badge, Box, Button, Drawer, IconButton, Link as MuiLink, Paper, TextField, Tooltip } from "@mui/material";
 import { styled } from "@mui/system";
 import { useState } from "react";
 import AddIcon from '@mui/icons-material/Add';
@@ -19,6 +19,7 @@ import ChatBubbleIcon from '@mui/icons-material/ChatBubble';
 import StickyNote2Icon from '@mui/icons-material/StickyNote2';
 import { useCreateProjectModalStore } from '@/state/createProjectModal';
 import { useSideNavCollapsedStore } from '@/state/sideNavCollapsed';
+import { useProjectUnreadCount } from '@/hooks/useProjectConversations';
 
 const SIDENAV_LINKS = [
   { segment: 'characters', label: 'Characters', Icon: TheaterComedyIcon },
@@ -27,6 +28,47 @@ const SIDENAV_LINKS = [
   { segment: 'screenplay', label: 'Screenplay', Icon: ArticleIcon },
   { segment: 'chat', label: 'Chat', Icon: ChatBubbleIcon },
 ] as const;
+
+/** Cap on the unread badge — past this it reads '99+' rather than growing the bubble. */
+const UNREAD_BADGE_MAX = 99;
+
+/**
+ * Unread bubble pinned to the top-right of the chat link. Rendered only at 1 or more: an
+ * always-present zero is noise, and `Badge`'s own `invisible` still reserves the space.
+ */
+function UnreadBubble({
+  count,
+  overlap,
+  children,
+}: {
+  count: number;
+  overlap: 'circular' | 'rectangular';
+  children: React.ReactElement;
+}) {
+  if (count < 1) return children;
+  return (
+    <Badge
+      badgeContent={count > UNREAD_BADGE_MAX ? `${UNREAD_BADGE_MAX}+` : count}
+      color="error"
+      overlap={overlap}
+      anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      aria-label={`${count} unread chat ${count === 1 ? 'message' : 'messages'}`}
+      sx={{
+        // The rail scrolls, so a badge hung the default half-width past the corner would be
+        // clipped or push a horizontal scrollbar. This keeps it over the link's own corner.
+        '& .MuiBadge-badge': {
+          fontSize: 10,
+          minWidth: 18,
+          height: 18,
+          padding: '0 4px',
+          transform: 'translate(25%, -25%)',
+        },
+      }}
+    >
+      {children}
+    </Badge>
+  );
+}
 
 /** Extract project id from pathname like /project/abc123 or /project/abc123/outline */
 function getProjectIdFromPathname(pathname: string | null): string | null {
@@ -78,6 +120,7 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
   const [searchValue, setSearchValue] = React.useState<string[]>([]);
   const [searchInputValue, setSearchInputValue] = React.useState('');
   const openCreateProjectModal = useCreateProjectModalStore((s) => s.openModal);
+  const unreadChatCount = useProjectUnreadCount(projectId);
 
   const linkHref = (segment: string) =>
     projectId ? `/project/${projectId}/${segment}` : '/projects';
@@ -152,48 +195,55 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
       >
         {SIDENAV_LINKS.map(({ segment, label, Icon }) => {
           const href = linkHref(segment);
+          // Chat is the only link with a count behind it; every other one renders unwrapped.
+          const unreadCount = segment === 'chat' ? unreadChatCount : 0;
           if (collapsed) {
             return (
-              <Tooltip key={segment} title={label} placement="right">
-                <IconButton
-                  component={Link}
-                  href={href}
-                  color="primary"
-                  size="small"
-                  data-tour={`side-nav-${segment}`}
-                  sx={{
-                    minWidth: 32,
-                    width: 32,
-                    height: 32,
-                    p: 0.5,
-                    '& svg': { fontSize: 20 },
-                  }}
-                >
-                  <Icon />
-                </IconButton>
-              </Tooltip>
+              // Badge outside the tooltip, not inside: `Tooltip` attaches its ref to its direct
+              // child, and `UnreadBubble` drops out of the tree entirely at a zero count.
+              <UnreadBubble key={segment} count={unreadCount} overlap="circular">
+                <Tooltip title={label} placement="right">
+                  <IconButton
+                    component={Link}
+                    href={href}
+                    color="primary"
+                    size="small"
+                    data-tour={`side-nav-${segment}`}
+                    sx={{
+                      minWidth: 32,
+                      width: 32,
+                      height: 32,
+                      p: 0.5,
+                      '& svg': { fontSize: 20 },
+                    }}
+                  >
+                    <Icon />
+                  </IconButton>
+                </Tooltip>
+              </UnreadBubble>
             );
           }
           return (
-            <Button
-              key={segment}
-              component={Link}
-              href={href}
-              variant="text"
-              color="primary"
-              startIcon={<Icon />}
-              data-tour={`side-nav-${segment}`}
-              sx={{
-                justifyContent: 'flex-start',
-                minWidth: '200px',
-                borderRadius: '16px',
-                textTransform: 'capitalize',
-                fontSize: '1.125rem',
-                '& .MuiButton-startIcon': { marginRight: '20px' },
-              }}
-            >
-              {label}
-            </Button>
+            <UnreadBubble key={segment} count={unreadCount} overlap="rectangular">
+              <Button
+                component={Link}
+                href={href}
+                variant="text"
+                color="primary"
+                startIcon={<Icon />}
+                data-tour={`side-nav-${segment}`}
+                sx={{
+                  justifyContent: 'flex-start',
+                  minWidth: '200px',
+                  borderRadius: '16px',
+                  textTransform: 'capitalize',
+                  fontSize: '1.125rem',
+                  '& .MuiButton-startIcon': { marginRight: '20px' },
+                }}
+              >
+                {label}
+              </Button>
+            </UnreadBubble>
           );
         })}
       </Box>

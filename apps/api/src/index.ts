@@ -49,6 +49,15 @@ const startServer = async () => {
 
       const { socket_id, channel_name } = req.body;
 
+      // private-user-{uid}: a person's own notification channel. Only ever their own — this
+      // carries messages from every conversation they are in, project membership does not grant it.
+      if (channel_name?.startsWith('private-user-')) {
+        const channelUid = channel_name.slice('private-user-'.length);
+        if (channelUid !== uid) { res.status(403).json({ error: 'Forbidden' }); return; }
+        res.json(pusher.authorizeChannel(socket_id, channel_name));
+        return;
+      }
+
       // private-conversation-{conversationId}: verify participant membership
       if (channel_name?.startsWith('private-conversation-')) {
         const conversationId = channel_name.replace('private-conversation-', '');

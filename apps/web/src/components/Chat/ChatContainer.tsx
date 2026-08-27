@@ -5,14 +5,15 @@ import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import ForumIcon from '@mui/icons-material/Forum';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { authRequest } from '@/lib/authRequest';
-import { GET_PROJECT_CONVERSATIONS } from '@/queries/ChatQueries';
 import { SEND_MESSAGE, MARK_AS_READ, CREATE_GROUP_CONVERSATION, LEAVE_CONVERSATION } from '@/mutations/ChatMutations';
 import { useUserProfileStore } from '@/state/user';
 import { usePusher } from '@/hooks/usePusher';
 import { usePresence } from '@/hooks/usePresence';
 import { useProjectSharing } from '@/hooks/useProjectSharing';
+import { useProjectConversations } from '@/hooks/useProjectConversations';
+import { useChatNotificationsStore } from '@/state/chatNotifications';
 import { ThreadList } from './ThreadList';
 import { ChatHeader } from './ChatHeader';
 import { MessageFeed } from './MessageFeed';
@@ -43,12 +44,7 @@ export function ChatContainer({ projectId }: Props) {
   const isMobile = useIsMobile();
   const { projectTitle } = useProjectShellContext();
 
-  const { data: conversationsData, isLoading: conversationsLoading } = useQuery({
-    queryKey: ['projectConversations', projectId],
-    queryFn: () =>
-      authRequest<{ getProjectConversations: ConversationThread[] }>(GET_PROJECT_CONVERSATIONS, { projectId })
-        .then((d) => d.getProjectConversations),
-  });
+  const { data: conversationsData, isLoading: conversationsLoading } = useProjectConversations(projectId);
 
   const conversations = conversationsData ?? [];
   const selectedThread = conversations.find((t) => t._id === selectedConversationId) ?? null;
@@ -66,7 +62,31 @@ export function ChatContainer({ projectId }: Props) {
     }
   }, [conversations.length, isMobile]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // A notification banner links straight to the thread it belongs to. Read from `location` rather
+  // than `useSearchParams` so this stays out of the route's render path — it is a one-time hint at
+  // mount, not state the page tracks.
+  const [deepLinkedConversationId] = React.useState<string | null>(() =>
+    typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('conversation'),
+  );
+
+  React.useEffect(() => {
+    if (!deepLinkedConversationId) return;
+    if (!conversations.some((t) => t._id === deepLinkedConversationId)) return;
+    // Counts as a deliberate choice, so mobile opens the thread rather than the list.
+    hasUserSelected.current = true;
+    hasAutoSelected.current = true;
+    setSelectedConversationId(deepLinkedConversationId);
+  }, [deepLinkedConversationId, conversations.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   usePusher(selectedConversationId, projectId);
+
+  // Tells `useChatNotifications` which thread is on screen, so a message arriving in it neither
+  // raises the side nav badge nor fires an OS banner for something already being read.
+  const setActiveConversationId = useChatNotificationsStore((s) => s.setActiveConversationId);
+  React.useEffect(() => {
+    setActiveConversationId(selectedConversationId);
+    return () => setActiveConversationId(null);
+  }, [selectedConversationId, setActiveConversationId]);
   const { typingUsers, onlineUserIds, sendTypingEvent } = usePresence(projectId);
 
   // Who else is on this project and what they were granted — the chat labels every conversation

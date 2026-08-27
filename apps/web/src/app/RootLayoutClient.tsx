@@ -25,6 +25,7 @@ import { CreateProjectWrapper } from '../components/CreateProjectWrapper';
 import { AppTopBar } from '../components/AppTopBar';
 import { ClientOnlyMuiLayout } from '../components/ClientOnlyMuiLayout';
 import { WalkthroughProvider } from '../components/Walkthrough';
+import { ChatNotifications } from '../components/ChatNotifications';
 
 /**
  * Shared query defaults.
@@ -90,6 +91,7 @@ export function RootLayoutClient({
               </Box>
               <CreateProjectWrapper />
               <WalkthroughProvider />
+              <ChatNotifications />
             </ThemeToggleProvider>
           </ThemeProvider>
         </QueryClientProvider>

@@ -7,7 +7,7 @@ import { getFirebaseAuth } from '@/lib/firebase';
 import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import type { ChatMessage, ConversationThread } from '@/interfaces/chat';
 
-function createPusherClient() {
+export function createPusherClient() {
   return new PusherClient(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
     cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
     channelAuthorization: {
