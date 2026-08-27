@@ -13,6 +13,16 @@
 
 export type NotificationSupport = NotificationPermission | 'unsupported';
 
+/**
+ * Shown when a permission request comes back still 'default' — the browser never really asked.
+ *
+ * Chrome does this through "quieter messaging": rather than a dialog it puts a struck-through bell
+ * in the address bar, pre-selected to Block, and fades it after a few seconds. Chasing that icon is
+ * a race, so this points at the site-settings route instead, which is always there.
+ */
+export const SUPPRESSED_PROMPT_HINT =
+  'Your browser hid the permission prompt. Tap the icon to the left of the address bar, then Permissions → Notifications → Allow.';
+
 export function isNotificationSupported(): boolean {
   return typeof window !== 'undefined' && 'Notification' in window;
 }
