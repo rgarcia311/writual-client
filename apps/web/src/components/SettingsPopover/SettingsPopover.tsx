@@ -20,6 +20,7 @@ import { useThemeToggleOptional } from '@/themes/ThemeToggleContext';
 import { useWalkthroughStore } from '@/state/walkthrough';
 import { useChatNotificationsStore } from '@/state/chatNotifications';
 import { enableChatNotifications, disableChatNotifications } from '@/hooks/usePushNotifications';
+import { SUPPRESSED_PROMPT_HINT } from '@/lib/desktopNotifications';
 
 export interface SettingsPopoverProps {
   /** When true, render only the icon (e.g. on projects page without SideNav). */
@@ -51,6 +52,7 @@ export function SettingsPopover({ standalone = false }: SettingsPopoverProps) {
   const permission = useChatNotificationsStore((s) => s.permission);
   const subscribed = useChatNotificationsStore((s) => s.pushSubscribed);
   const busy = useChatNotificationsStore((s) => s.busy);
+  const promptSuppressed = useChatNotificationsStore((s) => s.promptSuppressed);
 
   const chatNotificationsOn = chatNotificationsEnabled && permission === 'granted';
   // The two cases the user cannot resolve from this menu: a permission the browser will not
@@ -69,13 +71,17 @@ export function SettingsPopover({ standalone = false }: SettingsPopoverProps) {
           // to do is say where it is reversed. On Android that is two settings deep, and the
           // browser-level one blocks every site without ever showing a prompt.
           ? 'Blocked. Allow notifications for this site in your browser settings — on Android, also check Chrome is allowed to post notifications.'
-          : !chatNotificationsOn
-            ? 'Off'
-            // A device without a subscription only rings while a tab is open, which is worth saying
-            // rather than letting the user discover it when a message misses them.
-            : subscribed
-              ? 'On for this device'
-              : 'On while Writual is open';
+          : promptSuppressed && permission === 'default'
+            // The browser took the request and never asked, so the row says how to get past it
+            // rather than reporting 'Off' as though nothing had happened.
+            ? SUPPRESSED_PROMPT_HINT
+            : !chatNotificationsOn
+              ? 'Off'
+              // A device without a subscription only rings while a tab is open, which is worth
+              // saying rather than letting the user discover it when a message misses them.
+              : subscribed
+                ? 'On for this device'
+                : 'On while Writual is open';
 
   /**
    * Browsers only prompt from a user gesture, which is why the request lives on this row rather

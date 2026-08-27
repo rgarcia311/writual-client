@@ -24,12 +24,16 @@ const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? '';
  * retries on the next page load instead of leaving a device stuck off.
  */
 export async function enableChatNotifications(): Promise<void> {
-  const { setEnabled, setBusy, setCapabilities, support } = useChatNotificationsStore.getState();
+  const { setEnabled, setBusy, setCapabilities, setPromptSuppressed, support } =
+    useChatNotificationsStore.getState();
   setBusy(true);
   try {
     const permission = await requestNotificationPermission();
     setCapabilities({ support, permission });
     setEnabled(permission === 'granted');
+    // Still 'default' means the browser never put the question to the user — Chrome's quiet prompt
+    // fading out unanswered, most often. Without saying so, the UI just sits there looking broken.
+    setPromptSuppressed(permission === 'default');
   } finally {
     setBusy(false);
   }

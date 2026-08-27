@@ -43,6 +43,12 @@ interface ChatNotificationsState {
    */
   promptDismissed: boolean;
   setPromptDismissed: (promptDismissed: boolean) => void;
+  /**
+   * A permission request came back still 'default' — the browser swallowed the prompt rather than
+   * showing it. Not persisted: it describes one attempt, and the next page load starts clean.
+   */
+  promptSuppressed: boolean;
+  setPromptSuppressed: (promptSuppressed: boolean) => void;
 }
 
 const STORAGE_KEY = 'writual-chat-notifications';
@@ -63,6 +69,8 @@ export const useChatNotificationsStore = create<ChatNotificationsState>()(
       setBusy: (busy) => set({ busy }),
       promptDismissed: false,
       setPromptDismissed: (promptDismissed) => set({ promptDismissed }),
+      promptSuppressed: false,
+      setPromptSuppressed: (promptSuppressed) => set({ promptSuppressed }),
     }),
     {
       name: STORAGE_KEY,
