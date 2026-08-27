@@ -5,5 +5,6 @@ export { MessageFeed } from './MessageFeed';
 export { MessageBubble } from './MessageBubble';
 export { MessageInput } from './MessageInput';
 export { ChatHeader } from './ChatHeader';
+export { ChatNotificationPrompt } from './ChatNotificationPrompt';
 export { DateSeparator } from './DateSeparator';
 export { NewGroupChatDialog } from './NewGroupChatDialog';

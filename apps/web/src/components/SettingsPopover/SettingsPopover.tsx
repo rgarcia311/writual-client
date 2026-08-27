@@ -65,7 +65,10 @@ export function SettingsPopover({ standalone = false }: SettingsPopoverProps) {
       : permission === 'unsupported'
         ? 'Not supported in this browser'
         : permission === 'denied'
-          ? 'Blocked in browser settings'
+          // A denied permission cannot be re-prompted from script, so the only useful thing left
+          // to do is say where it is reversed. On Android that is two settings deep, and the
+          // browser-level one blocks every site without ever showing a prompt.
+          ? 'Blocked. Allow notifications for this site in your browser settings — on Android, also check Chrome is allowed to post notifications.'
           : !chatNotificationsOn
             ? 'Off'
             // A device without a subscription only rings while a tab is open, which is worth saying
@@ -150,6 +153,9 @@ export function SettingsPopover({ standalone = false }: SettingsPopoverProps) {
           <MenuItem
             onClick={notificationsBlocked || busy ? undefined : () => handleToggleChatNotifications(!chatNotificationsOn)}
             disabled={notificationsBlocked}
+            // The blocked and iOS states carry instructions rather than a label, and a menu item
+            // clips them to one line by default.
+            sx={{ whiteSpace: 'normal', alignItems: 'flex-start' }}
           >
             <ListItemIcon>
               {chatNotificationsOn
@@ -160,6 +166,7 @@ export function SettingsPopover({ standalone = false }: SettingsPopoverProps) {
               primary="Chat notifications"
               secondary={notificationsSecondary}
               primaryTypographyProps={{ fontWeight: 600 }}
+              secondaryTypographyProps={{ sx: { whiteSpace: 'normal' } }}
             />
             {/* The row itself is the control — the switch only reports its state. */}
             <Switch
