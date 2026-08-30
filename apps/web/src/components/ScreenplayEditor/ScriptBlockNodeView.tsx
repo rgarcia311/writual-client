@@ -23,6 +23,7 @@ import { TIER_RANK } from '@/types/tier'
 import type { BlockVersion } from './ScreenplayExtension'
 import { SceneOutlineButton } from './SceneOutlineButton'
 import { CharacterHoverButton } from './CharacterHoverButton'
+import { isFirstCueOnPage } from './screenplayFirstCueOnPage'
 
 function extractText(content: unknown[]): string {
   return (content as Array<{ text?: string }>).map((n) => n.text ?? '').join('').trim()
@@ -51,6 +52,7 @@ export function ScriptBlockNodeView({
   editor,
   getPos,
   updateAttributes,
+  decorations,
 }: ReactNodeViewProps) {
   const versions: BlockVersion[] = node.attrs.versions ?? []
   const activeVersionId: string | null = node.attrs.activeVersionId ?? null
@@ -164,7 +166,10 @@ export function ScriptBlockNodeView({
       onBlur={handleBlur}
     >
       {elementType === 'slugline' && <SceneOutlineButton node={node} />}
-      {elementType === 'character' && <CharacterHoverButton node={node} />}
+      {/* One button per speaker per page — later cues for the same character stay bare. */}
+      {elementType === 'character' && isFirstCueOnPage(decorations) && (
+        <CharacterHoverButton node={node} />
+      )}
 
       {versions.length > 0 && isEligible && (
         <Box

@@ -24,6 +24,7 @@ import {
   wholeLinesInSpan,
 } from './screenplayPaginationGeometry'
 import { normalizeCharacterCueName } from './ScreenplayExtension'
+import { firstCueOnPagePlugin } from './screenplayFirstCueOnPage'
 
 /* ── Title-page element types ──────────────────────────────────────────────── */
 
@@ -101,7 +102,7 @@ interface PageBreakMeta {
   decorations: DecorationSet
 }
 
-const pageBreakKey = new PluginKey<DecorationSet>('pageBreaks')
+export const pageBreakKey = new PluginKey<DecorationSet>('pageBreaks')
 
 /* ── Block metrics ─────────────────────────────────────────────────────────── */
 
@@ -1074,6 +1075,6 @@ export const PageBreakExtension = Extension.create({
       },
     })
 
-    return [plugin]
+    return [plugin, firstCueOnPagePlugin(pageBreakKey)]
   },
 })
