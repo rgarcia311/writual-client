@@ -7,6 +7,7 @@ import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
+import { DialogCloseButton } from '@/shared/DialogCloseButton';
 import Typography from '@mui/material/Typography';
 import type { Collaborator } from '@/interfaces/collaborator';
 import type { SharableScreenplayDocument } from '@hooks/useProjectSharing';
@@ -76,7 +77,12 @@ export function ManageAccessDialog({
       maxWidth="xs"
       fullWidth
     >
-      <DialogTitle sx={{ pb: 0.5 }}>Access for {personLabel}</DialogTitle>
+      <DialogCloseButton
+        onClose={onClose}
+        disabled={updateMutation.isPending}
+        label="Close access settings"
+      />
+      <DialogTitle sx={{ pb: 0.5, pr: 5 }}>Access for {personLabel}</DialogTitle>
       <DialogContent>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
           {collaborator.email}

@@ -16,6 +16,7 @@ import {
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddIcon from '@mui/icons-material/Add';
 import { ImageUploadField } from '../shared/ImageUploadField';
+import { DialogCloseButton } from '@/shared/DialogCloseButton';
 
 export interface OutlineStepInput {
   step_id?: string;
@@ -130,7 +131,8 @@ export function OutlineFrameworkForm({
       onClose={onClose}
       PaperProps={{ style: { backgroundColor: theme.palette.background.default } }}
     >
-      <DialogTitle sx={{ px: 3, pt: 2, pb: 0.5 }}>
+      <DialogCloseButton onClose={onClose} disabled={submitting} label="Close outline form" />
+      <DialogTitle sx={{ px: 3, pt: 2, pb: 0.5, pr: 5 }}>
         {initialData ? 'Edit outline framework' : 'Create outline framework'}
       </DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, px: 3, pt: 2, minHeight: 420 }}>

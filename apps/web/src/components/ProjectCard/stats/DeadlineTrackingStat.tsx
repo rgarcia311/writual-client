@@ -113,7 +113,7 @@ function DeadlineRow({
           variant="caption"
           sx={{
             fontWeight: isNext ? 700 : 600,
-            fontSize: compact ? TILE_VALUE_SIZE : undefined,
+            fontSize: TILE_VALUE_SIZE,
             lineHeight: 1.3,
             color: labelColor,
           }}
@@ -127,7 +127,7 @@ function DeadlineRow({
         </Typography>
         <Typography
           variant="caption"
-          sx={{ fontSize: compact ? TILE_META_SIZE : undefined, lineHeight: 1.25 }}
+          sx={{ fontSize: TILE_META_SIZE, lineHeight: 1.25 }}
         >
           <Box component="span" sx={{ color: 'text.secondary' }}>
             {formatWritingTrackerDueDateIso(dueDate)}
@@ -218,7 +218,7 @@ export function DeadlineTrackingStat({
         <Typography
           variant="caption"
           color="text.secondary"
-          sx={{ fontSize: compact ? TILE_META_SIZE : undefined }}
+          sx={{ fontSize: TILE_META_SIZE }}
         >
           {emptyNote}
         </Typography>
@@ -233,7 +233,7 @@ export function DeadlineTrackingStat({
     <StatTileStack compact={compact} heading={heading}>
       <Typography
         variant="caption"
-        sx={{ fontSize: compact ? TILE_LABEL_SIZE : undefined, lineHeight: 1.3 }}
+        sx={{ fontSize: TILE_LABEL_SIZE, lineHeight: 1.3 }}
       >
         <Box component="span" sx={{ fontWeight: 700 }}>
           {next ? 'Next up: ' : 'All drafts due: '}

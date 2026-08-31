@@ -4,6 +4,7 @@ import * as React from 'react';
 import Box from '@mui/material/Box';
 import { CreateProject } from '@/components/CreateProject';
 import { ProjectBreadcrumbBar } from '@/components/ProjectFloat/ProjectBreadcrumbBar';
+import { BreadcrumbDevelopmentProgress } from '@/components/ProjectFloat/BreadcrumbDevelopmentProgress';
 import { useProjectShellData } from '@/components/ProjectFloat/useProjectShellData';
 import { ProjectShellDataProvider } from '@/components/ProjectFloat/ProjectShellDataContext';
 
@@ -24,6 +25,9 @@ export function ScreenplayShell({ children, breadcrumbRightAdornment }: Screenpl
     projectTitle,
     projectHref,
     currentPageLabel,
+    progress,
+    writingTracker,
+    statTileData,
     updateDialogOpen,
     closeEdit,
     handleUpdateProject,
@@ -46,6 +50,13 @@ export function ScreenplayShell({ children, breadcrumbRightAdornment }: Screenpl
           projectTitle={projectTitle}
           projectHref={projectHref}
           currentPageLabel={currentPageLabel}
+          breadcrumbAdornment={
+            <BreadcrumbDevelopmentProgress
+              progress={progress}
+              tracker={writingTracker}
+              status={statTileData.writingTrackerStatus}
+            />
+          }
           rightAdornment={breadcrumbRightAdornment}
         />
 

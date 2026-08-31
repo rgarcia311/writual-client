@@ -119,6 +119,7 @@ export const Projects = () => {
             onDelete={isOwner && project._id ? () => deleteProjectMutation.mutate(project._id) : undefined}
             projectId={project._id}
             projectTypeLabel={project.type}
+            budget={project.budget}
             to={project._id ? `/project/${project._id}` : undefined}
             onEditClick={project._id ? () => setEditingProject(project) : undefined}
             hideBudgetAndSimilarProjects

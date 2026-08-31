@@ -18,6 +18,7 @@ import {
   useTheme,
 } from '@mui/material';
 import { RichTextField } from '@/components/RichTextField';
+import { DialogCloseButton } from '@/shared/DialogCloseButton';
 import {
   getNoteStatus,
   noteStatusFlags,
@@ -78,6 +79,11 @@ interface NewNoteFormProps {
   submitting?: boolean;
   /** When provided, the form opens pre-filled for editing an existing note. */
   initialValues?: NewNoteValues;
+  /**
+   * Overrides the heading/submit wording that `initialValues` otherwise implies — the scratch
+   * pad pre-fills the form but is still creating a new note.
+   */
+  mode?: 'create' | 'edit';
   /** Existing categories in the project, offered as autocomplete suggestions. */
   categoryOptions?: string[];
   /** Characters, scenes and inspiration items the note can be linked to. */
@@ -90,11 +96,12 @@ export function NewNoteForm({
   onSubmit,
   submitting = false,
   initialValues,
+  mode,
   categoryOptions = [],
   associationTargets = [],
 }: NewNoteFormProps) {
   const theme = useTheme();
-  const isEdit = Boolean(initialValues);
+  const isEdit = mode ? mode === 'edit' : Boolean(initialValues);
   const [values, setValues] = React.useState<NewNoteValues>(initialValues ?? BLANK_NOTE_VALUES);
   // Remounts the uncontrolled rich text editor when the dialog reopens with different content.
   const [editorKey, setEditorKey] = React.useState(0);
@@ -143,7 +150,8 @@ export function NewNoteForm({
       onClose={onCancel}
       PaperProps={{ style: { backgroundColor: theme.palette.background.default } }}
     >
-      <DialogTitle sx={{ paddingLeft: 4, paddingTop: 3 }}>
+      <DialogCloseButton onClose={onCancel} label="Close note form" />
+      <DialogTitle sx={{ paddingLeft: 4, paddingTop: 3, pr: 5 }}>
         {isEdit ? 'EDIT NOTE' : 'CREATE NOTE'}
       </DialogTitle>
       <DialogContent

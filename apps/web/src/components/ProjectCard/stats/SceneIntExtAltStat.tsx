@@ -5,7 +5,7 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import MovieFilterIcon from '@mui/icons-material/MovieFilter';
 import { alpha, useTheme } from '@mui/material/styles';
-import { StatTileStack, TileHeading, tileIconSx, tileRowGap } from './statTileParts';
+import { StatTileStack, TileHeading, TILE_MIN_SIZE, tileIconSx, tileRowGap } from './statTileParts';
 
 interface SceneHeadingRow {
   heading: string;
@@ -58,16 +58,16 @@ export function SceneIntExtAltStat({
         <Typography
           variant="caption"
           color="text.secondary"
-          sx={{ fontStyle: 'italic', fontSize: compact ? '0.65rem' : undefined }}
+          sx={{ fontStyle: 'italic', fontSize: TILE_MIN_SIZE }}
         >
           {emptyScreenplayMessage}
         </Typography>
       ) : (
         <>
-          <Typography variant="caption" color="text.secondary" sx={{ fontSize: compact ? '0.68rem' : undefined }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: TILE_MIN_SIZE }}>
             Total Scenes: {totalScenes}
           </Typography>
-          <Typography variant="caption" sx={{ fontWeight: 700, fontSize: compact ? '0.68rem' : undefined }}>
+          <Typography variant="caption" sx={{ fontWeight: 700, fontSize: TILE_MIN_SIZE }}>
             Slugline types:{' '}
             <Box component="span" sx={{ fontWeight: 600, color: 'text.secondary' }}>
               INT. ({Math.round(wInt)}) / EXT. ({Math.round(wExt)})
@@ -83,10 +83,10 @@ export function SceneIntExtAltStat({
                 gap: 1,
               }}
             >
-              <Typography variant="caption" sx={{ color: intColor, fontWeight: 700 }}>
+              <Typography variant="caption" sx={{ color: intColor, fontWeight: 700, fontSize: TILE_MIN_SIZE }}>
                 INT. ({Math.round(wInt)})
               </Typography>
-              <Typography variant="caption" sx={{ color: extColor, fontWeight: 700 }}>
+              <Typography variant="caption" sx={{ color: extColor, fontWeight: 700, fontSize: TILE_MIN_SIZE }}>
                 EXT. ({Math.round(wExt)})
               </Typography>
             </Box>
@@ -120,14 +120,14 @@ export function SceneIntExtAltStat({
             </Box>
           </Box>
 
-          <Typography variant="caption" sx={{ fontWeight: 700, fontSize: compact ? '0.68rem' : undefined }}>
+          <Typography variant="caption" sx={{ fontWeight: 700, fontSize: TILE_MIN_SIZE }}>
             Scenes with alts
           </Typography>
           {scenesWithAlts.length === 0 ? (
             <Typography
               variant="caption"
               color="text.secondary"
-              sx={{ fontStyle: 'italic', fontSize: compact ? '0.65rem' : undefined }}
+              sx={{ fontStyle: 'italic', fontSize: TILE_MIN_SIZE }}
             >
               No scenes contain block alternatives yet.
             </Typography>
@@ -159,7 +159,7 @@ export function SceneIntExtAltStat({
             </Box>
           )}
           {scenesWithAlts.length > altSlice && (
-            <Typography variant="caption" color="text.disabled" sx={{ fontSize: compact ? '0.62rem' : undefined }}>
+            <Typography variant="caption" color="text.disabled" sx={{ fontSize: TILE_MIN_SIZE }}>
               +{scenesWithAlts.length - altSlice} more
             </Typography>
           )}

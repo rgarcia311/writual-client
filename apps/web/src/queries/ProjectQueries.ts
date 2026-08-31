@@ -14,6 +14,7 @@ query GetProjectData($input: ProjectFilters) {
     email
     poster
     sharedWith
+    budget
     similarProjects
     stats {
       totalScenes

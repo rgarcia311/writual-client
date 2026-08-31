@@ -36,6 +36,7 @@ import {
   type ScreenplayImportResult,
 } from '@hooks/useScreenplayImport'
 import { ScreenplayPdfDropZone } from './ScreenplayPdfDropZone'
+import { DialogCloseButton } from '@/shared/DialogCloseButton'
 import {
   ScreenplayImportEntityPicker,
   type ImportEntityOption,
@@ -161,7 +162,8 @@ export function ScreenplayImportDialog({
 
   return (
     <Dialog open={open} onClose={isPending ? undefined : onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Import screenplay PDF</DialogTitle>
+      <DialogCloseButton onClose={onClose} disabled={isPending} label="Close screenplay import" />
+      <DialogTitle sx={{ pr: 5 }}>Import screenplay PDF</DialogTitle>
       <DialogContent dividers>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
           <ScreenplayPdfDropZone

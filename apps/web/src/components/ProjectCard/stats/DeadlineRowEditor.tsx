@@ -55,10 +55,10 @@ export function DeadlineRowEditor({
 
   const fieldSx = {
     '& .MuiInputBase-input': {
-      fontSize: compact ? TILE_META_SIZE : undefined,
+      fontSize: TILE_META_SIZE,
       py: compact ? 0.4 : 0.6,
     },
-    '& .MuiInputLabel-root': { fontSize: compact ? TILE_META_SIZE : undefined },
+    '& .MuiInputLabel-root': { fontSize: TILE_META_SIZE },
   } as const;
 
   const submit = () => {

@@ -51,7 +51,7 @@ export function LoglineHistoryPanel({
       }}
     >
       {errorMessage ? (
-        <Typography variant="caption" color="error.main" sx={{ fontSize: '0.68rem' }}>
+        <Typography variant="caption" color="error.main" sx={{ fontSize: dense ? '1rem' : '0.68rem' }}>
           {errorMessage}
         </Typography>
       ) : null}
@@ -60,14 +60,14 @@ export function LoglineHistoryPanel({
         <Box sx={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
           <Typography
             variant="subtitle2"
-            sx={{ fontWeight: 700, fontSize: dense ? '0.85rem' : '1rem', lineHeight: 1.3 }}
+            sx={{ fontWeight: 700, fontSize: '1rem', lineHeight: 1.3 }}
           >
             Current logline
           </Typography>
           <Typography
             variant="body2"
             sx={{
-              fontSize: dense ? '0.82rem' : '0.95rem',
+              fontSize: dense ? '1rem' : '0.95rem',
               lineHeight: 1.45,
               whiteSpace: 'pre-wrap',
               overflowWrap: 'anywhere',
@@ -82,7 +82,7 @@ export function LoglineHistoryPanel({
         <Typography
           variant="caption"
           color="text.secondary"
-          sx={{ fontStyle: 'italic', fontSize: dense ? '0.65rem' : '0.8rem' }}
+          sx={{ fontStyle: 'italic', fontSize: dense ? '1rem' : '0.8rem' }}
         >
           {access.canEdit
             ? 'No logline yet — write one below and keep iterating.'

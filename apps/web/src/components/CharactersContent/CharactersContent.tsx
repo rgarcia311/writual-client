@@ -9,6 +9,7 @@ import {
   DialogContentText,
   DialogTitle,
   Box,
+  Tooltip,
 } from '@mui/material';
 import { ProjectDetailsLayout } from '@/components/ProjectDetailsLayout';
 import { ScrollableContentArea } from '@/components/shared/ScrollableContentArea/ScrollableContentArea';
@@ -346,15 +347,20 @@ export function CharactersContent({ projectId }: CharactersContentProps) {
         </Button>
       ) : (
         <>
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<LockIcon />}
-            onClick={() => setLockAllConfirmOpen(true)}
-            disabled={lockAllCharactersMutation.isPending || totalCharacters === 0}
-          >
-            Lock All
-          </Button>
+          <Tooltip title="Lock every character at its current version and stop characters being added or deleted. Existing details can still be edited, and you can unlock the section at any time.">
+            {/* A disabled button fires no events, so the tooltip needs a wrapper that still does. */}
+            <span>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<LockIcon />}
+                onClick={() => setLockAllConfirmOpen(true)}
+                disabled={lockAllCharactersMutation.isPending || totalCharacters === 0}
+              >
+                Lock All
+              </Button>
+            </span>
+          </Tooltip>
           <FeatureGate minTier="indie">
             <Button
               variant="contained"

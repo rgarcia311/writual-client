@@ -22,6 +22,13 @@ interface RichTextFieldProps {
   label?: string;
   placeholder?: string;
   minHeight?: number | string;
+  /** Cap on the scrolling editor surface. Ignored when `fillHeight` is set. */
+  maxHeight?: number | string;
+  /**
+   * Let the editor grow to fill its parent instead of sitting at its natural height — for
+   * hosts that own the height themselves (the floating scratch pad).
+   */
+  fillHeight?: boolean;
   disabled?: boolean;
 }
 
@@ -52,6 +59,11 @@ const BLOCK_BUTTONS: Array<{ command: ToolbarCommand; label: string; Icon: typeo
 
 const HEADING_LEVEL = 3 as const;
 
+/** True when stored HTML carries visible text, so a remounted editor doesn't flash its placeholder. */
+function htmlHasText(html: string): boolean {
+  return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim().length > 0;
+}
+
 /**
  * Rich text input backed by Tiptap. Accepts pasted formatted text — Tiptap's clipboard
  * parser keeps the marks StarterKit knows about and drops everything else — and
@@ -63,8 +75,15 @@ export function RichTextField({
   label,
   placeholder,
   minHeight = 180,
+  maxHeight = 360,
+  fillHeight = false,
   disabled = false,
 }: RichTextFieldProps) {
+  // Seeded from the incoming value rather than from the editor: `useEditorState` returns null
+  // until the first transaction, so an editor mounted with content would otherwise show its
+  // placeholder over that content until the user clicked into it.
+  const [isEmpty, setIsEmpty] = React.useState(() => !htmlHasText(value || ''));
+
   const editor = useEditor({
     extensions: [StarterKit],
     content: value || '',
@@ -72,6 +91,7 @@ export function RichTextField({
     // Tiptap must not render during SSR, so `editor` is null on the first client render.
     immediatelyRender: false,
     onUpdate: ({ editor: instance }) => {
+      setIsEmpty(instance.isEmpty);
       onChange(instance.isEmpty ? '' : instance.getHTML());
     },
   });
@@ -138,10 +158,17 @@ export function RichTextField({
     </ToggleButtonGroup>
   );
 
-  const showPlaceholder = Boolean(placeholder) && (!editor || state?.isEmpty !== false);
+  const showPlaceholder = Boolean(placeholder) && (state ? state.isEmpty : isEmpty);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 0.5,
+        ...(fillHeight ? { flex: 1, minHeight: 0 } : null),
+      }}
+    >
       {label && (
         <Typography variant="caption" color="text.secondary">
           {label}
@@ -155,6 +182,7 @@ export function RichTextField({
           overflow: 'hidden',
           bgcolor: 'background.default',
           opacity: disabled ? 0.6 : 1,
+          ...(fillHeight ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : null),
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', p: 0.5 }}>
@@ -165,7 +193,15 @@ export function RichTextField({
         <Divider />
         <Box
           className="rich-text-field__surface"
-          sx={{ position: 'relative', minHeight, maxHeight: 360, overflowY: 'auto', px: 1.5, py: 1 }}
+          sx={{
+            position: 'relative',
+            minHeight: fillHeight ? 0 : minHeight,
+            maxHeight: fillHeight ? 'none' : maxHeight,
+            ...(fillHeight ? { flex: 1 } : null),
+            overflowY: 'auto',
+            px: 1.5,
+            py: 1,
+          }}
           onClick={() => editor?.chain().focus().run()}
         >
           {showPlaceholder && (

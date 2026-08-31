@@ -14,6 +14,7 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import CloseIcon from '@mui/icons-material/Close';
+import { DialogCloseButton } from '@/shared/DialogCloseButton';
 import type { Collaborator, InvitationInput, AspectKey, PermissionLevel } from '@/interfaces/collaborator';
 import { ALL_ASPECTS, ASPECT_LABELS } from '@/interfaces/collaborator';
 import { useProjectSharing } from '@hooks/useProjectSharing';
@@ -123,10 +124,8 @@ export function ShareProjectModal({ open, onClose, projectId, projectTitle, coll
         } as React.CSSProperties,
       }}
     >
-      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        Share "{projectTitle}"
-        <IconButton onClick={handleClose} size="small"><CloseIcon /></IconButton>
-      </DialogTitle>
+      <DialogCloseButton onClose={handleClose} label="Close share project form" />
+      <DialogTitle sx={{ pr: 5 }}>Share "{projectTitle}"</DialogTitle>
 
       <DialogContent dividers>
         {/* ── Section A: Current Collaborators ── */}

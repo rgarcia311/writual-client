@@ -7,6 +7,8 @@ import IconButton from '@mui/material/IconButton';
 import Link from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
 import MenuIcon from '@mui/icons-material/Menu';
+import { useParams } from 'next/navigation';
+import { ScratchPadLayer, ScratchPadTrigger } from '@/components/ScratchPad';
 import { projectStyles } from 'styles';
 import { MOBILE_MEDIA_QUERY } from '@/lib/breakpoints';
 import { useMobileNavStore } from '@/state/mobileNav';
@@ -15,6 +17,8 @@ export interface ProjectBreadcrumbBarProps {
   projectTitle: string;
   projectHref: string;
   currentPageLabel: string | null;
+  /** Sits immediately right of the crumbs — the development progress dots. */
+  breadcrumbAdornment?: React.ReactNode;
   rightAdornment?: React.ReactNode;
 }
 
@@ -22,9 +26,14 @@ export function ProjectBreadcrumbBar({
   projectTitle,
   projectHref,
   currentPageLabel,
+  breadcrumbAdornment,
   rightAdornment,
 }: ProjectBreadcrumbBarProps) {
   const toggleMobileNav = useMobileNavStore((s) => s.toggle);
+  // Every project page renders this bar, so hanging the scratch pad off it puts the pad on all
+  // of them without each route wiring it up.
+  const params = useParams<{ id?: string }>();
+  const projectId = params?.id;
 
   return (
     <Box
@@ -72,8 +81,8 @@ export function ProjectBreadcrumbBar({
           aria-label="breadcrumb"
           sx={{
             ...projectStyles.tableTopButtons,
+            flexShrink: 1,
             minWidth: 0,
-            width: '100%',
             height: 'auto',
             minHeight: 0,
             alignItems: 'center',
@@ -91,12 +100,18 @@ export function ProjectBreadcrumbBar({
             {currentPageLabel ?? projectTitle}
           </Typography>
         </Breadcrumbs>
+        {breadcrumbAdornment}
       </Box>
-      {rightAdornment ? (
-        <Box className="project-breadcrumb-actions" sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+      {projectId || rightAdornment ? (
+        <Box
+          className="project-breadcrumb-actions"
+          sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}
+        >
+          {projectId ? <ScratchPadTrigger projectId={projectId} /> : null}
           {rightAdornment}
         </Box>
       ) : null}
+      {projectId ? <ScratchPadLayer projectId={projectId} /> : null}
     </Box>
   );
 }
