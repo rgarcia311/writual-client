@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Autocomplete, Badge, Box, Button, Drawer, IconButton, Link as MuiLink, Paper, TextField, Tooltip } from "@mui/material";
 import { styled } from "@mui/system";
+import { alpha, type Theme } from '@mui/material/styles';
 import { useState } from "react";
 import AddIcon from '@mui/icons-material/Add';
 import { SettingsPopover } from '@/components/SettingsPopover';
@@ -78,6 +79,29 @@ function getProjectIdFromPathname(pathname: string | null): string | null {
   return null;
 }
 
+/**
+ * The section segment the current route is in — `outline` for `/project/abc123/outline`. Null on
+ * the project overview and away from a project, where no rail link is the page you are on.
+ */
+function getSectionSegmentFromPathname(pathname: string | null): string | null {
+  if (!pathname) return null;
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments[0] !== 'project' || !segments[1]) return null;
+  return segments[2] ?? null;
+}
+
+/**
+ * The tint marking the link for the page you are on. Primary rather than the neutral
+ * `action.selected` so it reads as the same accent the rail's link text already uses, and light
+ * enough that the label on top of it stays legible in both themes.
+ */
+const activeLinkSx = (theme: Theme) => ({
+  backgroundColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.22 : 0.12),
+  '&:hover': {
+    backgroundColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.3 : 0.18),
+  },
+});
+
 const SEARCH_MENU_ITEMS = ['Project', 'Scenes', 'Characters'];
 
 const SIDENAV_WIDTH_EXPANDED = 240;
@@ -115,6 +139,7 @@ interface SideNavComponentProps {
 export const SideNavComponent = (_props?: SideNavComponentProps) => {
   const pathname = usePathname();
   const projectId = getProjectIdFromPathname(pathname);
+  const activeSegment = getSectionSegmentFromPathname(pathname);
   const collapsed = useSideNavCollapsedStore((s) => s.collapsed);
   const toggleCollapsed = useSideNavCollapsedStore((s) => s.toggle);
   const [searchValue, setSearchValue] = React.useState<string[]>([]);
@@ -197,6 +222,7 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
           const href = linkHref(segment);
           // Chat is the only link with a count behind it; every other one renders unwrapped.
           const unreadCount = segment === 'chat' ? unreadChatCount : 0;
+          const isActive = segment === activeSegment;
           if (collapsed) {
             return (
               // Badge outside the tooltip, not inside: `Tooltip` attaches its ref to its direct
@@ -209,13 +235,15 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
                     color="primary"
                     size="small"
                     data-tour={`side-nav-${segment}`}
-                    sx={{
+                    aria-current={isActive ? 'page' : undefined}
+                    sx={(theme) => ({
                       minWidth: 32,
                       width: 32,
                       height: 32,
                       p: 0.5,
                       '& svg': { fontSize: 20 },
-                    }}
+                      ...(isActive ? activeLinkSx(theme) : null),
+                    })}
                   >
                     <Icon />
                   </IconButton>
@@ -232,14 +260,17 @@ export const SideNavComponent = (_props?: SideNavComponentProps) => {
                 color="primary"
                 startIcon={<Icon />}
                 data-tour={`side-nav-${segment}`}
-                sx={{
+                aria-current={isActive ? 'page' : undefined}
+                sx={(theme) => ({
                   justifyContent: 'flex-start',
                   minWidth: '200px',
                   borderRadius: '16px',
                   textTransform: 'capitalize',
                   fontSize: '1.125rem',
+                  fontWeight: isActive ? 700 : undefined,
                   '& .MuiButton-startIcon': { marginRight: '20px' },
-                }}
+                  ...(isActive ? activeLinkSx(theme) : null),
+                })}
               >
                 {label}
               </Button>

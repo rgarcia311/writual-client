@@ -14,8 +14,13 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { useTheme } from '@mui/material/styles';
 import { toTitleCase } from 'utils/stringFormatting';
-import { multiLineTruncate } from 'styles';
 import { ProjectStat } from '@/components/ProjectCard/ProjectStat';
+import {
+  TILE_LABEL_SIZE,
+  TILE_MIN_SIZE,
+  TILE_VALUE_SIZE,
+  tileRowGap,
+} from '@/components/ProjectCard/stats/statTileParts';
 import { ShareProjectModal } from '@/components/ShareProjectModal/ShareProjectModal';
 import { FloatingStatSurface } from './FloatingStatSurface';
 
@@ -23,8 +28,11 @@ export interface FloatingProjectInfoTileProps {
   title: string;
   author: string;
   genre: string;
-  logline: string;
   projectTypeLabel?: string;
+  /** Production budget, raw number (e.g. 1000000). */
+  budget?: number;
+  /** Outline framework the project follows, e.g. "Save the Cat". */
+  outlineName?: string;
   /** Era the story is set in, e.g. "1970s" or "Near future". */
   timePeriod?: string;
   /** Comparable titles from the project's "similar projects" field. */
@@ -37,45 +45,62 @@ export interface FloatingProjectInfoTileProps {
 
 /** Prompts shown in place of empty fields, so the tile reads the same shape either way. */
 const FIELD_PLACEHOLDERS = {
-  logline: 'e.g., A washed-up boxer gets one last shot at the title',
   genre: 'e.g., Drama, Horror, Comedy, Fantasy, SciFi',
   type: 'e.g., Feature, Television, Short, Play, Musical',
   timePeriod: 'e.g., 1970s, Present day, Near future',
+  budget: 'e.g., $1,500,000',
+  outlineName: 'e.g., Save the Cat, Hero\u2019s Journey',
   similarProjects: 'e.g., Chinatown, Fargo, Michael Clayton',
 } as const;
 
-interface InfoFieldRowProps {
+/** Budget as currency; blank for an unset or zero budget so the placeholder shows instead. */
+function formatBudget(budget?: number): string {
+  if (typeof budget !== 'number' || !Number.isFinite(budget) || budget <= 0) return '';
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(budget);
+}
+
+interface InfoFieldCellProps {
   label: string;
   value?: string | null;
   placeholder: string;
-  /** Clamp the row to this many lines (used for the logline). */
-  clampLines?: number;
 }
 
-/** One "Label: value" row that falls back to an italic placeholder when the field is empty. */
-function InfoFieldRow({ label, value, placeholder, clampLines }: InfoFieldRowProps) {
+/**
+ * One cell of the details grid: label over value, matching the Project Progress card's grid cells.
+ * An empty field falls back to an italic placeholder so the grid keeps its shape either way.
+ */
+function InfoFieldCell({ label, value, placeholder }: InfoFieldCellProps) {
   const text = (value ?? '').trim();
   const hasValue = text.length > 0;
 
   return (
-    <Tooltip title={label === 'Logline' && value}>
-       <Typography
-      variant="body2"
-      component="div"
-      sx={{ lineHeight: 1.45, ...(clampLines ? multiLineTruncate(clampLines) : {}) }}
-    >
-      <Box component="span" sx={{ fontWeight: 600 }}>
-        {label}:{' '}
-      </Box>
-      <Box
-        component="span"
-        sx={hasValue ? undefined : { fontStyle: 'italic', color: 'text.disabled' }}
+    <Box sx={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.15 }}>
+      <Typography
+        variant="caption"
+        sx={{ fontWeight: 700, fontSize: TILE_LABEL_SIZE, lineHeight: 1.25 }}
       >
-        {hasValue ? text : placeholder}
-      </Box>
-    </Typography>
-    </Tooltip>
-   
+        {label}
+      </Typography>
+      <Tooltip title={hasValue ? text : ''} enterDelay={300}>
+        <Typography
+          variant="caption"
+          component="div"
+          sx={{
+            fontWeight: 600,
+            fontSize: TILE_VALUE_SIZE,
+            lineHeight: 1.3,
+            minWidth: 0,
+            ...(hasValue ? undefined : { fontStyle: 'italic', color: 'text.disabled' }),
+          }}
+        >
+          {hasValue ? text : placeholder}
+        </Typography>
+      </Tooltip>
+    </Box>
   );
 }
 
@@ -83,8 +108,9 @@ export function FloatingProjectInfoTile({
   title,
   author,
   genre,
-  logline,
   projectTypeLabel,
+  budget,
+  outlineName,
   timePeriod,
   similarProjects,
   projectId,
@@ -114,7 +140,7 @@ export function FloatingProjectInfoTile({
   return (
     <FloatingStatSurface variant="info" className="project-float-info-tile">
       <ProjectStat floatSurface compact>
-        <Box sx={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+        <Box sx={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column' }}>
           {hasActions ? (
             <Box
               sx={{
@@ -199,7 +225,12 @@ export function FloatingProjectInfoTile({
                 {title}
               </Typography>
             </Tooltip>
-            <Typography variant="caption" color="text.secondary" display="block">
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              display="block"
+              sx={{ fontSize: TILE_MIN_SIZE }}
+            >
               by {toTitleCase(author)}
             </Typography>
           </Box>
@@ -208,35 +239,37 @@ export function FloatingProjectInfoTile({
             sx={{
               flex: 1,
               minHeight: 0,
+              mt: '5px',
               overflowY: 'auto',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: "space-evenly",
-              gap: 3,
-              '& .MuiTypography-root': { fontSize: '0.8rem' },
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+              alignContent: 'space-between',
+              columnGap: 1,
+              rowGap: tileRowGap(true),
             }}
           >
-            
-               <InfoFieldRow
-              label="Logline"
-              value={logline}
-              placeholder={FIELD_PLACEHOLDERS.logline}
-              clampLines={3}
-            />
-
-           
-            <InfoFieldRow label="Genre" value={genre} placeholder={FIELD_PLACEHOLDERS.genre} />
-            <InfoFieldRow
+            <InfoFieldCell label="Genre" value={genre} placeholder={FIELD_PLACEHOLDERS.genre} />
+            <InfoFieldCell
               label="Type"
               value={projectTypeLabel}
               placeholder={FIELD_PLACEHOLDERS.type}
             />
-            <InfoFieldRow
+            <InfoFieldCell
               label="Time period"
               value={timePeriod}
               placeholder={FIELD_PLACEHOLDERS.timePeriod}
             />
-            <InfoFieldRow
+            <InfoFieldCell
+              label="Budget"
+              value={formatBudget(budget)}
+              placeholder={FIELD_PLACEHOLDERS.budget}
+            />
+            <InfoFieldCell
+              label="Outline"
+              value={outlineName}
+              placeholder={FIELD_PLACEHOLDERS.outlineName}
+            />
+            <InfoFieldCell
               label="Similar projects"
               value={Array.isArray(similarProjects) ? similarProjects.join(', ') : ''}
               placeholder={FIELD_PLACEHOLDERS.similarProjects}

@@ -22,6 +22,7 @@ import {
   RENAME_SCREENPLAY_DOCUMENT,
 } from '@mutations/ScreenplayMutations'
 import { PROJECT_SCENES_QUERY_KEY } from '@hooks/useProjectSceneMutations'
+import { DialogCloseButton } from '@/shared/DialogCloseButton'
 import {
   SCREENPLAY_DOCUMENT_QUERY_KEY,
   SCREENPLAY_DOCUMENTS_QUERY_KEY,
@@ -134,7 +135,8 @@ export function ScreenplayDocumentActions({
       </Menu>
 
       <Dialog open={renameOpen} onClose={() => setRenameOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Rename screenplay</DialogTitle>
+        <DialogCloseButton onClose={() => setRenameOpen(false)} label="Close rename form" />
+        <DialogTitle sx={{ pr: 5 }}>Rename screenplay</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus

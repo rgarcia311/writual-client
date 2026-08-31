@@ -412,12 +412,32 @@ export async function lockAllCharactersForProject(
 }
 
 /**
- * Unlocks the characters section so characters can be added or deleted.
- * Does not change individual character lockedVersion values.
+ * Unlocks the characters section: clears every character's lockedVersion, drops
+ * stats.lockedCharacters to zero, and lets characters be added or deleted again.
+ *
+ * This is the exact inverse of `lockAllCharactersForProject`. Leaving the per-character locks in
+ * place would keep the development progress reading "complete" after the writer had unlocked the
+ * section, since progress counts locked characters rather than the section flag.
  */
 export async function unlockCharactersSection(projectId: string): Promise<void> {
-  await Projects.findByIdAndUpdate(toObjectId(projectId), {
-    $set: { modified_date: nowIso(), charactersSectionLocked: false },
+  const pid = toObjectId(projectId);
+  const project = await Projects.findById(pid).lean().exec();
+  if (!project) throw new Error("Project not found");
+
+  const order = (project as any).characterOrder ?? [];
+  if (order.length > 0) {
+    await Characters.updateMany(
+      { _id: { $in: order } },
+      { $set: { lockedVersion: null } }
+    ).exec();
+  }
+
+  await Projects.findByIdAndUpdate(pid, {
+    $set: {
+      modified_date: nowIso(),
+      charactersSectionLocked: false,
+      "stats.lockedCharacters": 0,
+    },
   }).exec();
 }
 

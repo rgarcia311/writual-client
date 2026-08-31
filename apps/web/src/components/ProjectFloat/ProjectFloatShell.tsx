@@ -4,6 +4,7 @@ import * as React from 'react';
 import Box from '@mui/material/Box';
 import { CreateProject } from '@/components/CreateProject';
 import { ProjectBreadcrumbBar } from './ProjectBreadcrumbBar';
+import { BreadcrumbDevelopmentProgress } from './BreadcrumbDevelopmentProgress';
 import { FloatingProjectHero } from './FloatingProjectHero';
 import { useProjectShellData } from './useProjectShellData';
 import { ProjectShellDataProvider } from './ProjectShellDataContext';
@@ -65,6 +66,9 @@ export function ProjectFloatShell({
     statPageKey,
     projectTitle,
     projectHref,
+    progress,
+    writingTracker,
+    statTileData,
     updateDialogOpen,
     openEdit,
     closeEdit,
@@ -159,6 +163,13 @@ export function ProjectFloatShell({
           projectTitle={projectTitle}
           projectHref={projectHref}
           currentPageLabel={currentPageLabel}
+          breadcrumbAdornment={
+            <BreadcrumbDevelopmentProgress
+              progress={progress}
+              tracker={writingTracker}
+              status={statTileData.writingTrackerStatus}
+            />
+          }
           rightAdornment={rightAdornment}
         />
 

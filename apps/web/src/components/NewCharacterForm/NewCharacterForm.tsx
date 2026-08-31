@@ -14,6 +14,7 @@ import {
 
 import { isValidImageUrl, getImageUrlForStorage } from '../../utils/imageUrl';
 import { ImageGalleryField } from '../shared/ImageGalleryField';
+import { DialogCloseButton } from '@/shared/DialogCloseButton';
 
 export interface NewCharacterValues {
   name: string;
@@ -92,7 +93,8 @@ export function NewCharacterForm({ open, onCancel, onSubmit, submitting = false,
       onClose={onCancel}
       PaperProps={{ style: { backgroundColor: theme.palette.background.default } }}
     >
-      <DialogTitle sx={{ paddingLeft: 4, paddingTop: 3 }}>{isEdit ? 'EDIT CHARACTER' : 'CREATE CHARACTER'}</DialogTitle>
+      <DialogCloseButton onClose={onCancel} label="Close character form" />
+      <DialogTitle sx={{ paddingLeft: 4, paddingTop: 3, pr: 5 }}>{isEdit ? 'EDIT CHARACTER' : 'CREATE CHARACTER'}</DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, padding: 4, overflow: 'visible', '& .MuiTextField-root': inputAutofillSx }}>
         <TextField
           label="Name"

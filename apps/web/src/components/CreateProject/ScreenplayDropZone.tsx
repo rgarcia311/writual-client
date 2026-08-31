@@ -36,6 +36,11 @@ interface ScreenplayDropZoneProps {
   ) => void
   onServerPdfReady?: (file: File) => void
   onCleared: () => void
+  /**
+   * Import options that only apply once a PDF is chosen. Rendered inside the success panel so the
+   * options read as part of the import rather than as unrelated project fields below it.
+   */
+  successAdornment?: React.ReactNode
 }
 
 function validatePdfFile(file: File): string | null {
@@ -53,6 +58,7 @@ export function ScreenplayDropZone({
   onParsed,
   onServerPdfReady,
   onCleared,
+  successAdornment,
 }: ScreenplayDropZoneProps) {
   const theme = useTheme()
   const fileInputRef = React.useRef<HTMLInputElement>(null)
@@ -153,7 +159,7 @@ export function ScreenplayDropZone({
       <Box
         sx={{
           display: 'flex',
-          alignItems: 'center',
+          flexDirection: 'column',
           gap: 1.5,
           px: 2,
           py: 1.5,
@@ -165,30 +171,32 @@ export function ScreenplayDropZone({
               : 'rgba(46, 125, 50, 0.04)',
         }}
       >
-        <CheckCircleIcon sx={{ color: 'success.main', fontSize: 20 }} />
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography
-            variant="body2"
-            fontWeight={600}
-            noWrap
-            title={state.fileName}
-          >
-            {state.fileName}
-          </Typography>
-          <Typography variant="caption" color="text.secondary" component="div">
-            {importMode === 'server' ? (
-              <>
-                PDF ready. Use &quot;Create Complete Writual Project&quot; below to import with characters and
-                scenes, or leave it off to import the screenplay only.
-              </>
-            ) : (
-              `${state.pageCount} page${state.pageCount !== 1 ? 's' : ''} parsed (screenplay only—no character or scene cards)`
-            )}
-          </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <CheckCircleIcon sx={{ color: 'success.main', fontSize: 20 }} />
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography
+              variant="body2"
+              fontWeight={600}
+              noWrap
+              title={state.fileName}
+            >
+              {state.fileName}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" component="div">
+              {importMode === 'server'
+                ? 'PDF ready. Choose how much of it to import below.'
+                : `${state.pageCount} page${state.pageCount !== 1 ? 's' : ''} parsed (screenplay only—no character or scene cards)`}
+            </Typography>
+          </Box>
+          <IconButton size="small" onClick={handleClear} aria-label="Remove imported screenplay">
+            <CloseIcon fontSize="small" />
+          </IconButton>
         </Box>
-        <IconButton size="small" onClick={handleClear} aria-label="Remove imported screenplay">
-          <CloseIcon fontSize="small" />
-        </IconButton>
+        {successAdornment ? (
+          <Box sx={{ borderTop: `1px solid ${theme.palette.divider}`, pt: 1.5 }}>
+            {successAdornment}
+          </Box>
+        ) : null}
       </Box>
     )
   }

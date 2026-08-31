@@ -16,7 +16,6 @@ import type {
   WritingTrackerStatus,
 } from '../../../utils/progress';
 import {
-  DevelopmentProgressDots,
   PagesProgressBar,
   StatGridCell,
   StatTileStack,
@@ -120,7 +119,7 @@ export function ProjectProgressStat({
         <Typography
           variant="caption"
           color="text.secondary"
-          sx={{ fontSize: compact ? TILE_META_SIZE : undefined }}
+          sx={{ fontSize: TILE_META_SIZE }}
         >
           Add progress tracking to set a page target and follow your pace.
         </Typography>
@@ -187,16 +186,6 @@ export function ProjectProgressStat({
           />
         </Box>
       </Box>
-
-      <DevelopmentProgressDots
-        progress={progress}
-        screenplayProgressRatio={
-          trackerEnabled && status.pageProgressPercent != null
-            ? status.pageProgressPercent / 100
-            : null
-        }
-        compact={compact}
-      />
     </StatTileStack>
   );
 }

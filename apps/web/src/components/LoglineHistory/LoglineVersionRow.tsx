@@ -92,7 +92,7 @@ export function LoglineVersionRow({
             <Typography
               variant="body2"
               sx={{
-                fontSize: dense ? '0.78rem' : '0.9rem',
+                fontSize: dense ? '1rem' : '0.9rem',
                 lineHeight: 1.45,
                 // The whole logline stays visible — it wraps rather than truncating.
                 whiteSpace: 'pre-wrap',
@@ -164,10 +164,10 @@ export function LoglineVersionRow({
             size="small"
             color="primary"
             variant="outlined"
-            sx={{ height: 18, '& .MuiChip-label': { px: 0.75, fontSize: '0.6rem' } }}
+            sx={{ height: dense ? 22 : 18, '& .MuiChip-label': { px: 0.75, fontSize: dense ? '1rem' : '0.6rem' } }}
           />
         ) : null}
-        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', minWidth: 0 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ fontSize: dense ? '1rem' : '0.65rem', minWidth: 0 }}>
           {byline}
         </Typography>
         {access.canComment ? (
@@ -210,7 +210,7 @@ export function LoglineVersionRow({
                     variant="caption"
                     sx={{
                       display: 'block',
-                      fontSize: dense ? '0.7rem' : '0.8rem',
+                      fontSize: dense ? '1rem' : '0.8rem',
                       lineHeight: 1.4,
                       whiteSpace: 'pre-wrap',
                       overflowWrap: 'anywhere',
@@ -218,7 +218,7 @@ export function LoglineVersionRow({
                   >
                     {note.text}
                   </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.6rem' }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: dense ? '1rem' : '0.6rem' }}>
                     {[note.authorName || 'Shared user', formatEntryDate(note.createdAt)]
                       .filter(Boolean)
                       .join(' · ')}

@@ -20,7 +20,12 @@ import {
   TextField,
   useTheme,
 } from '@mui/material';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOutlineFrameworksStore } from '@/state/outlineFrameworks';
+import { OutlineFrameworkForm, type OutlineFrameworkFormValues } from '@/components/OutlineFrameworkForm';
+import { CREATE_OUTLINE_FRAMEWORK } from '@mutations/OutlineMutations';
+import { authRequest } from '@/lib/authRequest';
+import { useUserProfileStore } from '@/state/user';
 import { ProjectType } from '@/enums/ProjectEnums';
 import { CreateProjectProps, WritingTracker } from '@/interfaces/project';
 
@@ -28,6 +33,7 @@ import { titleFromFilename } from '@/lib/parseScreenplayPdf';
 import type { ScreenplayLayoutConfig } from '@/lib/screenplayLayout';
 import { isValidImageUrl, getImageUrlForStorage } from '../../utils/imageUrl';
 import { ImageUploadField } from '../shared/ImageUploadField';
+import { DialogCloseButton } from '@/shared/DialogCloseButton';
 import { ScreenplayDropZone } from './ScreenplayDropZone';
 import { WritingTrackerSection, WritingTrackerFormState } from './WritingTrackerSection';
 
@@ -52,6 +58,12 @@ function isValidEmail(email: string): boolean {
   return EMAIL_REGEX.test(email.trim());
 }
 
+/**
+ * Sentinel value for the outline dropdown's trailing "Create Outline" row. It opens the framework
+ * form instead of selecting anything, so it is never written to `outlineName`.
+ */
+const CREATE_OUTLINE_OPTION = '__create_outline__';
+
 export const CreateProject: React.FC<CreateProjectProps> = ({
   setAddProject,
   handleAddProject,
@@ -60,6 +72,7 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
   screenplayImportMode = 'client',
 }) => {
   const frameworks = useOutlineFrameworksStore((state) => state.frameworks);
+  const queryClient = useQueryClient();
   const theme = useTheme();
   const isUpdate = Boolean(initialData && handleUpdateProject);
   const [formValues, setFormValues] = React.useState<Record<string, any>>({});
@@ -72,6 +85,7 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
   const [screenplayPdfFile, setScreenplayPdfFile] = React.useState<File | null>(null);
   const [createCompleteWritualProject, setCreateCompleteWritualProject] = React.useState(false);
   const [writingTracker, setWritingTracker] = React.useState<WritingTrackerFormState>(DEFAULT_TRACKER);
+  const [outlineFormOpen, setOutlineFormOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (!initialData) return;
@@ -144,7 +158,42 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
     }
   };
 
+  const createOutlineMutation = useMutation({
+    mutationFn: (variables: { input: Record<string, unknown> }) =>
+      authRequest(CREATE_OUTLINE_FRAMEWORK, variables),
+    onSuccess: async (_data, variables) => {
+      setOutlineFormOpen(false);
+      // Select what was just created so the writer does not have to reopen the dropdown.
+      const createdName = (variables.input.name as string) ?? '';
+      if (createdName) {
+        setFormValues((prev) => ({ ...prev, outlineName: createdName }));
+      }
+      await queryClient.invalidateQueries({ queryKey: ['outline-frameworks'] });
+    },
+  });
+
+  const handleOutlineFormSubmit = (values: OutlineFrameworkFormValues) => {
+    const user = useUserProfileStore.getState().userProfile?.user;
+    createOutlineMutation.mutate({
+      input: {
+        user,
+        name: values.formatName.trim(),
+        imageUrl: values.imageUrl.trim() || undefined,
+        format: {
+          name: values.formatName.trim(),
+          steps: values.steps.map((step) => ({
+            name: step.name,
+            number: step.number,
+            act: step.act,
+            instructions: step.instructions,
+          })),
+        },
+      },
+    });
+  };
+
   return (
+    <>
     <Dialog
       fullWidth
       open
@@ -162,13 +211,39 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
         } as React.CSSProperties,
       }}
     >
-      <DialogTitle sx={{ paddingLeft: 4, paddingTop: 3 }}>
+      <DialogCloseButton
+        onClose={() => setAddProject(false)}
+        label={isUpdate ? 'Close update project form' : 'Close create project form'}
+      />
+      <DialogTitle sx={{ paddingLeft: 4, paddingTop: 3, pr: 5 }}>
         {isUpdate ? 'Update Project' : 'CREATE PROJECT'}
       </DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, padding: 4 }}>
         {!isUpdate && (
           <ScreenplayDropZone
             importMode={screenplayImportMode}
+            successAdornment={
+              // Only meaningful for a chosen PDF, so it lives in the drop zone's success panel
+              // rather than floating among the project fields where it read as unrelated.
+              screenplayImportMode === 'server' && screenplayPdfFile ? (
+                <FormControl component="fieldset" variant="standard" fullWidth>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={createCompleteWritualProject}
+                        onChange={(_, v) => setCreateCompleteWritualProject(v)}
+                      />
+                    }
+                    label="Create Complete Writual Project"
+                  />
+                  <FormHelperText sx={{ ml: 0 }}>
+                    If this is off, only the screenplay is added to the project—no character or scene
+                    cards are created from the PDF. Turn it on to use AI to build a full project with
+                    characters and scenes.
+                  </FormHelperText>
+                </FormControl>
+              ) : null
+            }
             onParsed={(doc, pageCount, title, layout) => {
               setCreateCompleteWritualProject(false);
               setScreenplayPdfFile(null);
@@ -210,24 +285,6 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
               setScreenplayPdfFile(null);
             }}
           />
-        )}
-        {!isUpdate && screenplayImportMode === 'server' && (
-          <FormControl component="fieldset" variant="standard" fullWidth>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={createCompleteWritualProject}
-                  onChange={(_, v) => setCreateCompleteWritualProject(v)}
-                  disabled={!screenplayPdfFile}
-                />
-              }
-              label="Create Complete Writual Project"
-            />
-            <FormHelperText>
-              If this is off, only the screenplay is added to the project—no character or scene cards are created from
-              the PDF. Turn it on to use AI to build a full project with characters and scenes.
-            </FormHelperText>
-          </FormControl>
         )}
         <TextField
           required
@@ -331,19 +388,25 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
             <Select
               value={formValues.outlineName ?? ''}
               label="Outline"
-              onChange={(e) => updateForm(e as any, 'outlineName')}
+              onChange={(e) => {
+                const value = e.target.value as string;
+                // The trailing row is an action, not a choice: open the form and leave the
+                // current selection alone.
+                if (value === CREATE_OUTLINE_OPTION) {
+                  setOutlineFormOpen(true);
+                  return;
+                }
+                updateForm(e as any, 'outlineName');
+              }}
             >
-              {frameworks.length > 0 ? (
-                frameworks.map((fw) => (
-                  <MenuItem key={fw.id} value={fw.name}>
-                    {fw.name}
-                  </MenuItem>
-                ))
-              ) : (
-                <MenuItem value="">
-                  <em>Create Outline</em>
+              {frameworks.map((fw) => (
+                <MenuItem key={fw.id} value={fw.name}>
+                  {fw.name}
                 </MenuItem>
-              )}
+              ))}
+              <MenuItem value={CREATE_OUTLINE_OPTION}>
+                <em>Create New Outline</em>
+              </MenuItem>
             </Select>
           </FormControl>
         </Container>
@@ -419,5 +482,13 @@ export const CreateProject: React.FC<CreateProjectProps> = ({
         </Button>
       </DialogActions>
     </Dialog>
+    <OutlineFrameworkForm
+      open={outlineFormOpen}
+      onClose={() => setOutlineFormOpen(false)}
+      onSubmit={handleOutlineFormSubmit}
+      submitLabel="Create framework"
+      submitting={createOutlineMutation.isPending}
+    />
+    </>
   );
 };

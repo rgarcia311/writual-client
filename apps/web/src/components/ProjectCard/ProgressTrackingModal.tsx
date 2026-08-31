@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import type { WritingTracker } from '@/interfaces/project';
 import { WritingTrackerSection, WritingTrackerFormState } from '../CreateProject/WritingTrackerSection';
+import { DialogCloseButton } from '@/shared/DialogCloseButton';
 
 export interface SerializedTracker {
   enabled: true;
@@ -149,7 +150,8 @@ export function ProgressTrackingModal({
       onClose={isPending ? undefined : onClose}
       PaperProps={{ style: { backgroundColor: theme.palette.background.default } }}
     >
-      <DialogTitle sx={{ pb: 0.5 }}>
+      <DialogCloseButton onClose={onClose} disabled={isPending} label="Close progress tracking form" />
+      <DialogTitle sx={{ pb: 0.5, pr: 5 }}>
         {isEditing ? 'Add Deadline' : 'Add Progress Tracking'}
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
           {isEditing ? `${projectTitle} — edit a draft deadline or add another` : projectTitle}

@@ -31,6 +31,7 @@ import {
 import { useUserProfileStore } from '@/state/user'
 import { MOBILE_MEDIA_QUERY } from '@/lib/breakpoints'
 import { buildBlankDoc, buildTitlePageBlocks } from './screenplaySeedDoc'
+import { DialogCloseButton } from '@/shared/DialogCloseButton'
 
 /** Blank page, or a duplicate of a script the project already holds. */
 type NewScreenplayMode = 'blank' | 'copy'
@@ -201,7 +202,12 @@ export function NewScreenplayDocumentButton({
         maxWidth="xs"
         fullWidth
       >
-        <DialogTitle>Add a screenplay</DialogTitle>
+        <DialogCloseButton
+          onClose={() => setOpen(false)}
+          disabled={createMutation.isPending}
+          label="Close add screenplay form"
+        />
+        <DialogTitle sx={{ pr: 5 }}>Add a screenplay</DialogTitle>
         <DialogContent>
           <DialogContentText sx={{ mb: 1.5 }} variant="body2">
             The new screenplay gets its own tab here and on the characters and outline pages, so its

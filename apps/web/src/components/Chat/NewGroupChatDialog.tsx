@@ -7,6 +7,7 @@ import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
+import { DialogCloseButton } from '@/shared/DialogCloseButton';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
@@ -42,7 +43,8 @@ export function NewGroupChatDialog({ open, onClose, participants, onCreate }: Pr
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>New Group Chat</DialogTitle>
+      <DialogCloseButton onClose={onClose} label="Close new group chat form" />
+      <DialogTitle sx={{ pr: 5 }}>New Group Chat</DialogTitle>
       <DialogContent>
         <TextField
           label="Group name"

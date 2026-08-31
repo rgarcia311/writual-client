@@ -14,12 +14,18 @@ import type { ProgressItem } from '../../../utils/progress';
 
 /** Matches the Project Details card's title (`subtitle1`, 1rem) so every hero card reads alike. */
 export const TILE_HEADING_SIZE = '1rem';
-export const TILE_VALUE_SIZE = '0.78rem';
-export const TILE_LABEL_SIZE = '0.68rem';
-export const TILE_META_SIZE = '0.66rem';
+/**
+ * 12pt (16px) floor — nothing on a stat card prints smaller than this, compact or not. The tiles
+ * are a fixed height either way (`--project-float-hero-card-height`), so type that no longer fits
+ * scrolls inside the tile rather than growing the card.
+ */
+export const TILE_MIN_SIZE = '1rem';
+export const TILE_VALUE_SIZE = TILE_MIN_SIZE;
+export const TILE_LABEL_SIZE = TILE_MIN_SIZE;
+export const TILE_META_SIZE = TILE_MIN_SIZE;
 
-/** Slim bar — tall enough for the 0.78rem label, short enough not to dominate the tile. */
-export const PAGES_BAR_HEIGHT_PX = 18;
+/** Slim bar — tall enough for the 16px label, short enough not to dominate the tile. */
+export const PAGES_BAR_HEIGHT_PX = 22;
 
 /**
  * The tiles share one spacing rhythm so their rows line up with each other across a card row: the
@@ -127,7 +133,7 @@ export function TileHeading({
         variant="body2"
         sx={{
           fontWeight: 700,
-          fontSize: compact ? TILE_HEADING_SIZE : undefined,
+          fontSize: TILE_HEADING_SIZE,
           lineHeight: compact ? 1.25 : undefined,
         }}
       >
@@ -165,7 +171,7 @@ export function StatGridCell({
         variant="caption"
         sx={{
           fontWeight: 700,
-          fontSize: compact ? TILE_LABEL_SIZE : undefined,
+          fontSize: TILE_LABEL_SIZE,
           lineHeight: 1.25,
         }}
       >
@@ -177,7 +183,7 @@ export function StatGridCell({
           variant="caption"
           sx={{
             fontWeight: 600,
-            fontSize: compact ? TILE_VALUE_SIZE : undefined,
+            fontSize: TILE_VALUE_SIZE,
             lineHeight: 1.3,
             color: valueColor ?? 'text.primary',
             minWidth: 0,
@@ -190,7 +196,7 @@ export function StatGridCell({
         <Typography
           variant="caption"
           color="text.secondary"
-          sx={{ fontSize: compact ? TILE_META_SIZE : undefined, lineHeight: 1.25 }}
+          sx={{ fontSize: TILE_META_SIZE, lineHeight: 1.25 }}
         >
           {meta}
         </Typography>
@@ -199,7 +205,8 @@ export function StatGridCell({
   );
 }
 
-function ProgressMiniDot({
+/** One development-phase dot. Shared by the stat tile row and the breadcrumb-bar row. */
+export function ProgressMiniDot({
   status,
   fillRatio,
   compact,
@@ -250,74 +257,6 @@ function ProgressMiniDot({
 }
 
 /**
- * The labelled dot row. Spans the tile's full width: every item flexes and `min-width: auto`
- * (default) keeps each label on one line, so the row spreads edge to edge without truncating.
- * Wrapping is the fallback on a narrow tile — a second row beats a clipped label or a scrollbar.
- */
-export function DevelopmentProgressDots({
-  progress,
-  screenplayProgressRatio = null,
-  compact,
-}: {
-  progress: ProgressItem[];
-  /** 0–1 share of the target page count that is written; partially fills the Screenplay dot. */
-  screenplayProgressRatio?: number | null;
-  compact: boolean;
-}) {
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: compact ? 0.5 : 0.75 }}>
-      <Typography
-        variant="caption"
-        sx={{ fontWeight: 700, fontSize: compact ? TILE_VALUE_SIZE : undefined }}
-      >
-        Development Progress:
-      </Typography>
-      <Box
-        sx={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          justifyContent: 'space-between',
-          alignItems: 'flex-end',
-          columnGap: compact ? 0.35 : 1,
-          rowGap: compact ? 0.75 : 1,
-          width: '100%',
-        }}
-      >
-        {progress.map((item) => (
-          <Box
-            key={item.label}
-            sx={{
-              flex: '1 1 auto',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: compact ? 0.4 : 0.35,
-            }}
-          >
-            <ProgressMiniDot
-              status={item.status}
-              fillRatio={item.label === 'Screenplay' ? screenplayProgressRatio : null}
-              compact={compact}
-            />
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{
-                lineHeight: 1.2,
-                whiteSpace: 'nowrap',
-                fontSize: compact ? '0.7rem' : '0.72rem',
-              }}
-            >
-              {item.label}
-            </Typography>
-          </Box>
-        ))}
-      </Box>
-    </Box>
-  );
-}
-
-/**
  * Pages-against-target bar. The label is drawn twice — once over the track and once clipped to the
  * fill — so it stays centered on the bar and legible on both sides of the fill edge at any
  * percentage. The inner copy is widened back to the bar's width (100/pct) to keep the copies aligned.
@@ -347,7 +286,7 @@ export function PagesProgressBar({
     alignItems: 'center',
     justifyContent: 'center',
     fontWeight: 700,
-    fontSize: compact ? TILE_VALUE_SIZE : undefined,
+    fontSize: TILE_VALUE_SIZE,
     // The track clips its overflow, so the label rides a line box no taller than the bar.
     lineHeight: 1,
     whiteSpace: 'nowrap' as const,

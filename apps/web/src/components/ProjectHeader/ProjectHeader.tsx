@@ -6,6 +6,7 @@
 import * as React from 'react';
 import { ProjectBreadcrumbBar } from '@/components/ProjectFloat/ProjectBreadcrumbBar';
 import { useProjectShellData } from '@/components/ProjectFloat/useProjectShellData';
+import { BreadcrumbDevelopmentProgress } from '@/components/ProjectFloat/BreadcrumbDevelopmentProgress';
 import { CreateProject } from '@/components/CreateProject';
 
 export function ProjectHeader({
@@ -21,6 +22,9 @@ export function ProjectHeader({
     currentPageLabel,
     projectTitle,
     projectHref,
+    progress,
+    writingTracker,
+    statTileData,
     updateDialogOpen,
     closeEdit,
     handleUpdateProject,
@@ -32,6 +36,13 @@ export function ProjectHeader({
         projectTitle={projectTitle}
         projectHref={projectHref}
         currentPageLabel={currentPageLabel}
+        breadcrumbAdornment={
+          <BreadcrumbDevelopmentProgress
+            progress={progress}
+            tracker={writingTracker}
+            status={statTileData.writingTrackerStatus}
+          />
+        }
         rightAdornment={adornment}
       />
       {updateDialogOpen && (

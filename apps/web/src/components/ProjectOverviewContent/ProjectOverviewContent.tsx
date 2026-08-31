@@ -24,6 +24,7 @@ import { GRAPHQL_ENDPOINT } from '@/lib/config';
 import { useUserProfileStore } from '@/state/user';
 import type { Project } from '@/interfaces/project';
 import { addInspiration, deleteInspiration } from '../../app/actions/inspirations';
+import { DialogCloseButton } from '@/shared/DialogCloseButton';
 
 const endpoint = GRAPHQL_ENDPOINT;
 
@@ -182,7 +183,11 @@ export function ProjectOverviewContent({ projectId }: ProjectOverviewContentProp
           ))}
       </ScrollableContentArea>
       <Dialog open={inspirationFormOpen} onClose={() => setInspirationFormOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Add Inspiration</DialogTitle>
+        <DialogCloseButton
+          onClose={() => setInspirationFormOpen(false)}
+          label="Close add inspiration form"
+        />
+        <DialogTitle sx={{ pr: 5 }}>Add Inspiration</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>

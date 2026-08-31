@@ -5,7 +5,7 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Avatar from '@mui/material/Avatar';
 import GroupsIcon from '@mui/icons-material/Groups';
-import { StatTileStack, TileHeading, tileIconSx, tileRowGap } from './statTileParts';
+import { StatTileStack, TileHeading, TILE_MIN_SIZE, tileIconSx, tileRowGap } from './statTileParts';
 
 interface CharacterRankRow {
   name: string;
@@ -50,7 +50,7 @@ export function CharacterSceneCountStat({
         <Typography
           variant="caption"
           color="text.secondary"
-          sx={{ fontStyle: 'italic', fontSize: compact ? '0.65rem' : undefined }}
+          sx={{ fontStyle: 'italic', fontSize: TILE_MIN_SIZE }}
         >
           {emptyMessage}
         </Typography>
@@ -58,7 +58,7 @@ export function CharacterSceneCountStat({
         <>
           <Typography
             variant="caption"
-            sx={{ fontWeight: 700, color: 'text.primary', fontSize: compact ? '0.68rem' : undefined }}
+            sx={{ fontWeight: 700, color: 'text.primary', fontSize: TILE_MIN_SIZE }}
           >
             Top characters:
           </Typography>
@@ -88,7 +88,7 @@ export function CharacterSceneCountStat({
                 >
                   {initials(row.name)}
                 </Avatar>
-                <Typography variant="body2" sx={{ minWidth: 0, fontSize: compact ? '0.72rem' : undefined }}>
+                <Typography variant="body2" sx={{ minWidth: 0, fontSize: TILE_MIN_SIZE }}>
                   <Box component="span" sx={{ fontWeight: 700 }}>
                     {row.name}:
                   </Box>{' '}
@@ -101,7 +101,7 @@ export function CharacterSceneCountStat({
           </Box>
           <Typography
             variant="caption"
-            sx={{ fontWeight: 700, mt: 'auto', pt: compact ? 0.25 : 0.5, fontSize: compact ? '0.68rem' : undefined }}
+            sx={{ fontWeight: 700, mt: 'auto', pt: compact ? 0.25 : 0.5, fontSize: TILE_MIN_SIZE }}
           >
             Total Characters: {totalCharacters}
           </Typography>
