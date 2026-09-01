@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { isSceneHeadingText } from './ScreenplayExtension'
+import { isSceneHeadingText } from './screenplayElementDetection'
 
 describe('isSceneHeadingText', () => {
   it('matches standard INT./EXT. prefixes', () => {
