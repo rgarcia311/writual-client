@@ -10,6 +10,8 @@ import { useUserProfileStore } from '@/state/user'
 import { useScreenplayEditorStore } from '@/state/screenplayEditor'
 import { TIER_RANK } from '@/types/tier'
 import { ScriptBlockNodeView } from './ScriptBlockNodeView'
+import { isSceneHeadingText } from './screenplayElementDetection'
+import { screenplayPastePlugin } from './screenplayPastePlugin'
 
 // ─── Element Types ────────────────────────────────────────────────────────────
 
@@ -236,33 +238,10 @@ const contdPluginKey = new PluginKey('screenplayContd')
 // ─── Automatic Scene Heading Detection ───────────────────────────────────────
 
 /**
- * INT./EXT. prefix, including reversed and intercut forms (e.g. "INT./EXT.", "I/E.").
- * The trailing `(?:\s+|$)` accepts the prefix the instant it's typed (cursor right after the
- * period, before a location is typed) as well as once a space follows it.
+ * Re-exported from `screenplayElementDetection` (which holds the dependency-free element
+ * predicates shared with clipboard parsing) so existing importers keep their import path.
  */
-const SCENE_HEADING_PREFIX_RE =
-  /^(INT\.|EXT\.|INT\.?\s*\/\s*EXT\.|EXT\.?\s*\/\s*INT\.|I\/E\.?)(?:\s+|$)/i
-
-/** A dash followed by a time-of-day / temporal descriptor, e.g. "- DAY", "- CONTINUOUS". */
-const SCENE_HEADING_TIME_SUFFIX_RE =
-  /[-–—]\s*(DAY|NIGHT|MORNING|AFTERNOON|EVENING|DUSK|DAWN|SUNSET|SUNRISE|NOON|MIDNIGHT|CONTINUOUS|LATER|MOMENTS LATER|SAME TIME)\b/i
-
-/**
- * True if the line reads like a scene heading: an INT./EXT. (or intercut) prefix,
- * or a "- <time of day>" suffix anywhere in the line.
- *
- * Only strips leading whitespace — NOT trailing — because the prefix match depends on the
- * trailing space the user just typed (e.g. "INT. " must stay "INT. ", not collapse to "INT.",
- * or the boundary right after the prefix is lost and the very keystroke that should trigger
- * the conversion is swallowed).
- */
-export function isSceneHeadingText(text: string): boolean {
-  const leadingTrimmed = text.replace(/^\s+/, '')
-  if (!leadingTrimmed) return false
-  return (
-    SCENE_HEADING_PREFIX_RE.test(leadingTrimmed) || SCENE_HEADING_TIME_SUFFIX_RE.test(leadingTrimmed)
-  )
-}
+export { isSceneHeadingText }
 
 const sceneHeadingAutoFormatKey = new PluginKey('screenplaySceneHeadingAutoFormat')
 
@@ -829,6 +808,9 @@ export const ScriptBlock = Node.create({
 
   addProseMirrorPlugins() {
     return [
+      // Listed first so it sees a paste before any other handler: pasted script content has to be
+      // re-typed into real elements rather than dropped into the default Action block.
+      screenplayPastePlugin(),
       new Plugin({
         key: contdPluginKey,
         state: {
