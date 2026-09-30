@@ -5,6 +5,7 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Collaboration from '@tiptap/extension-collaboration'
 import { CollaborationCursor } from './CollaborationCursorExtension'
+import { CollabScrollLock } from './CollabScrollLockExtension'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { request } from 'graphql-request'
 import { authRequest } from '@/lib/authRequest'
@@ -65,6 +66,7 @@ import { useScreenplayDocumentsStore } from '@/state/screenplayDocuments'
 import { SCREENPLAY_DOCUMENT_QUERY } from '@/queries/ScreenplayQueries'
 import { useSyncWritingTrackerPageCount } from '@hooks/useSyncWritingTrackerPageCount'
 import { useScreenplaySnapshotPersistence } from '@hooks/useScreenplaySnapshotPersistence'
+import { useScreenplayReadingPosition } from '@hooks/useScreenplayReadingPosition'
 import { useScreenplayLocalCache } from '@hooks/useScreenplayLocalCache'
 import { useScreenplayContentPersistence } from '@hooks/useScreenplayContentPersistence'
 import { useScreenplayEndRevalidation } from '@hooks/useScreenplayEndRevalidation'
@@ -178,7 +180,7 @@ export const ELEMENT_ORDER: ScreenplayElementType[] = [
 
 /**
  * Keyboard shortcut hints shown in each toolbar toggle button tooltip.
- * ⌘/Ctrl+E then <n> sets element directly (tap ⌘/Ctrl+E to arm, then a bare digit within ~1.5s):
+ * ⌘/Ctrl+<n> sets the element at the cursor directly:
  *   1 Scene Heading · 2 Action · 3 Character · 4 Dialogue · 5 Parenthetical · 6 Transition.
  * Tab cycles from Action: ×1 Scene Heading · ×2 Character · ×3 Parenthetical · ×4 Dialogue · ×5 back to Action.
  * Enter: character→dialogue · parenthetical→dialogue · dialogue→action · slugline→action
@@ -187,12 +189,12 @@ export const ELEMENT_SHORTCUTS: Record<ScreenplayElementType, string> = {
   title:         'Enter → Author  ·  Title page',
   author:        'Enter → Contact',
   contact:       'Enter → Action',
-  slugline:      '⌘/Ctrl+E then 1  ·  Tab ×1 from Action',
-  action:        '⌘/Ctrl+E then 2  ·  Tab ×5 cycles back here  ·  Enter after Dialogue or Scene Heading',
-  character:     '⌘/Ctrl+E then 3  ·  Tab ×2 from Action',
-  dialogue:      '⌘/Ctrl+E then 4  ·  Tab ×4 from Action  ·  Enter after Character or Parenthetical',
-  parenthetical: '⌘/Ctrl+E then 5  ·  Tab ×3 from Action  ·  Enter after Character',
-  transition:    '⌘/Ctrl+E then 6  ·  Click to set  (not in Tab cycle)',
+  slugline:      '⌘/Ctrl+1  ·  Tab ×1 from Action',
+  action:        '⌘/Ctrl+2  ·  Tab ×5 cycles back here  ·  Enter after Dialogue or Scene Heading',
+  character:     '⌘/Ctrl+3  ·  Tab ×2 from Action',
+  dialogue:      '⌘/Ctrl+4  ·  Tab ×4 from Action  ·  Enter after Character or Parenthetical',
+  parenthetical: '⌘/Ctrl+5  ·  Tab ×3 from Action  ·  Enter after Character',
+  transition:    '⌘/Ctrl+6  ·  Click to set  (not in Tab cycle)',
 }
 
 // ─── Tooltip content component ────────────────────────────────────────────────
@@ -444,6 +446,14 @@ function ScreenplayEditorCore({
   const isAutoZoomedRef = React.useRef(false)
 
   const workspaceRef = React.useRef<HTMLDivElement | null>(null)
+  /**
+   * Arms `CollabScrollLock` once the reading-position restore has stopped steering the scroll.
+   *
+   * Declared up here rather than next to `restoreSettledRef` below because the extension list is
+   * built on the first render, before either the editor or that hook exists, and the lock has to
+   * capture this exact ref object.
+   */
+  const collabScrollLockArmedRef = React.useRef(false)
   /** Auto-fit measures this column, not the workspace: the workspace's own box is derived from
    *  `zoom`, so measuring it makes the fit self-referential (see `calcAutoFitZoom`). */
   const editorColRef = React.useRef<HTMLDivElement | null>(null)
@@ -743,6 +753,14 @@ function ScreenplayEditorCore({
           CollaborationCursor.configure({ provider }) as any,
         )
       }
+
+      /**
+       * Unconditional, unlike the cursors above: a reader without edit permission is exactly the
+       * person a cowriter's typing must not drag around the script.
+       */
+      base.push(
+        CollabScrollLock.configure({ armedRef: collabScrollLockArmedRef }) as any,
+      )
     }
 
     return base
@@ -777,19 +795,58 @@ function ScreenplayEditorCore({
   })
 
   /**
-   * Local paint cache: writes the window of pages around the reader's scroll position so the next
-   * refresh can show them immediately, restores that position once the real pages are paginated,
-   * and reports when the load curtain below can come down.
+   * Keyed per screenplay document: two documents in one project sit on different pages, so a shared
+   * key would restore one document's position — and repaint one document's pages — into the other.
+   */
+  const readingPositionKey = screenplaySnapshotKey(projectId, documentId)
+
+  /**
+   * Shared between the two hooks below, which each need something the other produces: the paint
+   * cache reports `paginationReady`, and the reading position reports back when it has finished
+   * steering the scroll. A ref carries the second direction without an ordering problem.
+   */
+  const restoreSettledRef = React.useRef(false)
+
+  /**
+   * Local paint cache: writes the window of pages around the page the reader is on so the next
+   * refresh can show them immediately, and reports when the load curtain below can come down.
    */
   const { paginationReady } = useScreenplaySnapshotPersistence({
-    // Keyed per screenplay document: two documents in one project paint different pages, so a
-    // shared key would restore one document's scroll position into the other.
-    projectId: screenplaySnapshotKey(projectId, documentId),
+    projectId: readingPositionKey,
     workspaceRef,
     pageRef,
     editorReady: editor != null,
     editor,
+    restoreSettledRef,
   })
+
+  /**
+   * Remember which page the reader is on, and put them back on it when they return. Runs after the
+   * snapshot hook because it needs that hook's `paginationReady`: before the sheets are laid out
+   * there is no page to be on, and scrolling to one would land in the unpaginated flow.
+   */
+  const { restoreSettled } = useScreenplayReadingPosition({
+    storageKey: readingPositionKey,
+    workspaceRef,
+    pageRef,
+    paginationReady,
+    editor,
+    restoreSettledRef,
+  })
+
+  /**
+   * Arm the collaborative scroll lock only once the restore has let go of the scroll.
+   *
+   * Before that the initial Yjs sync is still landing — one huge remote change, followed by the
+   * restore loop driving the workspace toward the stored page — and a lock armed through that
+   * would hold the reader on whatever page the document happened to open at.
+   */
+  React.useEffect(() => {
+    collabScrollLockArmedRef.current = restoreSettled
+    return () => {
+      collabScrollLockArmedRef.current = false
+    }
+  }, [restoreSettled])
 
   /**
    * Persist the script body itself, so the next visit can mount without a round trip. Gated on
@@ -1142,15 +1199,25 @@ function ScreenplayEditorCore({
           position: 'relative',
         }}
       >
-        {/* Cached pages stay on top until PageBreakPlugin has laid the real ones out, so the
-            document never appears mid-repagination. Not editable and never saved. */}
-        {!paginationReady && (
-          <ScreenplayInstantPreview
-            projectId={projectId}
-            documentId={documentId}
-            variant="absolute"
-          />
-        )}
+        {/* Cached pages stay on top until PageBreakPlugin has laid the real ones out AND the
+            reader has been scrolled back to the page they left on, so the document never appears
+            mid-repagination or on page one before jumping. Kept mounted and toggled with
+            `visible` rather than conditionally rendered, so it can cross-fade into the live editor
+            instead of vanishing between two frames. Not editable and never saved. */}
+        <ScreenplayInstantPreview
+          projectId={projectId}
+          documentId={documentId}
+          variant="absolute"
+          visible={!(paginationReady && restoreSettled)}
+          toolbar={
+            <ScreenplayDocumentToolbar
+              orientation="vertical"
+              collabActive={collabActive}
+              isSavingOrPending={isSavingOrPending}
+              showSaved={showSaved}
+            />
+          }
+        />
 
         {/* Fills remaining row width, centering the editor column */}
         <Box
