@@ -87,12 +87,8 @@ const ENTER_NEXT: Record<ScreenplayElementType, ScreenplayElementType> = {
 }
 
 /**
- * Digit set directly by the Mod-e leader chord (tap Mod-e, then a bare digit within
- * DIRECT_SET_LEADER_TIMEOUT_MS). Numbering matches the toolbar element ordering.
- *
- * A true 3-key hold (Mod+e+digit all held at once) isn't reliable: macOS suppresses keyup
- * events for keys held alongside Cmd in Chrome/Safari, so an "is e still down" flag can get
- * stuck. A sequential chord (release e, then tap the digit) sidesteps that entirely.
+ * Element set directly by Mod+<digit> (Cmd on macOS, Ctrl elsewhere).
+ * Numbering matches the toolbar element ordering.
  */
 const DIRECT_SET_DIGIT_TYPES: Record<string, ScreenplayElementType> = {
   '1': 'slugline',
@@ -103,7 +99,17 @@ const DIRECT_SET_DIGIT_TYPES: Record<string, ScreenplayElementType> = {
   '6': 'transition',
 }
 
-const DIRECT_SET_LEADER_TIMEOUT_MS = 1500
+/**
+ * Resolve the element a Mod+<digit> keystroke targets, or undefined for any other key.
+ *
+ * Reads `event.code` first so the physical 1–6 row (and the numpad) keeps working on layouts
+ * where holding Cmd/Ctrl reports a different `event.key`, falling back to `key` for layouts
+ * and synthetic events that report no `code`.
+ */
+function directSetTypeForEvent(event: KeyboardEvent): ScreenplayElementType | undefined {
+  const digit = /^(?:Digit|Numpad)([0-9])$/.exec(event.code)?.[1] ?? event.key
+  return DIRECT_SET_DIGIT_TYPES[digit]
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -127,7 +133,7 @@ function extractTextFromContent(content: unknown[]): string {
 }
 
 /**
- * Set the element type at the cursor for the Mod-e leader + digit direct shortcuts.
+ * Set the element type at the cursor for the Mod+<digit> direct shortcuts.
  * No-op (returns false, leaving the keystroke unhandled) when the editor is read-only
  * or the selection is not inside a scriptBlock.
  */
@@ -146,58 +152,44 @@ function setElementTypeShortcut(editor: Editor, type: ScreenplayElementType): bo
 }
 
 /**
- * Mod-e then <digit> — a sequential leader chord, not a 3-key hold (see DIRECT_SET_DIGIT_TYPES
- * for why). Implemented as raw `handleKeyDown` rather than addKeyboardShortcuts bindings because
- * it needs to disarm on whatever key comes next if that key isn't one of the digits — a
- * catch-all `addKeyboardShortcuts` can't express, since it only matches specific binding strings.
+ * Mod+1…6 → set the element at the cursor directly.
+ *
+ * Bound on `window` in the *capture* phase rather than through `addKeyboardShortcuts` or the
+ * view's own `handleKeyDown`: Cmd/Ctrl+<digit> is the browser's switch-to-tab-N shortcut, and
+ * preventing it means being the first page-level handler to see the keydown, before it bubbles
+ * anywhere else. `stopPropagation` also keeps it away from other app-level listeners.
+ *
+ * Only fires while the editor actually holds DOM focus, so Cmd+1 still switches tabs when the
+ * caret is anywhere else on the page, and the default is left alone when the cursor isn't in a
+ * scriptBlock (title-page fields, empty selection outside a block) — nothing to set there.
+ *
+ * Note: a handful of browsers reserve Cmd/Ctrl+<digit> at the chrome level (Safari's tab and
+ * bookmark shortcuts, notably) and never deliver the keydown to the page; there is no page-side
+ * fix for that — the toolbar buttons and Tab cycling remain the fallback.
  */
-function directSetLeaderPlugin(editor: Editor): Plugin {
-  let leaderArmed = false
-  let leaderTimeoutId: ReturnType<typeof setTimeout> | null = null
-
-  const disarm = () => {
-    leaderArmed = false
-    if (leaderTimeoutId) {
-      clearTimeout(leaderTimeoutId)
-      leaderTimeoutId = null
-    }
-  }
-
+function directSetShortcutPlugin(editor: Editor): Plugin {
   return new Plugin({
-    key: new PluginKey('screenplayDirectSetLeader'),
-    props: {
-      handleKeyDown(view, event) {
-        if (!view.editable) return false
-
+    key: new PluginKey('screenplayDirectSet'),
+    view(view) {
+      const onKeyDown = (event: KeyboardEvent) => {
         const modOnly = (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey
+        if (!modOnly) return
+        if (!view.editable || !view.hasFocus()) return
 
-        if (modOnly && event.key.toLowerCase() === 'e') {
-          leaderArmed = true
-          if (leaderTimeoutId) clearTimeout(leaderTimeoutId)
-          leaderTimeoutId = setTimeout(disarm, DIRECT_SET_LEADER_TIMEOUT_MS)
-          event.preventDefault()
-          return true
-        }
+        const type = directSetTypeForEvent(event)
+        if (!type) return
 
-        if (!leaderArmed) return false
+        if (!setElementTypeShortcut(editor, type)) return
 
-        const type = DIRECT_SET_DIGIT_TYPES[event.key]
-        const bareDigit = type && !event.metaKey && !event.ctrlKey && !event.altKey
+        event.preventDefault()
+        event.stopPropagation()
+      }
 
-        // Any key while armed consumes the arm — whether or not it's a valid digit — so a
-        // stray keystroke can't leave the leader lingering to ambush a later, unrelated one.
-        disarm()
-
-        if (!bareDigit) return false
-
-        const handled = setElementTypeShortcut(editor, type)
-        if (handled) event.preventDefault()
-        return handled
-      },
-    },
-    view() {
+      window.addEventListener('keydown', onKeyDown, true)
       return {
-        destroy: disarm,
+        destroy() {
+          window.removeEventListener('keydown', onKeyDown, true)
+        },
       }
     },
   })
@@ -714,9 +706,9 @@ export const ScriptBlock = Node.create({
         return this.editor.commands.setElementType(next)
       },
 
-      // Mod-e + <digit> (direct-set leader chord) is handled in addProseMirrorPlugins() below,
-      // via handleKeyDown rather than a keymap binding string — it needs to disarm on whatever
-      // key comes next if that key isn't a digit, which addKeyboardShortcuts can't express.
+      // Mod+<digit> (direct element set) is handled in addProseMirrorPlugins() below, via a
+      // capture-phase window listener rather than a keymap binding — it has to beat the
+      // browser's own switch-to-tab-N shortcut to the keystroke.
 
       /**
        * Enter → split the block, then set the new block to the correct
@@ -865,7 +857,7 @@ export const ScriptBlock = Node.create({
           },
         },
       }),
-      directSetLeaderPlugin(this.editor),
+      directSetShortcutPlugin(this.editor),
     ]
   },
 

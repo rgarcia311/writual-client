@@ -16,13 +16,17 @@
  * meant to remove.
  */
 
+import { SCREENPLAY_READING_WINDOW_RADIUS } from '@/components/ScreenplayEditor/screenplayPageGeometry'
 import { screenplayIdbTx, SNAPSHOT_STORE } from './screenplayIdb'
 
 /** Snapshots older than this are ignored on read (and dropped) — the document has moved on. */
 const SNAPSHOT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
 
-/** How many pages either side of the viewport get cached. */
-export const SNAPSHOT_PAGE_RADIUS = 5
+/**
+ * How many pages either side of the reader's page get cached. Aliases the shared reading-window
+ * radius so the pages this holds and the window `screenplayReadingPosition` records are one number.
+ */
+export const SNAPSHOT_PAGE_RADIUS = SCREENPLAY_READING_WINDOW_RADIUS
 
 /** Bounds the write size for pathological documents (very short blocks, huge page). */
 const SNAPSHOT_MAX_BLOCKS = 1200
@@ -55,6 +59,13 @@ export interface ScreenplaySnapshot {
   totalPages: number
   /** Body pages, title page excluded — seeds the toolbar count before pagination has run. */
   bodyPages: number
+  /**
+   * The sheet the reader was on, and the inclusive sheet range these blocks cover. Optional because
+   * entries written before pages were tracked have neither; they still paint from `blocks` alone.
+   */
+  sheet?: number
+  windowStart?: number
+  windowEnd?: number
   blocks: SnapshotBlock[]
 }
 

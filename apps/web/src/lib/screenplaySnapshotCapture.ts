@@ -1,21 +1,15 @@
 'use client'
 
 import {
-  SCREENPLAY_INTER_PAGE_GAP_PX,
-  SCREENPLAY_PAPER_HEIGHT_PX,
-} from '@/components/ScreenplayEditor/screenplayPaperLayout'
+  columnBoundsForPageWindow,
+  pageAnchorFromColumnY,
+  screenplayPageWindow,
+} from '@/components/ScreenplayEditor/screenplayPageGeometry'
 import {
   readScreenplayBodyPageCount,
   readScreenplayPaginationSheetTotal,
 } from '../utils/screenplayPaginationRead'
-import {
-  SNAPSHOT_PAGE_RADIUS,
-  type ScreenplaySnapshot,
-  type SnapshotBlock,
-} from './screenplaySnapshotCache'
-
-/** Distance from one sheet's top to the next: paper plus the visible inter-page gap. */
-const PAGE_PITCH_PX = SCREENPLAY_PAPER_HEIGHT_PX + SCREENPLAY_INTER_PAGE_GAP_PX
+import { type ScreenplaySnapshot, type SnapshotBlock } from './screenplaySnapshotCache'
 
 /**
  * Plain text of one script block, excluding the chrome ProseMirror renders alongside it.
@@ -42,8 +36,13 @@ export interface CaptureOpts {
 }
 
 /**
- * Reads the currently visible band of the paginated document — plus `SNAPSHOT_PAGE_RADIUS` pages
- * either side — into a snapshot for the local cache.
+ * Reads the page the reader is on — plus `SCREENPLAY_READING_WINDOW_RADIUS` pages either side —
+ * into a snapshot for the local cache.
+ *
+ * The window is cut on sheet boundaries rather than around the viewport, so what is cached is
+ * exactly the eleven pages the stored reading position claims are cached. A viewport-relative band
+ * would drift with the window height and could leave the recorded window promising pages the
+ * snapshot does not actually hold.
  *
  * All geometry is taken in *layout* space (pre-`transform: scale(zoom)`), which is what `offsetTop`
  * and `offsetHeight` already report, so a snapshot captured at one zoom replays correctly at
@@ -67,9 +66,10 @@ export function captureScreenplaySnapshot(opts: CaptureOpts): ScreenplaySnapshot
   const wsRect = workspaceEl.getBoundingClientRect()
   /** Layout-space y of the viewport's top edge within the ProseMirror column. */
   const viewTop = (wsRect.top - pmRect.top) / scale
-  const viewBottom = viewTop + workspaceEl.clientHeight / scale
-  const windowTop = viewTop - SNAPSHOT_PAGE_RADIUS * PAGE_PITCH_PX
-  const windowBottom = viewBottom + SNAPSHOT_PAGE_RADIUS * PAGE_PITCH_PX
+  const totalPages = readScreenplayPaginationSheetTotal(pageEl) ?? 1
+  const { sheet } = pageAnchorFromColumnY(viewTop, totalPages)
+  const pageWindow = screenplayPageWindow(sheet, totalPages)
+  const { top: windowTop, bottom: windowBottom } = columnBoundsForPageWindow(pageWindow)
 
   const blocks: SnapshotBlock[] = []
   for (const child of Array.from(pmEl.children) as HTMLElement[]) {
@@ -100,8 +100,11 @@ export function captureScreenplaySnapshot(opts: CaptureOpts): ScreenplaySnapshot
     scrollTopLayoutPx: workspaceEl.scrollTop / scale,
     zoom: scale,
     documentHeightPx: pmEl.offsetHeight,
-    totalPages: readScreenplayPaginationSheetTotal(pageEl) ?? 1,
+    totalPages,
     bodyPages: readScreenplayBodyPageCount(pageEl) ?? 0,
+    sheet,
+    windowStart: pageWindow.start,
+    windowEnd: pageWindow.end,
     blocks,
   }
 }
